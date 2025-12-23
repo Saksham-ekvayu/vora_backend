@@ -27,7 +27,10 @@ const createUserByAdmin = async (req, res) => {
       if (existingPhone) {
         return res
           .status(400)
-          .json({ success: false, message: "Phone number already in use" });
+          .json({
+            success: false,
+            message: "User with this phone number already exists",
+          });
       }
     }
 

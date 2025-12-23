@@ -7,6 +7,7 @@ const handleValidationErrors = (req, res, next) => {
     // Return the first validation error message
     const firstError = errors.array()[0];
     return res.status(400).json({
+      success: false,
       message: firstError.msg,
       field: firstError.path,
       value: firstError.value,

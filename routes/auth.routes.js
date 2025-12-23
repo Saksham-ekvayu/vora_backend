@@ -14,14 +14,15 @@ const {
   loginValidation,
   forgotPasswordValidation,
   resetPasswordValidation,
+  resendOtpValidation,
 } = require("../middlewares/validation");
 
 const router = express.Router();
 
-// Public routes
+// Public routes - validation middleware runs BEFORE controller
 router.post("/register", registerValidation, register);
 router.post("/verify-otp", otpValidation, verifyOTP);
-router.post("/resend-otp", otpValidation, resendOTP);
+router.post("/resend-otp", resendOtpValidation, resendOTP);
 router.post("/login", loginValidation, login);
 router.post("/forgot-password", forgotPasswordValidation, forgotPassword);
 router.post("/verify-forgot-otp", otpValidation, verifyForgotPasswordOTP);

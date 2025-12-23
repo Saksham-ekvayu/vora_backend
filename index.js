@@ -1,17 +1,37 @@
 const express = require("express");
+const cors = require("cors");
 const { bgRed, bgYellow, bgBlue, bgMagenta } = require("colorette");
 const dotenv = require("dotenv");
+const path = require("path");
 const { connectDB, disconnectDB } = require("./database/database");
 
+// Import routes
+const authRoutes = require("./routes/auth.routes");
+const userRoutes = require("./routes/user.route");
+
+// Load environment variables
 dotenv.config();
 
 const PORT = process.env.PORT;
 const MONGODB_URI = process.env.MONGODB_URI;
 
+// Create Express app
 const app = express();
-app.use(express.json());
 
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, "public")));
+
+// Home page path
 app.get("/", (req, res) => res.send("Wellcome to Cypher Sentinel API 🥳"));
+
+// Use routes
+app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
 
 let server;
 

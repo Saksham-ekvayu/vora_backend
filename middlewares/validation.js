@@ -74,9 +74,45 @@ const profileUpdateValidation = [
     .withMessage("Please enter a valid phone number"),
 ];
 
+const forgotPasswordValidation = [
+  body("email")
+    .trim()
+    .notEmpty()
+    .withMessage("Email is required")
+    .isEmail()
+    .withMessage("Please enter a valid email"),
+];
+
+const resetPasswordValidation = [
+  body("email")
+    .trim()
+    .notEmpty()
+    .withMessage("Email is required")
+    .isEmail()
+    .withMessage("Please enter a valid email"),
+  body("otp")
+    .trim()
+    .notEmpty()
+    .withMessage("OTP is required")
+    .isLength({ min: 6, max: 6 })
+    .withMessage("OTP must be 6 digits")
+    .isNumeric()
+    .withMessage("OTP must contain only numbers"),
+  body("password")
+    .trim()
+    .notEmpty()
+    .withMessage("Password is required")
+    .isLength({ min: 6 })
+    .withMessage("Password must be at least 6 characters long")
+    .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]/)
+    .withMessage("Password must contain at least one letter and one number"),
+];
+
 module.exports = {
   registerValidation,
   loginValidation,
   otpValidation,
   profileUpdateValidation,
+  forgotPasswordValidation,
+  resetPasswordValidation
 };

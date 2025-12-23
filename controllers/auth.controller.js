@@ -187,9 +187,134 @@ const login = async (req, res) => {
   }
 };
 
+const forgotPassword = async (req, res) => {
+  try {
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      const errorMessages = errors.array().map((error) => error.msg);
+      return res.status(400).json({ message: errorMessages[0] });
+    }
+
+    const { email } = req.body;
+
+    // Find user
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
+
+    // Generate OTP for password reset
+    const otp = generateOTP();
+    const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    // Save OTP to user
+    user.otp = {
+      code: otp,
+      expiresAt: otpExpiry,
+      purpose: "password_reset",
+    };
+    await user.save();
+
+    // Send OTP email
+    const emailSent = await sendOTPEmail(email, otp);
+    if (!emailSent) {
+      return res.status(500).json({ message: "Error sending OTP email" });
+    }
+
+    res.json({ message: "Password reset OTP sent to your email" });
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const verifyForgotPasswordOTP = async (req, res) => {
+  try {
+    // Validate input
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      const errorMessages = errors.array().map((error) => error.msg);
+      return res.status(400).json({ message: errorMessages[0] });
+    }
+
+    const { email, otp } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: "User not found" });
+
+    if (!user.otp || !user.otp.code || !user.otp.expiresAt)
+      return res.status(400).json({ message: "No OTP found" });
+
+    // Ensure OTP was issued for password reset (if purpose stored)
+    if (user.otp.purpose && user.otp.purpose !== "password_reset")
+      return res.status(400).json({ message: "Invalid OTP purpose" });
+
+    if (user.otp.expiresAt < new Date())
+      return res.status(400).json({ message: "OTP has expired" });
+
+    if (user.otp.code !== otp)
+      return res.status(400).json({ message: "Invalid OTP" });
+
+    // Mark OTP as verified for reset (so client can proceed to reset)
+    user.otp.verified = true;
+    await user.save();
+
+    res.json({ message: "OTP verified. You can now reset your password." });
+  } catch (error) {
+    console.error("Verify forgot-password OTP error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Reset password using OTP
+const resetPassword = async (req, res) => {
+  try {
+    // Validate input
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      const errorMessages = errors.array().map((error) => error.msg);
+      return res.status(400).json({ message: errorMessages[0] });
+    }
+
+    const { email, otp, password } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: "User not found" });
+
+    if (!user.otp || !user.otp.code || !user.otp.expiresAt)
+      return res.status(400).json({ message: "No OTP found" });
+
+    if (user.otp.purpose && user.otp.purpose !== "password_reset")
+      return res.status(400).json({ message: "Invalid OTP purpose" });
+
+    if (user.otp.expiresAt < new Date())
+      return res.status(400).json({ message: "OTP has expired" });
+
+    if (user.otp.code !== otp)
+      return res.status(400).json({ message: "Invalid OTP" });
+
+    // Set new password (assumes User model hashes password on save)
+    user.password = password;
+    user.otp = undefined;
+    await user.save();
+
+    res.json({
+      message:
+        "Password reset successful. Please login with your new password.",
+    });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 module.exports = {
   register,
   verifyOTP,
   resendOTP,
   login,
+  forgotPassword,
+  verifyForgotPasswordOTP,
+  resetPassword,
 };

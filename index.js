@@ -3,11 +3,11 @@ const cors = require("cors");
 const { bgRed, bgYellow, bgBlue, bgMagenta } = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
-const { connectDB, disconnectDB } = require("./database/database");
+const { connectDB, disconnectDB } = require("./src/database/database");
 
 // Import routes
-const authRoutes = require("./routes/auth.routes");
-const userRoutes = require("./routes/user.route");
+const authRoutes = require("./src/routes/auth.routes");
+const userRoutes = require("./src/routes/user.route");
 
 // Load environment variables
 dotenv.config();

@@ -1,6 +1,4 @@
-const { validationResult } = require("express-validator");
 const User = require("../models/user.model");
-const { generateTempPassword } = require("../helpers/helper");
 
 // Create user by admin
 const createUserByAdmin = async (req, res) => {
@@ -8,6 +6,7 @@ const createUserByAdmin = async (req, res) => {
     // only admins can create users
     if (!req.user || req.user.role !== "admin") {
       return res.status(403).json({
+        success: false,
         message: "Forbidden: admin access required to perform this action.",
       });
     }
@@ -17,14 +16,18 @@ const createUserByAdmin = async (req, res) => {
     // check email uniqueness
     const existing = await User.findOne({ email });
     if (existing) {
-      return res.status(400).json({ message: "Email already exists" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Email already exists" });
     }
 
     // if phone provided, ensure uniqueness
     if (phone) {
       const existingPhone = await User.findOne({ phone });
       if (existingPhone) {
-        return res.status(400).json({ message: "Phone number already in use" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Phone number already in use" });
       }
     }
 
@@ -56,7 +59,7 @@ const createUserByAdmin = async (req, res) => {
     });
   } catch (error) {
     console.error("Create user by admin error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -66,6 +69,7 @@ const getAllUsers = async (req, res) => {
     // only admins can fetch all users
     if (!req.user || req.user.role !== "admin") {
       return res.status(403).json({
+        success: false,
         message: "Forbidden: only admin can access.",
       });
     }
@@ -88,7 +92,7 @@ const getAllUsers = async (req, res) => {
     });
   } catch (error) {
     console.error("Get all users error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -99,7 +103,9 @@ const getUserById = async (req, res) => {
 
     const user = await User.findById(id).select("-password -otp");
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     res.json({
@@ -115,7 +121,7 @@ const getUserById = async (req, res) => {
     });
   } catch (error) {
     console.error("Get user error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -124,6 +130,7 @@ const deleteUser = async (req, res) => {
   try {
     if (!req.user || req.user.role !== "admin") {
       return res.status(403).json({
+        success: false,
         message: "Forbidden: only admin can access.",
       });
     }
@@ -131,26 +138,22 @@ const deleteUser = async (req, res) => {
     const { id } = req.params;
     const user = await User.findById(id);
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     await User.findByIdAndDelete(id);
     res.json({ success: true, message: "User deleted successfully" });
   } catch (error) {
     console.error("Delete user error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
 // Edit user profile (for logged-in user)
 const editProfile = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      const errorMessages = errors.array().map((error) => error.msg);
-      return res.status(400).json({ message: errorMessages[0] });
-    }
-
     const { name, email, phone } = req.body;
     const userId = req.user._id;
 
@@ -158,7 +161,9 @@ const editProfile = async (req, res) => {
     if (email && email !== req.user.email) {
       const existingUser = await User.findOne({ email });
       if (existingUser) {
-        return res.status(400).json({ message: "Email already exists" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Email already exists" });
       }
     }
 
@@ -184,7 +189,7 @@ const editProfile = async (req, res) => {
     });
   } catch (error) {
     console.error("Profile update error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 

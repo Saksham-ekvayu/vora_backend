@@ -1,4 +1,5 @@
 const User = require("../models/user.model");
+const { generateTempPassword, paginate } = require("../helpers/helper");
 
 // Create user by admin
 const createUserByAdmin = async (req, res) => {
@@ -25,12 +26,10 @@ const createUserByAdmin = async (req, res) => {
     if (phone) {
       const existingPhone = await User.findOne({ phone });
       if (existingPhone) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "User with this phone number already exists",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "User with this phone number already exists",
+        });
       }
     }
 
@@ -77,21 +76,26 @@ const getAllUsers = async (req, res) => {
       });
     }
 
-    const users = await User.find().select("-password -otp");
-    const payload = users.map((user) => ({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      isEmailVerified: user.isEmailVerified,
-      createdAt: user.createdAt,
-    }));
+    // Use common pagination helper
+    const result = await paginate(User, {
+      page: req.query.page,
+      limit: 10, // Fixed limit of 10 users per page
+      transform: (user) => ({
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        isEmailVerified: user.isEmailVerified,
+        createdAt: user.createdAt,
+      }),
+    });
 
     res.json({
       success: true,
-      message: "User list retrieved successfully ",
-      users: payload,
+      message: "User list retrieved successfully",
+      users: result.data,
+      pagination: result.pagination,
     });
   } catch (error) {
     console.error("Get all users error:", error);

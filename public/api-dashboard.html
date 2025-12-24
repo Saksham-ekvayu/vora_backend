@@ -738,6 +738,7 @@
                     <input type="text" id="global-token" placeholder="Paste your Bearer token here..."
                         class="global-token-input">
                     <button class="token-btn save-token" onclick="saveGlobalToken()">💾 Save Token</button>
+                    <button class="token-btn copy-saved-token" onclick="copySavedToken()">� Caopy Saved</button>
                     <button class="token-btn clear-token" onclick="clearGlobalToken()">🗑️ Clear Token</button>
                 </div>
                 <div class="token-status" id="token-status">
@@ -1010,6 +1011,12 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        // Copy endpoint function
+        async function copyEndpoint(path, button) {
+            const success = await copyToClipboard(path);
+            showCopyFeedback(button, success);
         }
 
         // Copy code block content
@@ -1404,24 +1411,18 @@
             // Save to localStorage
             localStorage.setItem('apiDashboardToken', token);
 
-            // Update all existing auth token fields
-            updateAllAuthFields(token);
-
             // Update status
             updateTokenStatus(token);
 
             // Clear the input
             tokenInput.value = '';
 
-            console.log('✅ Token saved and applied to all API fields');
+            console.log('✅ Token saved globally');
         }
 
         function clearGlobalToken() {
             // Remove from localStorage
             localStorage.removeItem('apiDashboardToken');
-
-            // Clear all auth token fields
-            updateAllAuthFields('');
 
             // Update status
             updateTokenStatus('');
@@ -1429,7 +1430,23 @@
             // Clear the input
             document.getElementById('global-token').value = '';
 
-            console.log('🗑️ Token cleared from all fields');
+            console.log('🗑️ Global token cleared');
+        }
+
+        function copySavedToken() {
+            const savedToken = localStorage.getItem('apiDashboardToken');
+            if (!savedToken) {
+                alert('No token saved to copy');
+                return;
+            }
+
+            copyToClipboard(savedToken).then(success => {
+                if (success) {
+                    showTokenNotification('📋 Token copied to clipboard!');
+                } else {
+                    alert('Failed to copy token');
+                }
+            });
         }
 
         function loadGlobalToken() {

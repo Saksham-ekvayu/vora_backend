@@ -1254,7 +1254,37 @@
         }
 
         // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', loadApis);
+        document.addEventListener('DOMContentLoaded', () => {
+            loadApis();
+            restoreScrollPosition();
+        });
+
+        // Save scroll position before page unload
+        window.addEventListener('beforeunload', saveScrollPosition);
+
+        // Save scroll position periodically while scrolling
+        let scrollTimeout;
+        window.addEventListener('scroll', () => {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(saveScrollPosition, 100);
+        });
+
+        // Save current scroll position to localStorage
+        function saveScrollPosition() {
+            const scrollY = window.scrollY || document.documentElement.scrollTop;
+            localStorage.setItem('apiDashboardScrollPosition', scrollY);
+        }
+
+        // Restore scroll position from localStorage
+        function restoreScrollPosition() {
+            const savedScrollPosition = localStorage.getItem('apiDashboardScrollPosition');
+            if (savedScrollPosition) {
+                // Small delay to ensure content is loaded
+                setTimeout(() => {
+                    window.scrollTo(0, parseInt(savedScrollPosition));
+                }, 100);
+            }
+        }
     </script>
 </body>
 

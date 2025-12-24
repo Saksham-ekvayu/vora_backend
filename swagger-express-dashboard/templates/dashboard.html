@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}} | API Documentation</title>
+    <link rel="stylesheet" href="{{BASE_PATH}}/assets/dashboard.css">
+    <style id="custom-styles">
+        /* Custom CSS will be injected here */
+    </style>
+</head>
+
+<body data-theme="{{THEME}}">
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <div class="header-content">
+                    <h1 class="title">⚡ {{TITLE}} ⚡</h1>
+                    <p class="subtitle">{{DESCRIPTION}}</p>
+                    <div class="version">Version: {{VERSION}}</div>
+                </div>
+                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
+                    <span class="theme-icon">🌙</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-number" id="total-apis">0</div>
+                <div class="stat-label">Total APIs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="get-count">0</div>
+                <div class="stat-label">GET</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="post-count">0</div>
+                <div class="stat-label">POST</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="put-count">0</div>
+                <div class="stat-label">PUT</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="delete-count">0</div>
+                <div class="stat-label">DELETE</div>
+            </div>
+        </div>
+
+        <!-- Global Token Management -->
+        <div class="token-manager collapsed" id="token-manager">
+            <div class="token-header" onclick="toggleTokenManager()">
+                <div class="token-header-content">
+                    <span class="token-icon">🔐</span>
+                    <span class="token-title">Authentication Token</span>
+                    <div class="token-status-mini" id="token-status-mini">
+                        <span class="status-indicator">❌</span>
+                        <span class="status-text-mini">No token</span>
+                    </div>
+                </div>
+                <div class="dropdown-arrow" id="token-arrow">▼</div>
+            </div>
+
+            <div class="token-content" id="token-content">
+                <div class="token-section">
+                    <div class="token-controls">
+                        <input type="text" id="global-token" placeholder="Paste your Bearer token here..."
+                            class="global-token-input">
+                        <button class="token-btn save-token" onclick="saveGlobalToken()">💾 Save Token</button>
+                        <button class="token-btn copy-saved-token" onclick="copySavedToken()">📋 Copy Saved</button>
+                        <button class="token-btn clear-token" onclick="clearGlobalToken()">🗑️ Clear Token</button>
+                    </div>
+                    <div class="token-status" id="token-status">
+                        <span class="status-text">No token saved</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="api-table">
+            <div class="table-header">
+                <div>Method</div>
+                <div>Endpoint</div>
+                <div>Auth</div>
+                <div>Actions</div>
+            </div>
+            <div id="api-list">
+                <div class="loading">Loading APIs...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        { { CONFIG } }
+    </script>
+    <script src="{{BASE_PATH}}/assets/dashboard.js"></script>
+</body>
+
+</html>

@@ -587,6 +587,99 @@
             font-style: italic;
         }
 
+        /* Token Manager Styles */
+        .token-manager {
+            background: var(--bg-panel);
+            border: 1px solid var(--neon-blue);
+            border-radius: 10px;
+            margin: 20px 0;
+            padding: 20px;
+            box-shadow: var(--shadow-glow) var(--neon-blue);
+        }
+
+        .token-section h3 {
+            color: var(--neon-blue);
+            margin: 0 0 15px 0;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+
+        .token-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .global-token-input {
+            flex: 1;
+            min-width: 300px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 12px 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .global-token-input:focus {
+            outline: none;
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .token-btn {
+            background: transparent;
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .token-btn:hover {
+            background: var(--neon-blue);
+            color: var(--bg-primary);
+            box-shadow: 0 0 15px var(--neon-blue);
+        }
+
+        .clear-token {
+            border-color: var(--neon-red);
+            color: var(--neon-red);
+        }
+
+        .clear-token:hover {
+            background: var(--neon-red);
+            color: var(--bg-primary);
+            box-shadow: 0 0 15px var(--neon-red);
+        }
+
+        .token-status {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+
+        .token-status.has-token {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid var(--neon-green);
+            color: var(--neon-green);
+        }
+
+        .token-status.no-token {
+            background: rgba(148, 163, 184, 0.1);
+            border: 1px solid var(--text-muted);
+            color: var(--text-muted);
+        }
+
         @media (max-width: 768px) {
 
             .table-header,
@@ -634,6 +727,22 @@
             <div class="stat-card">
                 <div class="stat-number" id="delete-count">0</div>
                 <div class="stat-label">DELETE</div>
+            </div>
+        </div>
+
+        <!-- Global Token Management -->
+        <div class="token-manager">
+            <div class="token-section">
+                <h3>🔐 Global Authentication Token</h3>
+                <div class="token-controls">
+                    <input type="text" id="global-token" placeholder="Paste your Bearer token here..."
+                        class="global-token-input">
+                    <button class="token-btn save-token" onclick="saveGlobalToken()">💾 Save Token</button>
+                    <button class="token-btn clear-token" onclick="clearGlobalToken()">🗑️ Clear Token</button>
+                </div>
+                <div class="token-status" id="token-status">
+                    <span class="status-text">No token saved</span>
+                </div>
             </div>
         </div>
 
@@ -822,18 +931,9 @@
                         
                         <div id="test-${uniqueId}" class="tab-content active">
                             <div class="api-tester">
-                                ${!api.path.includes('/auth/') ? `
-                                <div class="test-section">
-                                    <h4>🔑 Authentication</h4>
-                                    <div class="auth-input">
-                                        <input type="text" placeholder="Bearer token (optional)" class="auth-token" id="auth-${uniqueId}" onclick="event.stopPropagation()" onkeydown="event.stopPropagation()" onfocus="event.stopPropagation()">
-                                    </div>
-                                </div>
-                                ` : ''}
-                                
                                 ${api.path.includes(':') ? `
                                 <div class="test-section">
-                                    <h4>🔗 URL Parameters</h4>
+                                    <h4>� URLh Parameters</h4>
                                     <div class="url-params" id="params-${uniqueId}">
                                         ${generateUrlParamInputs(api.path, uniqueId)}
                                     </div>
@@ -995,9 +1095,8 @@
             const button = document.querySelector(`button[onclick*="testAPI('${path}', '${method}', '${uniqueId}')"]`);
             const responseContainer = document.getElementById(`response-${uniqueId}`);
 
-            // Get auth token only if the field exists (not for auth APIs)
-            const authTokenField = document.getElementById(`auth-${uniqueId}`);
-            const authToken = authTokenField ? authTokenField.value.trim() : '';
+            // Get global token from localStorage
+            const authToken = localStorage.getItem('apiDashboardToken') || '';
 
             // Build the actual URL with parameters
             let actualUrl = path;
@@ -1152,6 +1251,11 @@
                     <div class="response-body">${JSON.stringify(response.body || response, null, 2)}</div>
                 </div>
             `;
+
+            // Auto-detect and save token from successful login responses
+            if (type === 'success' && response.body) {
+                autoSaveTokenFromResponse(response.body);
+            }
         }
 
         // Update statistics
@@ -1257,6 +1361,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             loadApis();
             restoreScrollPosition();
+            loadGlobalToken();
         });
 
         // Save scroll position before page unload
@@ -1284,6 +1389,132 @@
                     window.scrollTo(0, parseInt(savedScrollPosition));
                 }, 100);
             }
+        }
+
+        // Global Token Management Functions
+        function saveGlobalToken() {
+            const tokenInput = document.getElementById('global-token');
+            const token = tokenInput.value.trim();
+
+            if (!token) {
+                alert('Please enter a token first');
+                return;
+            }
+
+            // Save to localStorage
+            localStorage.setItem('apiDashboardToken', token);
+
+            // Update all existing auth token fields
+            updateAllAuthFields(token);
+
+            // Update status
+            updateTokenStatus(token);
+
+            // Clear the input
+            tokenInput.value = '';
+
+            console.log('✅ Token saved and applied to all API fields');
+        }
+
+        function clearGlobalToken() {
+            // Remove from localStorage
+            localStorage.removeItem('apiDashboardToken');
+
+            // Clear all auth token fields
+            updateAllAuthFields('');
+
+            // Update status
+            updateTokenStatus('');
+
+            // Clear the input
+            document.getElementById('global-token').value = '';
+
+            console.log('🗑️ Token cleared from all fields');
+        }
+
+        function loadGlobalToken() {
+            const savedToken = localStorage.getItem('apiDashboardToken');
+            if (savedToken) {
+                updateTokenStatus(savedToken);
+                // Don't auto-fill the input field for security
+            } else {
+                updateTokenStatus('');
+            }
+        }
+
+        function updateAllAuthFields(token) {
+            // Update all existing auth token fields
+            const authFields = document.querySelectorAll('.auth-token');
+            authFields.forEach(field => {
+                field.value = token;
+            });
+        }
+
+        function updateTokenStatus(token) {
+            const statusElement = document.getElementById('token-status');
+            const statusText = statusElement.querySelector('.status-text');
+
+            if (token) {
+                statusElement.className = 'token-status has-token';
+                const maskedToken = token.length > 20 ?
+                    token.substring(0, 10) + '...' + token.substring(token.length - 10) :
+                    token.substring(0, 10) + '...';
+                statusText.textContent = `✅ Token saved: ${maskedToken}`;
+            } else {
+                statusElement.className = 'token-status no-token';
+                statusText.textContent = '❌ No token saved';
+            }
+        }
+
+        // Auto-detect and save token from login responses
+        function autoSaveTokenFromResponse(responseData) {
+            if (responseData && typeof responseData === 'object') {
+                // Common token field names
+                const tokenFields = ['token', 'accessToken', 'access_token', 'authToken', 'jwt'];
+
+                for (const field of tokenFields) {
+                    if (responseData[field]) {
+                        const token = responseData[field];
+                        localStorage.setItem('apiDashboardToken', token);
+                        updateTokenStatus(token);
+
+                        // Show notification
+                        showTokenNotification('🎉 Token auto-saved from login response!');
+                        console.log('🎉 Auto-saved token from response:', field);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function showTokenNotification(message) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: var(--neon-green);
+                color: var(--bg-primary);
+                padding: 15px 20px;
+                border-radius: 8px;
+                font-weight: bold;
+                z-index: 1000;
+                box-shadow: 0 0 20px var(--neon-green);
+                animation: slideIn 0.3s ease;
+            `;
+            notification.textContent = message;
+
+            document.body.appendChild(notification);
+
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
         }
     </script>
 </body>

@@ -7,12 +7,28 @@ const register = async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
 
-    // Check if user already exists
+    // Check if user already exists by email
     let user = await User.findOne({ email });
     if (user) {
       return res
         .status(400)
-        .json({ success: false, message: "User already exists" });
+        .json({
+          success: false,
+          message: "User with this email already exists",
+        });
+    }
+
+    // Check if user already exists by phone
+    if (phone) {
+      const phoneUser = await User.findOne({ phone });
+      if (phoneUser) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "User with this phone number already exists",
+          });
+      }
     }
 
     // Generate OTP

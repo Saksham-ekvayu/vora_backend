@@ -587,21 +587,107 @@
             font-style: italic;
         }
 
-        /* Token Manager Styles */
+        /* Token Manager Styles - Collapsible */
         .token-manager {
             background: var(--bg-panel);
             border: 1px solid var(--neon-blue);
             border-radius: 10px;
             margin: 20px 0;
-            padding: 20px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .token-manager.collapsed {
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+        }
+
+        .token-manager.expanded {
             box-shadow: var(--shadow-glow) var(--neon-blue);
         }
 
-        .token-section h3 {
+        .token-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-bottom: 1px solid transparent;
+        }
+
+        .token-header:hover {
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .token-manager.expanded .token-header {
+            border-bottom-color: var(--border);
+        }
+
+        .token-header-content {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex: 1;
+        }
+
+        .token-icon {
+            font-size: 1.2rem;
+        }
+
+        .token-title {
             color: var(--neon-blue);
-            margin: 0 0 15px 0;
-            font-size: 1.1rem;
-            text-align: center;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        .token-status-mini {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+        }
+
+        .status-indicator {
+            font-size: 0.9rem;
+        }
+
+        .status-text-mini {
+            color: var(--text-muted);
+        }
+
+        .token-status-mini.has-token .status-indicator {
+            color: var(--neon-green);
+        }
+
+        .token-status-mini.has-token .status-text-mini {
+            color: var(--neon-green);
+        }
+
+        .dropdown-arrow {
+            color: var(--neon-blue);
+            font-size: 1rem;
+            transition: transform 0.3s ease;
+        }
+
+        .token-manager.expanded .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+
+        .token-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .token-manager.expanded .token-content {
+            max-height: 300px;
+        }
+
+        .token-section {
+            padding: 20px;
         }
 
         .token-controls {
@@ -610,6 +696,7 @@
             align-items: center;
             flex-wrap: wrap;
             justify-content: center;
+            margin-bottom: 15px;
         }
 
         .global-token-input {
@@ -731,18 +818,32 @@
         </div>
 
         <!-- Global Token Management -->
-        <div class="token-manager">
-            <div class="token-section">
-                <h3>🔐 Global Authentication Token</h3>
-                <div class="token-controls">
-                    <input type="text" id="global-token" placeholder="Paste your Bearer token here..."
-                        class="global-token-input">
-                    <button class="token-btn save-token" onclick="saveGlobalToken()">💾 Save Token</button>
-                    <button class="token-btn copy-saved-token" onclick="copySavedToken()">� Caopy Saved</button>
-                    <button class="token-btn clear-token" onclick="clearGlobalToken()">🗑️ Clear Token</button>
+        <!-- Global Token Management - Collapsible -->
+        <div class="token-manager collapsed" id="token-manager">
+            <div class="token-header" onclick="toggleTokenManager()">
+                <div class="token-header-content">
+                    <span class="token-icon">🔐</span>
+                    <span class="token-title">Authentication Token</span>
+                    <div class="token-status-mini" id="token-status-mini">
+                        <span class="status-indicator">❌</span>
+                        <span class="status-text-mini">No token</span>
+                    </div>
                 </div>
-                <div class="token-status" id="token-status">
-                    <span class="status-text">No token saved</span>
+                <div class="dropdown-arrow" id="token-arrow">▼</div>
+            </div>
+
+            <div class="token-content" id="token-content">
+                <div class="token-section">
+                    <div class="token-controls">
+                        <input type="text" id="global-token" placeholder="Paste your Bearer token here..."
+                            class="global-token-input">
+                        <button class="token-btn save-token" onclick="saveGlobalToken()">💾 Save Token</button>
+                        <button class="token-btn copy-saved-token" onclick="copySavedToken()">📋 Copy Saved</button>
+                        <button class="token-btn clear-token" onclick="clearGlobalToken()">🗑️ Clear Token</button>
+                    </div>
+                    <div class="token-status" id="token-status">
+                        <span class="status-text">No token saved</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1413,6 +1514,7 @@
 
             // Update status
             updateTokenStatus(token);
+            updateTokenStatusMini(token);
 
             // Clear the input
             tokenInput.value = '';
@@ -1426,6 +1528,7 @@
 
             // Update status
             updateTokenStatus('');
+            updateTokenStatusMini('');
 
             // Clear the input
             document.getElementById('global-token').value = '';
@@ -1453,9 +1556,39 @@
             const savedToken = localStorage.getItem('apiDashboardToken');
             if (savedToken) {
                 updateTokenStatus(savedToken);
-                // Don't auto-fill the input field for security
+                updateTokenStatusMini(savedToken);
             } else {
                 updateTokenStatus('');
+                updateTokenStatusMini('');
+            }
+        }
+
+        function toggleTokenManager() {
+            const tokenManager = document.getElementById('token-manager');
+            const isExpanded = tokenManager.classList.contains('expanded');
+
+            if (isExpanded) {
+                tokenManager.classList.remove('expanded');
+                tokenManager.classList.add('collapsed');
+            } else {
+                tokenManager.classList.remove('collapsed');
+                tokenManager.classList.add('expanded');
+            }
+        }
+
+        function updateTokenStatusMini(token) {
+            const statusMini = document.getElementById('token-status-mini');
+            const indicator = statusMini.querySelector('.status-indicator');
+            const textMini = statusMini.querySelector('.status-text-mini');
+
+            if (token) {
+                statusMini.classList.add('has-token');
+                indicator.textContent = '✅';
+                textMini.textContent = 'Token saved';
+            } else {
+                statusMini.classList.remove('has-token');
+                indicator.textContent = '❌';
+                textMini.textContent = 'No token';
             }
         }
 
@@ -1494,6 +1627,7 @@
                         const token = responseData[field];
                         localStorage.setItem('apiDashboardToken', token);
                         updateTokenStatus(token);
+                        updateTokenStatusMini(token);
 
                         // Show notification
                         showTokenNotification('🎉 Token auto-saved from login response!');

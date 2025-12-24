@@ -1,6 +1,33 @@
 // Dashboard Configuration
 const config = window.DASHBOARD_CONFIG || {};
 
+// Theme Management
+function initializeTheme() {
+  // Check for saved theme preference or default to config theme
+  const savedTheme =
+    localStorage.getItem("dashboardTheme") || config.theme || "dark";
+  setTheme(savedTheme);
+}
+
+function toggleTheme() {
+  const currentTheme = document.body.getAttribute("data-theme") || "dark";
+  const newTheme = currentTheme === "dark" ? "light" : "dark";
+  setTheme(newTheme);
+}
+
+function setTheme(theme) {
+  document.body.setAttribute("data-theme", theme);
+  localStorage.setItem("dashboardTheme", theme);
+
+  // Update theme toggle icon
+  const themeIcon = document.querySelector(".theme-icon");
+  if (themeIcon) {
+    themeIcon.textContent = theme === "dark" ? "☀️" : "🌙";
+  }
+
+  console.log(`🎨 Theme switched to: ${theme}`);
+}
+
 // Clipboard copy function with fallback
 async function copyToClipboard(text) {
   try {
@@ -884,6 +911,9 @@ function showTokenNotification(message) {
 
 // Initialize dashboard
 document.addEventListener("DOMContentLoaded", () => {
+  // Initialize theme first
+  initializeTheme();
+
   loadApis();
 
   if (config.enableAuth) {

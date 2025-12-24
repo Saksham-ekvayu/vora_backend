@@ -3,7 +3,7 @@ const cors = require("cors");
 const { bgRed, bgYellow, bgBlue, bgMagenta } = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
-const SwaggerExpressDashboard = require("./swagger-express-dashboard");
+const SwaggerExpressDashboard = require("./swagger");
 const { connectDB, disconnectDB } = require("./src/database/database");
 
 // Import routes

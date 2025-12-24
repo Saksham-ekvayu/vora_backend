@@ -8,6 +8,8 @@ const { connectDB, disconnectDB } = require("./src/database/database");
 // Import routes
 const authRoutes = require("./src/routes/auth.routes");
 const userRoutes = require("./src/routes/user.route");
+const listRoutes = require("./src/utils/listRoutes");
+const { registerRoutes } = require("./src/utils/routeRegistry");
 
 // Load environment variables
 dotenv.config();
@@ -26,12 +28,26 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, "public")));
 
-// Home page path
-app.get("/", (req, res) => res.send("Wellcome to Cypher Sentinel API 🥳"));
-
 // Use routes
 app.use("/api/auth", authRoutes);
+registerRoutes("/api/auth", authRoutes);
+
 app.use("/api/user", userRoutes);
+registerRoutes("/api/user", userRoutes);
+
+// Home page path
+// JSON endpoint
+app.get("/apis", (req, res) => {
+  const routes = listRoutes(app);
+  res.json({
+    apis: routes,
+  });
+});
+
+// GUI page
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "api-dashboard.html"));
+});
 
 let server;
 
@@ -40,7 +56,8 @@ async function start() {
     await connectDB(MONGODB_URI);
     console.log(bgMagenta("Connected to MongoDB"));
 
-    server = app.listen(PORT, () => {
+    server = app.listen(PORT, "0.0.0.0", () => {
+      console.log(bgYellow(`Server running on http://0.0.0.0:${PORT}`));
       console.log(bgBlue(`Server listening on port ${PORT}`));
     });
   } catch (err) {

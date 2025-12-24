@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Cypher Sentinel | API Control Panel 🥳 🚀</title>
+
+    <style>
+        :root {
+            --bg: #020617;
+            --panel: #020617;
+            --border: #1e293b;
+            --text: #e5e7eb;
+            --muted: #94a3b8;
+            --neon: #22d3ee;
+            --green: #22c55e;
+            --blue: #3b82f6;
+            --yellow: #eab308;
+            --red: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "JetBrains Mono", monospace;
+            background: radial-gradient(circle at top, #020617, #000);
+            color: var(--text);
+            padding: 30px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        h1 span {
+            font-size: 28px;
+            background: linear-gradient(90deg, #22d3ee, #38bdf8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0;
+        }
+
+        .stats {
+            padding: 10px 16px;
+            border: 1px solid var(--border);
+            background: rgba(2, 6, 23, 0.7);
+            border-radius: 8px;
+            color: var(--neon);
+            font-size: 14px;
+        }
+
+        .panel {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(2, 6, 23, 0.9);
+            box-shadow: 0 0 30px rgba(34, 211, 238, 0.08);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: rgba(15, 23, 42, 0.7);
+        }
+
+        th,
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+
+        th {
+            font-size: 13px;
+            color: var(--muted);
+            letter-spacing: 0.05em;
+        }
+
+        tr:hover {
+            background: rgba(34, 211, 238, 0.05);
+        }
+
+        .method {
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            display: inline-block;
+            min-width: 70px;
+            text-align: center;
+            box-shadow: 0 0 12px currentColor;
+        }
+
+        .GET {
+            color: var(--green);
+            border: 1px solid var(--green);
+        }
+
+        .POST {
+            color: var(--blue);
+            border: 1px solid var(--blue);
+        }
+
+        .PUT {
+            color: var(--yellow);
+            border: 1px solid var(--yellow);
+        }
+
+        .DELETE {
+            color: var(--red);
+            border: 1px solid var(--red);
+        }
+
+        .endpoint {
+            font-family: monospace;
+        }
+
+        .copy-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            padding: 4px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            border-color: var(--neon);
+            color: var(--neon);
+            box-shadow: 0 0 10px var(--neon);
+        }
+
+        footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: var(--muted);
+            text-align: center;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1><span>🛡 Cypher Sentinel – API Control Panel</span> 🥳 🚀</h1>
+        <div class="stats" id="api-count">Loading APIs…</div>
+    </header>
+
+    <div class="panel">
+        <table>
+            <thead>
+                <tr>
+                    <th>METHOD</th>
+                    <th>ENDPOINT</th>
+                </tr>
+            </thead>
+            <tbody id="api-table"></tbody>
+        </table>
+    </div>
+
+    <footer>
+        Cypher Sentinel • Secure Backend Intelligence
+    </footer>
+
+    <script>
+        function copyText(text) {
+            // Modern clipboard (works on HTTPS / localhost)
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            }
+
+            // 🔥 Fallback (works EVERYWHERE)
+            return new Promise((resolve, reject) => {
+                const textarea = document.createElement("textarea");
+                textarea.value = text;
+                textarea.style.position = "fixed";
+                textarea.style.opacity = "0";
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+
+                try {
+                    document.execCommand("copy");
+                    document.body.removeChild(textarea);
+                    resolve();
+                } catch (err) {
+                    document.body.removeChild(textarea);
+                    reject(err);
+                }
+            });
+        }
+
+        fetch("/apis")
+            .then(res => res.json())
+            .then(data => {
+                const tbody = document.getElementById("api-table");
+                const apiCountDiv = document.getElementById("api-count");
+
+                let total = 0; // 🔑 Count tracker
+
+                data.apis.forEach(api => {
+                    api.methods.forEach(method => {
+                        total++; // increment for each method
+
+                        const row = document.createElement("tr");
+
+                        row.innerHTML = `
+                        <td>
+                            <span class="method ${method}">${method}</span>
+                        </td>
+                        <td class="endpoint">
+                            <span class="endpoint-text">${api.path}</span>
+                            <button class="copy-btn" data-path="${api.path}">Copy</button>
+                        </td>
+                    `;
+
+                        tbody.appendChild(row);
+                    });
+                });
+
+                // 🔑 Update count after all APIs are added
+                apiCountDiv.textContent = `${total} API ENDPOINT${total > 1 ? 'S' : ''} DETECTED`;
+
+                // Add copy handlers
+                document.querySelectorAll(".copy-btn").forEach(btn => {
+                    btn.addEventListener("click", async () => {
+                        const path = btn.dataset.path;
+
+                        try {
+                            await copyText(path);
+                            btn.textContent = "Copied";
+
+                            setTimeout(() => {
+                                btn.textContent = "Copy";
+                            }, 1200);
+                        } catch {
+                            btn.textContent = "Failed ❌";
+                        }
+                    });
+                });
+            })
+            .catch(err => {
+                document.getElementById("api-count").textContent = "Failed to load APIs ❌";
+                console.error("Failed to fetch APIs:", err);
+            });
+    </script>
+
+
+</body>
+
+</html>

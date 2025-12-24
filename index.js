@@ -3,13 +3,12 @@ const cors = require("cors");
 const { bgRed, bgYellow, bgBlue, bgMagenta } = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
+const SwaggerExpressDashboard = require("./swagger-express-dashboard");
 const { connectDB, disconnectDB } = require("./src/database/database");
 
 // Import routes
 const authRoutes = require("./src/routes/auth.routes");
 const userRoutes = require("./src/routes/user.route");
-const listRoutes = require("./src/utils/listRoutes");
-const { registerRoutes } = require("./src/utils/routeRegistry");
 
 // Load environment variables
 dotenv.config();
@@ -28,26 +27,27 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, "public")));
 
+// Initialize dashboard
+const dashboard = new SwaggerExpressDashboard({
+  title: "Cypher Sentinel API",
+  description: "Backend API Control Dashboard",
+  version: "1.0.0",
+  basePath: "/api-docs",
+  enableAuth: true,
+  enableTesting: true,
+  controllersPath: "./src/controllers",
+});
+
 // Use routes
 app.use("/api/auth", authRoutes);
-registerRoutes("/api/auth", authRoutes);
-
 app.use("/api/user", userRoutes);
-registerRoutes("/api/user", userRoutes);
 
-// Home page path
-// JSON endpoint
-app.get("/apis", (req, res) => {
-  const routes = listRoutes(app);
-  res.json({
-    apis: routes,
-  });
-});
+// Register routes with dashboard for better documentation
+dashboard.registerRoutes("/api/auth", authRoutes);
+dashboard.registerRoutes("/api/user", userRoutes);
 
-// GUI page
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "api-dashboard.html"));
-});
+// Initialize dashboard (replaces your old endpoints)
+dashboard.init(app);
 
 let server;
 
@@ -58,7 +58,7 @@ async function start() {
 
     server = app.listen(PORT, "0.0.0.0", () => {
       console.log(bgYellow(`Server running on http://0.0.0.0:${PORT}`));
-      console.log(bgBlue(`Server listening on port ${PORT}`));
+      console.log(bgBlue(`Server listening on port http://localhost:${PORT}`));
     });
   } catch (err) {
     console.error(bgRed("Failed to start app:"), err);

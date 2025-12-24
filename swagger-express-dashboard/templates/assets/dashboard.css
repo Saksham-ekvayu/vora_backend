@@ -14,6 +14,23 @@
     --shadow-glow: 0 0 20px;
 }
 
+/* Light theme variables */
+[data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --bg-panel: #ffffff;
+    --border: #dee2e6;
+    --text-primary: #198754;
+    --text-secondary: #212529;
+    --text-muted: #6c757d;
+    --neon-green: #198754;
+    --neon-blue: #0dcaf0;
+    --neon-yellow: #ffc107;
+    --neon-red: #dc3545;
+    --neon-purple: #6f42c1;
+    --shadow-glow: 0 0 10px;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -56,6 +73,13 @@ body {
     color: var(--text-muted);
     font-size: 1rem;
     letter-spacing: 1px;
+    margin-bottom: 10px;
+}
+
+.version {
+    color: var(--neon-blue);
+    font-size: 0.9rem;
+    font-weight: bold;
 }
 
 .stats-container {

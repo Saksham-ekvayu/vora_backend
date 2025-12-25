@@ -15,7 +15,7 @@ class RouteAnalyzer {
   analyzeRoutes(app, registeredRoutes = []) {
     const routes = [];
 
-    // Analyze registered routes first
+    // First priority: Analyze registered routes
     registeredRoutes.forEach(({ basePath, router }) => {
       if (router && router.stack) {
         router.stack.forEach((layer) => {
@@ -26,7 +26,11 @@ class RouteAnalyzer {
             const fullPath = `${basePath}${layer.route.path}`;
 
             methods.forEach((method) => {
-              const routeInfo = this.analyzeRoute(fullPath, method);
+              const routeInfo = this.analyzeRoute(
+                fullPath,
+                method,
+                layer.route
+              );
               if (routeInfo) {
                 routes.push(routeInfo);
               }
@@ -36,12 +40,270 @@ class RouteAnalyzer {
       }
     });
 
-    // If no registered routes, try to analyze app routes directly
-    if (routes.length === 0 && app._router) {
+    // Second priority: Extract from app routes directly
+    if (app._router) {
       this.extractAppRoutes(app._router, routes);
     }
 
+    // Third priority: Try to extract from main file if no routes found
+    if (routes.length === 0) {
+      const mainFileRoutes = this.extractFromMainFile();
+      routes.push(...mainFileRoutes);
+    }
+
     return routes;
+  }
+
+  /**
+   * Extract routes from main application file when no separate route files exist
+   * @returns {Array} Array of route information
+   */
+  extractFromMainFile() {
+    const routes = [];
+
+    try {
+      // Common main file names
+      const mainFiles = ["index.js", "server.js", "app.js", "main.js"];
+      let mainFileContent = null;
+      let mainFilePath = null;
+
+      // Find the main file
+      for (const fileName of mainFiles) {
+        const filePath = path.resolve(fileName);
+        if (fs.existsSync(filePath)) {
+          mainFileContent = fs.readFileSync(filePath, "utf8");
+          mainFilePath = filePath;
+          break;
+        }
+      }
+
+      if (!mainFileContent) {
+        return routes;
+      }
+
+      // Extract route definitions from main file
+      const extractedRoutes = this.parseRoutesFromContent(mainFileContent);
+
+      // Analyze each extracted route
+      extractedRoutes.forEach(({ path, method, handlerName }) => {
+        const body = this.extractBodyFromMainFile(
+          mainFileContent,
+          handlerName,
+          path,
+          method
+        );
+
+        routes.push({
+          path: path,
+          method: method,
+          body: body,
+          headers: this.getDefaultHeaders(method),
+          description: this.generateDescription(path, method),
+          tags: this.extractTags(path),
+        });
+      });
+    } catch (error) {
+      console.error("Error extracting routes from main file:", error);
+    }
+
+    return routes;
+  }
+
+  /**
+   * Parse route definitions from file content
+   * @param {string} content - File content
+   * @returns {Array} Array of route definitions
+   */
+  parseRoutesFromContent(content) {
+    const routes = [];
+
+    // Patterns to match different route definition styles
+    const routePatterns = [
+      // app.get('/path', handler)
+      /app\.(get|post|put|delete|patch)\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*([^,)]+)/g,
+      // router.get('/path', handler)
+      /router\.(get|post|put|delete|patch)\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*([^,)]+)/g,
+      // app.use('/path', handler)
+      /app\.use\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*([^,)]+)/g,
+    ];
+
+    routePatterns.forEach((pattern) => {
+      let match;
+      while ((match = pattern.exec(content)) !== null) {
+        if (match[1] && match[2] && match[3]) {
+          // For app.get, app.post etc.
+          routes.push({
+            method: match[1].toUpperCase(),
+            path: match[2],
+            handlerName: match[3].trim(),
+          });
+        } else if (match[1] && match[2]) {
+          // For app.use (assume GET method)
+          routes.push({
+            method: "GET",
+            path: match[1],
+            handlerName: match[2].trim(),
+          });
+        }
+      }
+    });
+
+    return routes;
+  }
+
+  /**
+   * Extract request body from main file handler function
+   * @param {string} content - Main file content
+   * @param {string} handlerName - Handler function name
+   * @param {string} routePath - Route path
+   * @param {string} method - HTTP method
+   * @returns {Object|null} Request body schema
+   */
+  extractBodyFromMainFile(content, handlerName, routePath, method) {
+    if (method === "GET" || method === "DELETE") {
+      return null;
+    }
+
+    try {
+      // Clean handler name (remove middleware, async, etc.)
+      const cleanHandlerName = handlerName
+        .replace(/^async\s+/, "")
+        .replace(/\s*,.*$/, "")
+        .trim();
+
+      // Try to find the handler function in the content
+      const handlerBody = this.findHandlerFunction(content, cleanHandlerName);
+
+      if (handlerBody) {
+        // Extract req.body destructuring from handler
+        const bodySchema = this.extractBodyFromFunction(
+          content,
+          cleanHandlerName
+        );
+        if (bodySchema) {
+          return bodySchema;
+        }
+      }
+
+      // Fallback to route-based inference
+      return this.inferBodyFromRoute(routePath, method);
+    } catch (error) {
+      console.error("Error extracting body from main file:", error);
+      return this.inferBodyFromRoute(routePath, method);
+    }
+  }
+
+  /**
+   * Find handler function in content
+   * @param {string} content - File content
+   * @param {string} handlerName - Handler function name
+   * @returns {string|null} Handler function body
+   */
+  findHandlerFunction(content, handlerName) {
+    const patterns = [
+      // const handler = (req, res) => { ... }
+      new RegExp(
+        `const\\s+${handlerName}\\s*=\\s*\\([^)]*\\)\\s*=>\\s*{([\\s\\S]*?)^}`,
+        "gm"
+      ),
+      // const handler = async (req, res) => { ... }
+      new RegExp(
+        `const\\s+${handlerName}\\s*=\\s*async\\s*\\([^)]*\\)\\s*=>\\s*{([\\s\\S]*?)^}`,
+        "gm"
+      ),
+      // function handler(req, res) { ... }
+      new RegExp(
+        `function\\s+${handlerName}\\s*\\([^)]*\\)\\s*{([\\s\\S]*?)^}`,
+        "gm"
+      ),
+      // async function handler(req, res) { ... }
+      new RegExp(
+        `async\\s+function\\s+${handlerName}\\s*\\([^)]*\\)\\s*{([\\s\\S]*?)^}`,
+        "gm"
+      ),
+    ];
+
+    for (const pattern of patterns) {
+      const match = pattern.exec(content);
+      if (match) {
+        return match[1];
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Infer request body schema from route path and method
+   * @param {string} routePath - Route path
+   * @param {string} method - HTTP method
+   * @returns {Object|null} Inferred body schema
+   */
+  inferBodyFromRoute(routePath, method) {
+    if (method === "GET" || method === "DELETE") {
+      return null;
+    }
+
+    // Extract meaningful words from route path
+    const pathWords = routePath
+      .toLowerCase()
+      .split("/")
+      .filter((part) => part && part !== "api" && !part.startsWith(":"))
+      .join(" ");
+
+    // Common field patterns based on route content
+    const fieldPatterns = {
+      name: /name|user|profile/,
+      email: /email|login|auth|register|forgot|reset/,
+      password: /password|login|register|reset|auth/,
+      phone: /phone|contact|profile|register/,
+      otp: /otp|verify|code/,
+      role: /role|user|admin|create/,
+      title: /title|post|article|blog/,
+      content: /content|body|text|post|article/,
+      description: /description|desc|about/,
+      category: /category|type|kind/,
+      status: /status|state/,
+      id: /id|identifier/,
+    };
+
+    const inferredFields = {};
+
+    // Check which fields might be relevant for this route
+    Object.entries(fieldPatterns).forEach(([field, pattern]) => {
+      if (pattern.test(pathWords)) {
+        // Determine if field is likely required or optional
+        const isOptional =
+          method === "PUT" ||
+          method === "PATCH" ||
+          (field === "phone" && !pathWords.includes("register"));
+
+        inferredFields[field] = isOptional ? "string (optional)" : "string";
+      }
+    });
+
+    // Return inferred schema if we found any fields
+    return Object.keys(inferredFields).length > 0 ? inferredFields : null;
+  }
+
+  /**
+   * Analyze a single route
+   * @param {string} path - Route path
+   * @param {string} method - HTTP method
+   * @param {Object} routeLayer - Express route layer (optional)
+   * @returns {Object} Route information
+   */
+  analyzeRoute(path, method, routeLayer = null) {
+    const body = this.extractRequestBodySchema(path, method, routeLayer);
+
+    return {
+      path: path,
+      method: method,
+      body: body,
+      headers: this.getDefaultHeaders(method),
+      description: this.generateDescription(path, method),
+      tags: this.extractTags(path),
+    };
   }
 
   /**
@@ -62,7 +324,7 @@ class RouteAnalyzer {
         const fullPath = basePath + layer.route.path;
 
         methods.forEach((method) => {
-          const routeInfo = this.analyzeRoute(fullPath, method);
+          const routeInfo = this.analyzeRoute(fullPath, method, layer.route);
           if (routeInfo) {
             routes.push(routeInfo);
           }
@@ -82,36 +344,133 @@ class RouteAnalyzer {
   }
 
   /**
-   * Analyze a single route
-   * @param {string} path - Route path
+   * Extract request body schema from Express route layer
+   * @param {Object} routeLayer - Express route layer
+   * @param {string} routePath - Route path
    * @param {string} method - HTTP method
-   * @returns {Object} Route information
+   * @returns {Object|null} Request body schema
    */
-  analyzeRoute(path, method) {
-    const body = this.extractRequestBodySchema(path, method);
+  extractFromRouteLayer(routeLayer, routePath, method) {
+    if (method === "GET" || method === "DELETE") {
+      return null;
+    }
 
-    return {
-      path: path,
-      method: method,
-      body: body,
-      headers: this.getDefaultHeaders(method),
-      description: this.generateDescription(path, method),
-      tags: this.extractTags(path),
-    };
+    try {
+      // Get the handler function from route layer
+      const handlers = routeLayer.stack || [];
+
+      for (const handler of handlers) {
+        if (handler.handle && typeof handler.handle === "function") {
+          // Try to extract body schema from handler function
+          const handlerString = handler.handle.toString();
+          const bodySchema = this.extractBodyFromHandlerString(handlerString);
+
+          if (bodySchema) {
+            return bodySchema;
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Error extracting from route layer:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Extract request body schema from handler function string
+   * @param {string} handlerString - Handler function as string
+   * @returns {Object|null} Request body schema
+   */
+  extractBodyFromHandlerString(handlerString) {
+    try {
+      // Extract req.body destructuring patterns
+      const destructuringPatterns = [
+        /const\s*{\s*([^}]+)\s*}\s*=\s*req\.body/g,
+        /{\s*([^}]+)\s*}\s*=\s*req\.body/g,
+        /req\.body\.(\w+)/g,
+      ];
+
+      const fields = new Set();
+
+      for (const pattern of destructuringPatterns) {
+        let match;
+        while ((match = pattern.exec(handlerString)) !== null) {
+          if (match[1]) {
+            // Handle destructuring: { name, email, password }
+            const fieldList = match[1]
+              .split(",")
+              .map((field) => {
+                let cleanField = field.trim();
+                if (cleanField.includes(":")) {
+                  cleanField = cleanField.split(":")[0].trim();
+                }
+                if (cleanField.includes("=")) {
+                  cleanField = cleanField.split("=")[0].trim();
+                }
+                return cleanField;
+              })
+              .filter(
+                (field) => field && /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(field)
+              );
+
+            fieldList.forEach((field) => fields.add(field));
+          } else if (match[1]) {
+            // Handle direct access: req.body.fieldName
+            fields.add(match[1]);
+          }
+        }
+      }
+
+      if (fields.size === 0) {
+        return null;
+      }
+
+      const schema = {};
+      fields.forEach((field) => {
+        // Check if field appears to be optional in the handler
+        const isOptional =
+          handlerString.includes(`if (${field})`) ||
+          handlerString.includes(`${field} ?`) ||
+          handlerString.includes(`${field} &&`) ||
+          handlerString.includes(`${field} ||`);
+
+        schema[field] = isOptional ? "string (optional)" : "string";
+      });
+
+      return schema;
+    } catch (error) {
+      console.error("Error extracting body from handler string:", error);
+      return null;
+    }
   }
 
   /**
    * Extract request body schema from controller files
    * @param {string} routePath - Route path
    * @param {string} method - HTTP method
+   * @param {Object} routeLayer - Express route layer (optional)
    * @returns {Object|null} Request body schema
    */
-  extractRequestBodySchema(routePath, method) {
+  extractRequestBodySchema(routePath, method, routeLayer = null) {
     if (!this.options.autoDetectControllers) {
       return this.getDefaultBodySchema(routePath, method);
     }
 
     try {
+      // First try to extract from route layer if available
+      if (routeLayer && routeLayer.stack) {
+        const routeBodySchema = this.extractFromRouteLayer(
+          routeLayer,
+          routePath,
+          method
+        );
+        if (routeBodySchema) {
+          return routeBodySchema;
+        }
+      }
+
       const controllerMap = this.discoverControllerFiles();
       let controllerFile = null;
 

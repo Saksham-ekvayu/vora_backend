@@ -6,7 +6,6 @@ const {
   login,
   forgotPassword,
   resetPassword,
-  verifyForgotPasswordOTP,
 } = require("../controllers/auth.controller");
 const {
   registerValidation,
@@ -25,7 +24,6 @@ router.post("/verify-otp", otpValidation, verifyOTP);
 router.post("/resend-otp", resendOtpValidation, resendOTP);
 router.post("/login", loginValidation, login);
 router.post("/forgot-password", forgotPasswordValidation, forgotPassword);
-router.post("/verify-forgot-otp", otpValidation, verifyForgotPasswordOTP);
 router.post("/reset-password", resetPasswordValidation, resetPassword);
 
 module.exports = router;

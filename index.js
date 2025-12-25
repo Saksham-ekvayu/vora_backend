@@ -8,7 +8,7 @@ const { connectDB, disconnectDB } = require("./src/database/database");
 
 // Import routes
 const authRoutes = require("./src/routes/auth.routes");
-const userRoutes = require("./src/routes/user.route");
+const userRoutes = require("./src/routes/user.routes");
 
 // Load environment variables
 dotenv.config();

@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
 const User = require("../models/user.model");
 const { generateOTP, sendOTPEmail } = require("../services/email.service");
 
@@ -10,24 +11,20 @@ const register = async (req, res) => {
     // Check if user already exists by email
     let user = await User.findOne({ email });
     if (user) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "User with this email already exists",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "User with this email already exists",
+      });
     }
 
     // Check if user already exists by phone
     if (phone) {
       const phoneUser = await User.findOne({ phone });
       if (phoneUser) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "User with this phone number already exists",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "User with this phone number already exists",
+        });
       }
     }
 
@@ -248,47 +245,6 @@ const forgotPassword = async (req, res) => {
   }
 };
 
-const verifyForgotPasswordOTP = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-
-    const user = await User.findOne({ email });
-    if (!user)
-      return res
-        .status(400)
-        .json({ success: false, message: "User not found" });
-
-    if (!user.otp || !user.otp.code || !user.otp.expiresAt)
-      return res.status(400).json({ success: false, message: "No OTP found" });
-
-    // Ensure OTP was issued for password reset (if purpose stored)
-    if (user.otp.purpose && user.otp.purpose !== "password_reset")
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid OTP purpose" });
-
-    if (user.otp.expiresAt < new Date())
-      return res
-        .status(400)
-        .json({ success: false, message: "OTP has expired" });
-
-    if (user.otp.code !== otp)
-      return res.status(400).json({ success: false, message: "Invalid OTP" });
-
-    // Mark OTP as verified for reset (so client can proceed to reset)
-    user.otp.verified = true;
-    await user.save();
-
-    res.json({
-      success: true,
-      message: "OTP verified. You can now reset your password.",
-    });
-  } catch (error) {
-    console.error("Verify forgot-password OTP error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-};
-
 // Reset password using OTP
 const resetPassword = async (req, res) => {
   try {
@@ -316,6 +272,18 @@ const resetPassword = async (req, res) => {
     if (user.otp.code !== otp)
       return res.status(400).json({ success: false, message: "Invalid OTP" });
 
+    // 🔴 CHECK: New password should not be old password
+    const isSamePassword = await bcrypt.compare(password, user.password);
+
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        warning: true,
+        message:
+          "This password looks like your old password. Please choose a new one.",
+      });
+    }
+
     // Set new password (assumes User model hashes password on save)
     user.password = password;
     user.otp = undefined;
@@ -338,6 +306,5 @@ module.exports = {
   resendOTP,
   login,
   forgotPassword,
-  verifyForgotPasswordOTP,
   resetPassword,
 };

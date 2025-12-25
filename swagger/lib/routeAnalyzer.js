@@ -138,10 +138,12 @@ class RouteAnalyzer {
         return this.getDefaultBodySchema(routePath, method);
       }
 
-      return (
-        this.extractBodyFromFunction(controllerContent, functionName) ||
-        this.getDefaultBodySchema(routePath, method)
+      const extractedSchema = this.extractBodyFromFunction(
+        controllerContent,
+        functionName
       );
+
+      return extractedSchema || this.getDefaultBodySchema(routePath, method);
     } catch (error) {
       console.error("Error extracting request body schema:", error);
       return this.getDefaultBodySchema(routePath, method);
@@ -169,7 +171,13 @@ class RouteAnalyzer {
         if (file.endsWith(".controller.js") || file.endsWith(".js")) {
           const controllerName = file.replace(/\.controller\.js$|\.js$/, "");
           const filePath = path.join(controllersDir, file);
+
+          // Generic mapping - extract controller name and map to API path
+          // This works for any controller naming convention
           controllerFiles[`/api/${controllerName}`] = filePath;
+
+          // Also add without /api prefix for flexibility
+          controllerFiles[`/${controllerName}`] = filePath;
         }
       });
 
@@ -194,36 +202,208 @@ class RouteAnalyzer {
       return null;
     }
 
-    const pathParts = routePath.split("/").filter((part) => part);
-    const lastPart = pathParts[pathParts.length - 1];
+    // Extract meaningful parts from route path
+    const pathParts = routePath
+      .split("/")
+      .filter((part) => part && part !== "api");
 
-    // Method-based patterns
-    const methodActions = {
-      GET: ["get", "fetch", "retrieve", "list", "show", "find"],
-      POST: ["create", "add", "register", "login", "send", "verify", "resend"],
-      PUT: ["update", "edit", "modify", "change"],
-      DELETE: ["delete", "remove", "destroy"],
-      PATCH: ["patch", "update", "modify"],
-    };
+    // Generate all possible function name patterns
+    const possibleNames = this.generateFunctionNamePatterns(pathParts, method);
 
-    // Try exact matches first
-    const patterns = [
-      lastPart,
-      `${method.toLowerCase()}${this.capitalize(lastPart)}`,
-      `${lastPart}${this.capitalize(method)}`,
-      ...methodActions[method].map(
-        (action) => `${action}${this.capitalize(lastPart)}`
-      ),
-    ];
-
-    for (const pattern of patterns) {
+    // Try to match patterns with available functions
+    for (const pattern of possibleNames) {
       const found = availableFunctions.find(
         (func) => func.toLowerCase() === pattern.toLowerCase()
       );
       if (found) return found;
     }
 
+    // If no exact match, try fuzzy matching
+    const fuzzyMatch = this.findFuzzyMatch(possibleNames, availableFunctions);
+    if (fuzzyMatch) return fuzzyMatch;
+
     return availableFunctions[0]; // Fallback to first function
+  }
+
+  /**
+   * Generate all possible function name patterns from route parts and method
+   * @param {Array} pathParts - Route path parts
+   * @param {string} method - HTTP method
+   * @returns {Array} Array of possible function names
+   */
+  generateFunctionNamePatterns(pathParts, method) {
+    const patterns = new Set();
+
+    // Method-based actions
+    const methodActions = {
+      GET: [
+        "get",
+        "fetch",
+        "retrieve",
+        "list",
+        "show",
+        "find",
+        "getAll",
+        "view",
+      ],
+      POST: [
+        "create",
+        "add",
+        "register",
+        "login",
+        "send",
+        "verify",
+        "resend",
+        "post",
+        "insert",
+      ],
+      PUT: ["update", "edit", "modify", "change", "put", "replace"],
+      DELETE: ["delete", "remove", "destroy", "del"],
+      PATCH: ["patch", "update", "modify", "change"],
+    };
+
+    const actions = methodActions[method] || [method.toLowerCase()];
+
+    // Single part patterns
+    pathParts.forEach((part) => {
+      const cleanPart = part.replace(/[-_]/g, "");
+      const camelPart = this.toCamelCase(part);
+
+      // Direct part names
+      patterns.add(part);
+      patterns.add(cleanPart);
+      patterns.add(camelPart);
+
+      // Method + part combinations
+      actions.forEach((action) => {
+        patterns.add(action + this.capitalize(part));
+        patterns.add(action + this.capitalize(cleanPart));
+        patterns.add(action + this.capitalize(camelPart));
+        patterns.add(part + this.capitalize(action));
+        patterns.add(cleanPart + this.capitalize(action));
+      });
+    });
+
+    // Multi-part combinations
+    if (pathParts.length >= 2) {
+      for (let i = 0; i < pathParts.length - 1; i++) {
+        const part1 = pathParts[i];
+        const part2 = pathParts[i + 1];
+
+        // Combine adjacent parts
+        patterns.add(part1 + this.capitalize(part2));
+        patterns.add(part2 + this.capitalize(part1));
+        patterns.add(this.toCamelCase(part1 + "-" + part2));
+        patterns.add(this.toCamelCase(part2 + "-" + part1));
+
+        // With actions
+        actions.forEach((action) => {
+          patterns.add(
+            action + this.capitalize(part1) + this.capitalize(part2)
+          );
+          patterns.add(
+            action + this.capitalize(part2) + this.capitalize(part1)
+          );
+          patterns.add(
+            part1 + this.capitalize(part2) + this.capitalize(action)
+          );
+          patterns.add(
+            part2 + this.capitalize(part1) + this.capitalize(action)
+          );
+        });
+      }
+    }
+
+    // Full path combinations
+    if (pathParts.length >= 3) {
+      const lastThree = pathParts.slice(-3);
+      patterns.add(this.toCamelCase(lastThree.join("-")));
+
+      actions.forEach((action) => {
+        patterns.add(
+          action + lastThree.map((p) => this.capitalize(p)).join("")
+        );
+      });
+    }
+
+    return Array.from(patterns);
+  }
+
+  /**
+   * Find fuzzy match between patterns and available functions
+   * @param {Array} patterns - Generated patterns
+   * @param {Array} availableFunctions - Available function names
+   * @returns {string|null} Best matching function name
+   */
+  findFuzzyMatch(patterns, availableFunctions) {
+    let bestMatch = null;
+    let bestScore = 0;
+
+    for (const pattern of patterns) {
+      for (const func of availableFunctions) {
+        const score = this.calculateSimilarity(
+          pattern.toLowerCase(),
+          func.toLowerCase()
+        );
+        if (score > bestScore && score > 0.6) {
+          // 60% similarity threshold
+          bestScore = score;
+          bestMatch = func;
+        }
+      }
+    }
+
+    return bestMatch;
+  }
+
+  /**
+   * Calculate similarity between two strings
+   * @param {string} str1 - First string
+   * @param {string} str2 - Second string
+   * @returns {number} Similarity score (0-1)
+   */
+  calculateSimilarity(str1, str2) {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+
+    if (longer.length === 0) return 1.0;
+
+    const editDistance = this.levenshteinDistance(longer, shorter);
+    return (longer.length - editDistance) / longer.length;
+  }
+
+  /**
+   * Calculate Levenshtein distance between two strings
+   * @param {string} str1 - First string
+   * @param {string} str2 - Second string
+   * @returns {number} Edit distance
+   */
+  levenshteinDistance(str1, str2) {
+    const matrix = [];
+
+    for (let i = 0; i <= str2.length; i++) {
+      matrix[i] = [i];
+    }
+
+    for (let j = 0; j <= str1.length; j++) {
+      matrix[0][j] = j;
+    }
+
+    for (let i = 1; i <= str2.length; i++) {
+      for (let j = 1; j <= str1.length; j++) {
+        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+
+    return matrix[str2.length][str1.length];
   }
 
   /**
@@ -343,46 +523,300 @@ class RouteAnalyzer {
   }
 
   /**
+   * Extract request body schema from validation middleware
+   * @param {string} routePath - Route path
+   * @param {string} method - HTTP method
+   * @returns {Object|null} Request body schema from validation
+   */
+  extractFromValidationMiddleware(routePath, method) {
+    try {
+      // Find validation middleware files
+      const middlewaresDir = path.resolve("./src/middlewares");
+      if (!fs.existsSync(middlewaresDir)) {
+        return null;
+      }
+
+      const validationFiles = fs
+        .readdirSync(middlewaresDir)
+        .filter((file) => file.includes("validation") && file.endsWith(".js"));
+
+      for (const file of validationFiles) {
+        const filePath = path.join(middlewaresDir, file);
+        const content = fs.readFileSync(filePath, "utf8");
+
+        // Extract validation schemas from the file
+        const schema = this.parseValidationFile(content, routePath, method);
+        if (schema) {
+          return schema;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Error extracting from validation middleware:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Parse validation file to extract field requirements
+   * @param {string} content - Validation file content
+   * @param {string} routePath - Route path
+   * @param {string} method - HTTP method
+   * @returns {Object|null} Parsed validation schema
+   */
+  parseValidationFile(content, routePath, method) {
+    try {
+      // Extract validation function names and their field requirements
+      const validationFunctions = this.extractValidationFunctions(content);
+
+      // Try to match route to validation function
+      const matchedValidation = this.matchRouteToValidation(
+        routePath,
+        method,
+        validationFunctions
+      );
+
+      return matchedValidation;
+    } catch (error) {
+      console.error("Error parsing validation file:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Extract validation functions and their field requirements
+   * @param {string} content - Validation file content
+   * @returns {Object} Map of validation functions to their fields
+   */
+  extractValidationFunctions(content) {
+    const validations = {};
+
+    // Pattern to match validation function definitions
+    const validationPattern = /const\s+(\w+Validation)\s*=\s*\[([\s\S]*?)\]/g;
+
+    let match;
+    while ((match = validationPattern.exec(content)) !== null) {
+      const functionName = match[1];
+      const validationBody = match[2];
+
+      // Extract field validators from the validation array
+      const fields = this.extractFieldsFromValidation(validationBody, content);
+      if (fields && Object.keys(fields).length > 0) {
+        validations[functionName] = fields;
+      }
+    }
+
+    return validations;
+  }
+
+  /**
+   * Extract fields from validation function body
+   * @param {string} validationBody - Validation function body
+   * @param {string} fullContent - Full file content for reference
+   * @returns {Object} Field schema
+   */
+  extractFieldsFromValidation(validationBody, fullContent) {
+    const fields = {};
+
+    // Pattern to match validator function calls
+    const validatorPattern = /(\w+Validator)\(\s*([^)]*)\s*\)/g;
+
+    let match;
+    while ((match = validatorPattern.exec(validationBody)) !== null) {
+      const validatorName = match[1];
+      const params = match[2];
+
+      // Extract field name from validator
+      const fieldName = this.getFieldFromValidator(validatorName, fullContent);
+      if (fieldName) {
+        // Check if field is optional based on parameters
+        const isOptional =
+          params.includes("false") ||
+          validationBody.includes(`${validatorName}(false)`);
+        fields[fieldName] = isOptional ? "string (optional)" : "string";
+      }
+    }
+
+    return fields;
+  }
+
+  /**
+   * Get field name from validator function
+   * @param {string} validatorName - Validator function name
+   * @param {string} content - File content
+   * @returns {string|null} Field name
+   */
+  getFieldFromValidator(validatorName, content) {
+    // Try multiple patterns to extract field name from validator definition
+    const patterns = [
+      // Pattern 1: const nameValidator = () => body("name")
+      new RegExp(
+        `const\\s+${validatorName}\\s*=\\s*\\([^)]*\\)\\s*=>\\s*body\\("([^"]+)"\\)`,
+        "g"
+      ),
+      // Pattern 2: const nameValidator = body("name")
+      new RegExp(`const\\s+${validatorName}\\s*=\\s*body\\("([^"]+)"\\)`, "g"),
+      // Pattern 3: nameValidator: body("name")
+      new RegExp(`${validatorName}\\s*:\\s*body\\("([^"]+)"\\)`, "g"),
+      // Pattern 4: anywhere in the validator function body
+      new RegExp(`${validatorName}[\\s\\S]*?body\\("([^"]+)"\\)`, "g"),
+    ];
+
+    for (const pattern of patterns) {
+      const match = pattern.exec(content);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+
+    // Fallback: try to infer from validator name by removing common suffixes
+    let fieldName = validatorName.toLowerCase();
+
+    // Remove common validator suffixes
+    const suffixes = ["validator", "validation", "custom"];
+    for (const suffix of suffixes) {
+      if (fieldName.endsWith(suffix)) {
+        fieldName = fieldName.slice(0, -suffix.length);
+        break;
+      }
+    }
+
+    // Return the inferred field name if it looks valid
+    return fieldName && /^[a-zA-Z][a-zA-Z0-9]*$/.test(fieldName)
+      ? fieldName
+      : null;
+  }
+
+  /**
+   * Match route to appropriate validation function
+   * @param {string} routePath - Route path
+   * @param {string} method - HTTP method
+   * @param {Object} validationFunctions - Available validation functions
+   * @returns {Object|null} Matched validation schema
+   */
+  matchRouteToValidation(routePath, method, validationFunctions) {
+    // Extract meaningful parts from route path
+    const pathParts = routePath
+      .toLowerCase()
+      .split("/")
+      .filter((part) => part && part !== "api");
+
+    // Generate possible validation function names dynamically
+    const possibleNames = new Set();
+
+    // Add combinations of path parts
+    pathParts.forEach((part, index) => {
+      // Single part
+      possibleNames.add(part + "Validation");
+      possibleNames.add(part.replace("-", "") + "Validation");
+      possibleNames.add(this.toCamelCase(part) + "Validation");
+
+      // Method + part combinations
+      possibleNames.add(
+        method.toLowerCase() + this.capitalize(part) + "Validation"
+      );
+
+      // Multi-part combinations
+      if (index > 0) {
+        const prevPart = pathParts[index - 1];
+        possibleNames.add(prevPart + this.capitalize(part) + "Validation");
+        possibleNames.add(part + this.capitalize(prevPart) + "Validation");
+      }
+
+      // Next part combinations
+      if (index < pathParts.length - 1) {
+        const nextPart = pathParts[index + 1];
+        possibleNames.add(part + this.capitalize(nextPart) + "Validation");
+      }
+    });
+
+    // Add full path combinations
+    if (pathParts.length >= 2) {
+      const lastTwo = pathParts.slice(-2);
+      possibleNames.add(lastTwo.join("") + "Validation");
+      possibleNames.add(this.toCamelCase(lastTwo.join("-")) + "Validation");
+    }
+
+    // Try all possible names
+    for (const name of possibleNames) {
+      if (validationFunctions[name]) {
+        return validationFunctions[name];
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Extract request body schema from controller function
+   * @param {string} routePath - Route path
+   * @param {string} method - HTTP method
+   * @returns {Object|null} Request body schema from controller
+   */
+  extractFromController(routePath, method) {
+    try {
+      const controllerMap = this.discoverControllerFiles();
+      let controllerFile = null;
+
+      // Find appropriate controller file
+      for (const [basePath, filePath] of Object.entries(controllerMap)) {
+        if (routePath.startsWith(basePath)) {
+          controllerFile = filePath;
+          break;
+        }
+      }
+
+      if (!controllerFile || !fs.existsSync(controllerFile)) {
+        return null;
+      }
+
+      const controllerContent = fs.readFileSync(controllerFile, "utf8");
+      const functionName = this.findMatchingFunction(
+        routePath,
+        method,
+        controllerContent
+      );
+
+      if (!functionName) {
+        return null;
+      }
+
+      return this.extractBodyFromFunction(controllerContent, functionName);
+    } catch (error) {
+      console.error("Error extracting from controller:", error);
+      return null;
+    }
+  }
+
+  /**
    * Get default body schema based on route path and method
    * @param {string} routePath - Route path
    * @param {string} method - HTTP method
-   * @returns {Object|null} Default body schema
+   * @returns {Object|null} Request body schema
    */
   getDefaultBodySchema(routePath, method) {
     if (method === "GET" || method === "DELETE") {
       return null;
     }
 
-    // Smart defaults based on route path
-    if (routePath.includes("register")) {
-      return {
-        name: "string",
-        email: "string",
-        password: "string",
-        phone: "string (optional)",
-      };
-    } else if (routePath.includes("login")) {
-      return {
-        email: "string",
-        password: "string",
-      };
-    } else if (routePath.includes("verify")) {
-      return {
-        email: "string",
-        otp: "string",
-      };
-    } else if (routePath.includes("password")) {
-      return {
-        email: "string",
-        password: "string (optional)",
-        otp: "string (optional)",
-      };
+    // Try to extract from validation middleware first
+    const validationSchema = this.extractFromValidationMiddleware(
+      routePath,
+      method
+    );
+    if (validationSchema) {
+      return validationSchema;
     }
 
-    return {
-      field1: "string",
-      field2: "string (optional)",
-    };
+    // Try to extract from controller function
+    const controllerSchema = this.extractFromController(routePath, method);
+    if (controllerSchema) {
+      return controllerSchema;
+    }
+
+    // Generic fallback - return null to indicate no body expected
+    return null;
   }
 
   /**
@@ -439,6 +873,15 @@ class RouteAnalyzer {
    */
   capitalize(str) {
     return str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
+  }
+
+  /**
+   * Convert kebab-case or snake_case to camelCase
+   * @param {string} str - String to convert
+   * @returns {string} camelCase string
+   */
+  toCamelCase(str) {
+    return str.replace(/[-_](.)/g, (_, char) => char.toUpperCase());
   }
 }
 

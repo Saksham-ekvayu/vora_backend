@@ -140,6 +140,10 @@ const otpValidation = [
   otpValidator(),
   handleValidationErrors,
 ];
+const sendVerificationOTPValidation = [
+  emailValidator(),
+  handleValidationErrors,
+];
 
 const profileUpdateValidation = [
   nameValidator(),
@@ -175,6 +179,7 @@ module.exports = {
   registerValidation,
   loginValidation,
   otpValidation,
+  sendVerificationOTPValidation,
   profileUpdateValidation,
   forgotPasswordValidation,
   resetPasswordValidation,

@@ -300,6 +300,57 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const sendVerificationOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Already verified
+    if (user.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is already verified",
+      });
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+    const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 mins
+
+    user.otp = {
+      code: otp,
+      expiresAt: otpExpiry,
+      purpose: "email_verification",
+    };
+
+    await user.save();
+
+    // Send OTP
+    const emailSent = await sendOTPEmail(email, otp);
+    if (!emailSent) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send verification OTP",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Verification OTP sent to your email",
+    });
+  } catch (error) {
+    console.error("Send verification OTP error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 module.exports = {
   register,
   verifyOTP,
@@ -307,4 +358,5 @@ module.exports = {
   login,
   forgotPassword,
   resetPassword,
+  sendVerificationOTP,
 };

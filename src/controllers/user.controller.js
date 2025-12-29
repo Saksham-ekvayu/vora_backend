@@ -79,11 +79,11 @@ const updateUserByAdmin = async (req, res) => {
       });
     }
 
-    const { userId } = req.params;
+    const { id } = req.params;
     const { name, role, phone } = req.body;
 
     // find user
-    const user = await User.findById(userId);
+    const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,

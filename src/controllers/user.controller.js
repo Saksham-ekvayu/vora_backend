@@ -56,8 +56,8 @@ const createUserByAdmin = async (req, res) => {
         email: newUser.email,
         role: newUser.role,
         phone: newUser.phone,
+        temporaryPassword: tempPassword, // return so admin can share/reset;
       },
-      temporaryPassword: tempPassword, // return so admin can share/reset; remove in production
     });
   } catch (error) {
     console.error("Create user by admin error:", error);

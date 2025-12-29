@@ -3,12 +3,12 @@ const cors = require("cors");
 const { bgRed, bgYellow, bgBlue, bgMagenta } = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
-const SwaggerExpressDashboard = require("./swagger-express-dashboard");
+const SwaggerExpressDashboard = require("./swagger");
 const { connectDB, disconnectDB } = require("./src/database/database");
 
 // Import routes
 const authRoutes = require("./src/routes/auth.routes");
-const userRoutes = require("./src/routes/user.route");
+const userRoutes = require("./src/routes/user.routes");
 
 // Load environment variables
 dotenv.config();
@@ -23,6 +23,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Redirect root (/) to /api-docs
+app.get("/", (req, res) => {
+  return res.redirect("/api-docs");
+});
 
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, "public")));

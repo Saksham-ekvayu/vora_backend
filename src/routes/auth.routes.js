@@ -6,7 +6,7 @@ const {
   login,
   forgotPassword,
   resetPassword,
-  verifyForgotPasswordOTP,
+  sendVerificationOTP,
 } = require("../controllers/auth.controller");
 const {
   registerValidation,
@@ -15,6 +15,7 @@ const {
   forgotPasswordValidation,
   resetPasswordValidation,
   resendOtpValidation,
+  sendVerificationOTPValidation,
 } = require("../middlewares/validation");
 
 const router = express.Router();
@@ -25,7 +26,11 @@ router.post("/verify-otp", otpValidation, verifyOTP);
 router.post("/resend-otp", resendOtpValidation, resendOTP);
 router.post("/login", loginValidation, login);
 router.post("/forgot-password", forgotPasswordValidation, forgotPassword);
-router.post("/verify-forgot-otp", otpValidation, verifyForgotPasswordOTP);
 router.post("/reset-password", resetPasswordValidation, resetPassword);
+router.post(
+  "/verify-email",
+  sendVerificationOTPValidation,
+  sendVerificationOTP
+);
 
 module.exports = router;

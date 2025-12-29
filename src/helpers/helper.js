@@ -29,6 +29,86 @@ const generateTempPassword = (length = 12) => {
 };
 
 /**
+ * Build search filter for MongoDB queries
+ * @param {string} searchTerm - Search term from query params
+ * @param {Array} searchFields - Array of field names to search in
+ * @param {Object} additionalFilters - Additional filters to combine with search
+ * @returns {Object} MongoDB filter object
+ */
+const buildSearchFilter = (
+  searchTerm,
+  searchFields = [],
+  additionalFilters = {}
+) => {
+  let filter = { ...additionalFilters };
+
+  if (searchTerm && searchTerm.trim() && searchFields.length > 0) {
+    const searchRegex = new RegExp(searchTerm.trim(), "i"); // case-insensitive search
+
+    const searchConditions = searchFields.map((field) => ({
+      [field]: searchRegex,
+    }));
+
+    // If there are additional filters, combine with $and
+    if (Object.keys(additionalFilters).length > 0) {
+      filter = {
+        $and: [additionalFilters, { $or: searchConditions }],
+      };
+    } else {
+      filter = { $or: searchConditions };
+    }
+  }
+
+  return filter;
+};
+
+/**
+ * Enhanced pagination helper with built-in search support
+ * @param {Object} Model - Mongoose model to paginate
+ * @param {Object} options - Pagination and search options
+ * @param {number} options.page - Current page number
+ * @param {number} options.limit - Items per page
+ * @param {string} options.search - Search term
+ * @param {Array} options.searchFields - Fields to search in
+ * @param {Object} options.filter - Additional MongoDB filter object
+ * @param {string} options.select - Fields to select
+ * @param {Object} options.sort - Sort object
+ * @param {Function} options.transform - Transform function for each document
+ * @returns {Object} Paginated result with data and pagination info
+ */
+const paginateWithSearch = async (Model, options = {}) => {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    searchFields = [],
+    filter = {},
+    select = "-password -otp",
+    sort = { createdAt: -1 },
+    transform = null,
+  } = options;
+
+  // Build search filter
+  const searchFilter = buildSearchFilter(search, searchFields, filter);
+
+  // Use existing paginate function with search filter
+  const result = await paginate(Model, {
+    page,
+    limit,
+    filter: searchFilter,
+    select,
+    sort,
+    transform,
+  });
+
+  return {
+    ...result,
+    searchTerm: search || null,
+    searchFields: searchFields.length > 0 ? searchFields : null,
+  };
+};
+
+/**
  * Common pagination helper function
  * @param {Object} Model - Mongoose model to paginate
  * @param {Object} options - Pagination options
@@ -98,5 +178,7 @@ function getLocalIPv4() {
 module.exports = {
   generateTempPassword,
   paginate,
+  buildSearchFilter,
+  paginateWithSearch,
   getLocalIPv4,
 };

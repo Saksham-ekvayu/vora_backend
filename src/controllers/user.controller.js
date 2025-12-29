@@ -1,5 +1,8 @@
 const User = require("../models/user.model");
-const { generateTempPassword, paginate } = require("../helpers/helper");
+const {
+  generateTempPassword,
+  paginateWithSearch,
+} = require("../helpers/helper");
 
 // Create user by admin
 const createUserByAdmin = async (req, res) => {
@@ -76,10 +79,12 @@ const getAllUsers = async (req, res) => {
       });
     }
 
-    // Use common pagination helper
-    const result = await paginate(User, {
+    // Use enhanced pagination helper with search support
+    const result = await paginateWithSearch(User, {
       page: req.query.page,
       limit: 10, // Fixed limit of 10 users per page
+      search: req.query.search,
+      searchFields: ["name", "email", "phone"], // Fields to search in
       transform: (user) => ({
         id: user._id,
         name: user.name,
@@ -88,6 +93,7 @@ const getAllUsers = async (req, res) => {
         phone: user.phone,
         isEmailVerified: user.isEmailVerified,
         createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       }),
     });
 
@@ -96,6 +102,7 @@ const getAllUsers = async (req, res) => {
       message: "User list retrieved successfully",
       users: result.data,
       pagination: result.pagination,
+      searchTerm: result.searchTerm,
     });
   } catch (error) {
     console.error("Get all users error:", error);

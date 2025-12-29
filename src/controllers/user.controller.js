@@ -140,12 +140,34 @@ const getAllUsers = async (req, res) => {
       });
     }
 
-    // Use enhanced pagination helper with search support
+    // Build sort object from query params
+    let sortObj = { createdAt: -1 }; // Default sort by createdAt descending
+
+    if (req.query.sortBy && req.query.sortOrder) {
+      const sortBy = req.query.sortBy;
+      const sortOrder = req.query.sortOrder === "desc" ? -1 : 1;
+
+      // Validate sortBy field to prevent injection
+      const allowedSortFields = [
+        "name",
+        "email",
+        "role",
+        "createdAt",
+        "updatedAt",
+        "isEmailVerified",
+      ];
+      if (allowedSortFields.includes(sortBy)) {
+        sortObj = { [sortBy]: sortOrder };
+      }
+    }
+
+    // Use enhanced pagination helper with search and sort support
     const result = await paginateWithSearch(User, {
       page: req.query.page,
       limit: 10, // Fixed limit of 10 users per page
       search: req.query.search,
       searchFields: ["name", "email", "phone"], // Fields to search in
+      sort: sortObj,
       transform: (user) => ({
         id: user._id,
         name: user.name,

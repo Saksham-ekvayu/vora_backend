@@ -68,6 +68,67 @@ const createUserByAdmin = async (req, res) => {
   }
 };
 
+// Update user by admin
+const updateUserByAdmin = async (req, res) => {
+  try {
+    // only admins can update users
+    if (!req.user || req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: admin access required to perform this action.",
+      });
+    }
+
+    const { userId } = req.params;
+    const { name, role, phone } = req.body;
+
+    // find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // phone uniqueness check (only if changed)
+    if (phone && phone !== user.phone) {
+      const existingPhone = await User.findOne({ phone });
+      if (existingPhone) {
+        return res.status(400).json({
+          success: false,
+          message: "User with this phone number already exists",
+        });
+      }
+      user.phone = phone;
+    }
+
+    // update allowed fields
+    if (name) user.name = name;
+    if (role) user.role = role;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "User updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email, // email unchanged
+        role: user.role,
+        phone: user.phone,
+      },
+    });
+  } catch (error) {
+    console.error("Update user by admin error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 // Get all users (admin only)
 const getAllUsers = async (req, res) => {
   try {
@@ -209,6 +270,7 @@ const editProfile = async (req, res) => {
 
 module.exports = {
   createUserByAdmin,
+  updateUserByAdmin,
   getAllUsers,
   getUserById,
   editProfile,

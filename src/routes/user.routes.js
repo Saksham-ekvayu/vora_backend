@@ -3,6 +3,7 @@ const { authenticateToken } = require("../middlewares/auth.middleware");
 const {
   profileUpdateValidation,
   createUserValidation,
+  updateUserValidation,
 } = require("../middlewares/validation");
 const {
   getUserById,
@@ -10,6 +11,7 @@ const {
   getAllUsers,
   deleteUser,
   createUserByAdmin,
+  updateUserByAdmin,
 } = require("../controllers/user.controller");
 
 const router = express.Router();
@@ -20,6 +22,12 @@ router.post(
   authenticateToken,
   createUserValidation,
   createUserByAdmin
+);
+router.put(
+  "/update/:id",
+  authenticateToken,
+  updateUserValidation,
+  updateUserByAdmin
 );
 router.delete("/:id", authenticateToken, deleteUser);
 router.get("/:id", authenticateToken, getUserById);

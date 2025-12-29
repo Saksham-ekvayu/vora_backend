@@ -1,3 +1,5 @@
+const os = require("os");
+
 const generateTempPassword = (length = 12) => {
   const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const lower = "abcdefghijklmnopqrstuvwxyz";
@@ -79,7 +81,22 @@ const paginate = async (Model, options = {}) => {
   };
 };
 
+// Get Local IPv4
+function getLocalIPv4() {
+  const interfaces = os.networkInterfaces();
+
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === "IPv4" && !iface.internal) {
+        return iface.address; // first non-internal IPv4
+      }
+    }
+  }
+  return "localhost";
+}
+
 module.exports = {
   generateTempPassword,
   paginate,
+  getLocalIPv4,
 };

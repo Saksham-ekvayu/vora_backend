@@ -214,6 +214,8 @@ const getUserById = async (req, res) => {
         email: user.email,
         role: user.role,
         phone: user.phone,
+        isEmailVerified: user.isEmailVerified,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {

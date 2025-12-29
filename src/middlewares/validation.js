@@ -120,6 +120,14 @@ const createUserValidation = [
   handleValidationErrors,
 ];
 
+const updateUserValidation = [
+  nameValidator(),
+  roleValidator(),
+  // phone not required on create user
+  phoneCustomValidator(false),
+  handleValidationErrors,
+];
+
 const registerValidation = [
   nameValidator(),
   emailValidator(),
@@ -176,6 +184,7 @@ module.exports = {
   handleValidationErrors,
   // composite validators
   createUserValidation,
+  updateUserValidation,
   registerValidation,
   loginValidation,
   otpValidation,

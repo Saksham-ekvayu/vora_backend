@@ -1,5 +1,8 @@
 const User = require("../models/user.model");
-const { generateTempPassword, paginate } = require("../helpers/helper");
+const {
+  generateTempPassword,
+  paginateWithSearch,
+} = require("../helpers/helper");
 
 // Create user by admin
 const createUserByAdmin = async (req, res) => {
@@ -56,12 +59,73 @@ const createUserByAdmin = async (req, res) => {
         email: newUser.email,
         role: newUser.role,
         phone: newUser.phone,
+        temporaryPassword: tempPassword, // return so admin can share/reset;
       },
-      temporaryPassword: tempPassword, // return so admin can share/reset; remove in production
     });
   } catch (error) {
     console.error("Create user by admin error:", error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Update user by admin
+const updateUserByAdmin = async (req, res) => {
+  try {
+    // only admins can update users
+    if (!req.user || req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: admin access required to perform this action.",
+      });
+    }
+
+    const { id } = req.params;
+    const { name, role, phone } = req.body;
+
+    // find user
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // phone uniqueness check (only if changed)
+    if (phone && phone !== user.phone) {
+      const existingPhone = await User.findOne({ phone });
+      if (existingPhone) {
+        return res.status(400).json({
+          success: false,
+          message: "User with this phone number already exists",
+        });
+      }
+      user.phone = phone;
+    }
+
+    // update allowed fields
+    if (name) user.name = name;
+    if (role) user.role = role;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "User updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email, // email unchanged
+        role: user.role,
+        phone: user.phone,
+      },
+    });
+  } catch (error) {
+    console.error("Update user by admin error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
 
@@ -76,10 +140,34 @@ const getAllUsers = async (req, res) => {
       });
     }
 
-    // Use common pagination helper
-    const result = await paginate(User, {
+    // Build sort object from query params
+    let sortObj = { createdAt: -1 }; // Default sort by createdAt descending
+
+    if (req.query.sortBy && req.query.sortOrder) {
+      const sortBy = req.query.sortBy;
+      const sortOrder = req.query.sortOrder === "desc" ? -1 : 1;
+
+      // Validate sortBy field to prevent injection
+      const allowedSortFields = [
+        "name",
+        "email",
+        "role",
+        "createdAt",
+        "updatedAt",
+        "isEmailVerified",
+      ];
+      if (allowedSortFields.includes(sortBy)) {
+        sortObj = { [sortBy]: sortOrder };
+      }
+    }
+
+    // Use enhanced pagination helper with search and sort support
+    const result = await paginateWithSearch(User, {
       page: req.query.page,
       limit: 10, // Fixed limit of 10 users per page
+      search: req.query.search,
+      searchFields: ["name", "email", "phone"], // Fields to search in
+      sort: sortObj,
       transform: (user) => ({
         id: user._id,
         name: user.name,
@@ -88,6 +176,7 @@ const getAllUsers = async (req, res) => {
         phone: user.phone,
         isEmailVerified: user.isEmailVerified,
         createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       }),
     });
 
@@ -96,6 +185,7 @@ const getAllUsers = async (req, res) => {
       message: "User list retrieved successfully",
       users: result.data,
       pagination: result.pagination,
+      searchTerm: result.searchTerm,
     });
   } catch (error) {
     console.error("Get all users error:", error);
@@ -124,6 +214,8 @@ const getUserById = async (req, res) => {
         email: user.email,
         role: user.role,
         phone: user.phone,
+        isEmailVerified: user.isEmailVerified,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
@@ -202,6 +294,7 @@ const editProfile = async (req, res) => {
 
 module.exports = {
   createUserByAdmin,
+  updateUserByAdmin,
   getAllUsers,
   getUserById,
   editProfile,

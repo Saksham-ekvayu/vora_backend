@@ -1,10 +1,17 @@
 const express = require("express");
 const cors = require("cors");
-const { bgRed, bgYellow, bgBlue, bgMagenta } = require("colorette");
+const {
+  bgRed,
+  bgYellow,
+  bgBlue,
+  bgMagenta,
+  bgWhiteBright,
+} = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
 const SwaggerExpressDashboard = require("./swagger");
 const { connectDB, disconnectDB } = require("./src/database/database");
+const { getLocalIPv4 } = require("./src/helpers/helper");
 
 // Import routes
 const authRoutes = require("./src/routes/auth.routes");
@@ -62,8 +69,14 @@ async function start() {
     console.log(bgMagenta("Connected to MongoDB"));
 
     server = app.listen(PORT, "0.0.0.0", () => {
-      console.log(bgYellow(`Server running on http://0.0.0.0:${PORT}`));
-      console.log(bgBlue(`Server listening on port http://localhost:${PORT}`));
+      const ipv4 = getLocalIPv4();
+      // ✅ Development ke liye actual IPv4
+      if (process.env.NODE_ENV !== "production") {
+        console.log(bgWhiteBright(`Network access → http://${ipv4}:${PORT}`));
+      }
+      console.log(
+        bgBlue(`Server listening on port → http://localhost:${PORT}`)
+      );
     });
   } catch (err) {
     console.error(bgRed("Failed to start app:"), err);

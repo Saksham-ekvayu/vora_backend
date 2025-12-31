@@ -29,7 +29,7 @@ const {
   deleteDocument,
   downloadDocument,
   getUserDocuments,
-} = require("../controllers/document.controller");
+} = require("../controllers/user/document.controller");
 
 // Routes
 

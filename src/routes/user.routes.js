@@ -12,7 +12,7 @@ const {
   deleteUser,
   createUserByAdmin,
   updateUserByAdmin,
-} = require("../controllers/user.controller");
+} = require("../controllers/admin/user.controller");
 
 const router = express.Router();
 

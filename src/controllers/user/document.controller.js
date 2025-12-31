@@ -1,12 +1,12 @@
-const Document = require("../models/document.model");
-const { paginateWithSearch } = require("../helpers/helper");
+const Document = require("../../models/document.model");
+const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {
   createDocumentUpload,
   getDocumentType,
   deleteFile,
   removeFileExtension,
-} = require("../config/multer.config");
+} = require("../../config/multer.config");
 
 // Create upload instance with specific directory for user documents
 const upload = createDocumentUpload("src/uploads/user-documents");

@@ -7,7 +7,7 @@ const {
   forgotPassword,
   resetPassword,
   sendVerificationOTP,
-} = require("../controllers/auth.controller");
+} = require("../controllers/auth/auth.controller");
 const {
   registerValidation,
   otpValidation,

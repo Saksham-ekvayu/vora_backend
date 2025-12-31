@@ -1020,3 +1020,70 @@ body {
 .status-info {
     border-left: 4px solid var(--neon-blue);
 }
+
+/* Form Data Persistence Styles */
+/* Responsive adjustments for buttons */
+@media (max-width: 768px) {
+    .test-btn {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+}
+
+/* Response Copy Button Styles */
+.response-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+}
+
+.status-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.copy-response-btn {
+    background: transparent;
+    border: 1px solid var(--neon-blue);
+    color: var(--neon-blue);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.copy-response-btn:hover {
+    background: var(--neon-blue);
+    color: var(--bg-primary);
+    box-shadow: 0 0 10px var(--neon-blue);
+}
+
+.copy-response-btn:active {
+    transform: scale(0.95);
+}
+
+/* Responsive adjustments for response copy button */
+@media (max-width: 768px) {
+    .response-status {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+    }
+
+    .status-info {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .copy-response-btn {
+        align-self: flex-end;
+    }
+}

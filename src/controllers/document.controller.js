@@ -1,96 +1,14 @@
 const Document = require("../models/document.model");
 const { paginateWithSearch } = require("../helpers/helper");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+const {
+  documentUpload,
+  getDocumentType,
+  deleteFile,
+  removeFileExtension,
+} = require("../config/multer.config");
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = "src/uploads/user-documents";
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    // Use original filename (this will replace existing files with same name)
-    cb(null, file.originalname);
-  },
-});
-
-// File filter to allow only specific file types
-const fileFilter = (req, file, cb) => {
-  const allowedTypes = [
-    "application/pdf", // PDF
-    "application/msword", // DOC
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // DOCX
-    "application/vnd.ms-excel", // XLS
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // XLSX
-  ];
-
-  const allowedExtensions = [".pdf", ".doc", ".docx", ".xls", ".xlsx"];
-  const fileExtension = path.extname(file.originalname).toLowerCase();
-
-  if (
-    allowedTypes.includes(file.mimetype) &&
-    allowedExtensions.includes(fileExtension)
-  ) {
-    cb(null, true);
-  } else {
-    // Create a proper error response that matches validation pattern
-    const error = new Error(
-      "Invalid file type. Only PDF, DOC, DOCX, XLS, and XLSX files are allowed."
-    );
-    error.code = "INVALID_FILE_TYPE";
-    cb(error, false);
-  }
-};
-
-// Configure multer upload
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 30 * 1024 * 1024, // 30MB limit
-  },
-  fileFilter: fileFilter,
-});
-
-// Helper function to get document type from file extension
-const getDocumentType = (filename) => {
-  const extension = path.extname(filename).toLowerCase();
-  switch (extension) {
-    case ".pdf":
-      return "pdf";
-    case ".doc":
-      return "doc";
-    case ".docx":
-      return "docx";
-    case ".xls":
-      return "xls";
-    case ".xlsx":
-      return "xlsx";
-    default:
-      return null;
-  }
-};
-
-// Helper function to delete file from filesystem
-const deleteFile = (filePath) => {
-  try {
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-  } catch (error) {
-    console.error("Error deleting file:", error);
-  }
-};
-
-// Helper function to remove file extension from filename
-const removeFileExtension = (filename) => {
-  return path.parse(filename).name;
-};
+// Use the configured upload instance
+const upload = documentUpload;
 
 // Create a new document
 const createDocument = async (req, res) => {

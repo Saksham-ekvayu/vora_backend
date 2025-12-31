@@ -1,7 +1,6 @@
-const Joi = require("joi");
 const { body, validationResult } = require("express-validator");
 
-// Middleware to handle validation errors (same pattern as auth/user)
+// Middleware to handle validation errors (same as user validation)
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -17,7 +16,7 @@ const handleValidationErrors = (req, res, next) => {
   next();
 };
 
-// Document name validator using express-validator (same pattern as auth/user)
+// Atomic validators (same pattern as user validation)
 const documentNameValidator = () =>
   body("documentName")
     .optional()
@@ -38,12 +37,15 @@ const fileUploadValidation = (req, res, next) => {
   next();
 };
 
-// Document upload validation (same pattern as auth/user)
+// Composite validators using reusable pieces (same pattern as user validation)
 const documentUploadValidation = [
   documentNameValidator(),
   handleValidationErrors,
   fileUploadValidation,
 ];
+
+// For other document operations, we still need Joi validators
+const Joi = require("joi");
 
 // Middleware to handle Joi validation errors (for other document operations)
 const handleJoiValidationErrors = (schema) => {
@@ -194,10 +196,12 @@ const getDocumentsQueryValidation = (req, res, next) => {
 };
 
 module.exports = {
-  // Express-validator based (same pattern as auth/user)
+  // atomic validators (exported in case needed elsewhere)
   documentNameValidator,
   handleValidationErrors,
   fileUploadValidation,
+
+  // composite validators (same pattern as user validation)
   documentUploadValidation,
 
   // Joi-based validators (for other operations)
@@ -209,8 +213,6 @@ module.exports = {
   sortValidator,
   searchValidator,
   handleJoiValidationErrors,
-
-  // Composite validation middleware
   updateDocumentValidation,
   getDocumentByIdValidation,
   deleteDocumentValidation,

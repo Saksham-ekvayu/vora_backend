@@ -51,7 +51,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Initialize dashboard
 const dashboard = new SwaggerExpressDashboard({
-  title: "Cypher Sentinel API",
+  title: "VORA Backend API",
   description: "Backend API Control Dashboard",
   version: "1.0.0",
   basePath: "/api-docs",

@@ -7,7 +7,7 @@ const {
   forgotPassword,
   resetPassword,
   sendVerificationOTP,
-} = require("../controllers/auth/auth.controller");
+} = require("../../controllers/auth/auth.controller");
 const {
   registerValidation,
   otpValidation,
@@ -16,7 +16,7 @@ const {
   resetPasswordValidation,
   resendOtpValidation,
   sendVerificationOTPValidation,
-} = require("../validations/user.validation");
+} = require("../../validations/user.validation");
 
 const router = express.Router();
 

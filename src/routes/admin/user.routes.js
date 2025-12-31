@@ -1,10 +1,10 @@
 const express = require("express");
-const { authenticateToken } = require("../middlewares/auth.middleware");
+const { authenticateToken } = require("../../middlewares/auth.middleware");
 const {
   profileUpdateValidation,
   createUserValidation,
   updateUserValidation,
-} = require("../validations/user.validation");
+} = require("../../validations/user.validation");
 const {
   getUserById,
   editProfile,
@@ -12,7 +12,7 @@ const {
   deleteUser,
   createUserByAdmin,
   updateUserByAdmin,
-} = require("../controllers/admin/user.controller");
+} = require("../../controllers/admin/user.controller");
 
 const router = express.Router();
 

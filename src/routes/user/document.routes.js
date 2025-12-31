@@ -2,13 +2,13 @@ const express = require("express");
 const router = express.Router();
 
 // Import middlewares
-const { authenticateToken } = require("../middlewares/auth.middleware");
+const { authenticateToken } = require("../../middlewares/auth.middleware");
 const {
   canCreateDocument,
   canUpdateDocument,
   canDeleteDocument,
   canViewDocument,
-} = require("../middlewares/roleAccess.middleware");
+} = require("../../middlewares/roleAccess.middleware");
 
 // Import validations
 const {
@@ -17,7 +17,7 @@ const {
   getDocumentByIdValidation,
   deleteDocumentValidation,
   getDocumentsQueryValidation,
-} = require("../validations/document.validation");
+} = require("../../validations/document.validation");
 
 // Import controller
 const {
@@ -29,7 +29,7 @@ const {
   deleteDocument,
   downloadDocument,
   getUserDocuments,
-} = require("../controllers/user/document.controller");
+} = require("../../controllers/user/document.controller");
 
 // Routes
 

@@ -1,12 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const {
-  bgRed,
-  bgYellow,
-  bgBlue,
-  bgMagenta,
-  bgGreen,
-} = require("colorette");
+const { bgRed, bgYellow, bgBlue, bgMagenta, bgGreen } = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
 const SwaggerExpressDashboard = require("./swagger");
@@ -14,9 +8,9 @@ const { connectDB, disconnectDB } = require("./src/database/database");
 const { getLocalIPv4 } = require("./src/helpers/helper");
 
 // Import routes
-const authRoutes = require("./src/routes/auth.routes");
-const userRoutes = require("./src/routes/user.routes");
-const documentRoutes = require("./src/routes/document.routes");
+const authRoutes = require("./src/routes/auth/auth.routes");
+const userRoutes = require("./src/routes/admin/user.routes");
+const documentRoutes = require("./src/routes/user/document.routes");
 
 // Import error handling middleware
 const {

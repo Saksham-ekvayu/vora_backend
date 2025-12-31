@@ -294,16 +294,223 @@ class RouteAnalyzer {
    * @returns {Object} Route information
    */
   analyzeRoute(path, method, routeLayer = null) {
-    const body = this.extractRequestBodySchema(path, method, routeLayer);
+    const hasFileUpload = this.detectFileUpload(path, method, routeLayer);
+    let body = this.extractRequestBodySchema(path, method, routeLayer);
+
+    // Add file field to body schema if file upload is detected
+    if (hasFileUpload && (method === "POST" || method === "PUT")) {
+      if (!body) {
+        body = {};
+      }
+
+      // Add file field based on route path
+      const fileFieldName = this.getFileFieldName(path);
+      body[fileFieldName] = "file (required)";
+    }
 
     return {
       path: path,
       method: method,
       body: body,
-      headers: this.getDefaultHeaders(method),
+      hasFileUpload: hasFileUpload, // New field to indicate file upload
+      headers: this.getDefaultHeaders(method, hasFileUpload),
       description: this.generateDescription(path, method),
       tags: this.extractTags(path),
     };
+  }
+
+  /**
+   * Get appropriate file field name based on route path
+   * @param {string} path - Route path
+   * @returns {string} File field name
+   */
+  getFileFieldName(path) {
+    const pathLower = path.toLowerCase();
+
+    // Check for specific patterns in path
+    if (pathLower.includes("document")) return "document";
+    if (pathLower.includes("image") || pathLower.includes("photo"))
+      return "image";
+    if (pathLower.includes("file")) return "file";
+    if (pathLower.includes("attachment")) return "attachment";
+    if (pathLower.includes("media")) return "media";
+
+    // Default fallback
+    return "file";
+  }
+
+  /**
+   * Detect if a route has file upload capability
+   * @param {string} path - Route path
+   * @param {string} method - HTTP method
+   * @param {Object} routeLayer - Express route layer (optional)
+   * @returns {boolean} True if route supports file upload
+   */
+  detectFileUpload(path, method, routeLayer = null) {
+    // Only POST and PUT methods can have file uploads
+    if (method !== "POST" && method !== "PUT") {
+      return false;
+    }
+
+    try {
+      // Method 1: Check route layer for multer middleware
+      if (routeLayer && routeLayer.stack) {
+        for (const handler of routeLayer.stack) {
+          if (handler.handle) {
+            const handlerString = handler.handle.toString();
+            // Check for multer patterns
+            if (
+              handlerString.includes("multer") ||
+              handlerString.includes("upload.single") ||
+              handlerString.includes("upload.array") ||
+              handlerString.includes("upload.fields") ||
+              handlerString.includes("req.file") ||
+              handlerString.includes("req.files")
+            ) {
+              return true;
+            }
+          }
+        }
+      }
+
+      // Method 2: Check route file for multer usage
+      const routeFileHasUpload = this.checkRouteFileForUpload(path);
+      if (routeFileHasUpload) {
+        return true;
+      }
+
+      // Method 3: Check controller file for file handling
+      const controllerHasUpload = this.checkControllerForUpload(path, method);
+      if (controllerHasUpload) {
+        return true;
+      }
+
+      // Method 4: Check path patterns that typically involve file uploads
+      const pathIndicatesUpload = this.pathIndicatesFileUpload(path);
+      if (pathIndicatesUpload) {
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("Error detecting file upload:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Check route files for multer/upload middleware usage
+   * @param {string} routePath - Route path
+   * @returns {boolean} True if route file contains upload middleware
+   */
+  checkRouteFileForUpload(routePath) {
+    try {
+      const routesDir = path.resolve("./src/routes");
+      if (!fs.existsSync(routesDir)) {
+        return false;
+      }
+
+      // Find relevant route file based on path
+      const pathParts = routePath
+        .split("/")
+        .filter((part) => part && part !== "api");
+      const possibleRouteFiles = [
+        `${pathParts[0]}.routes.js`,
+        `${pathParts[0]}.route.js`,
+        `${pathParts[0]}.js`,
+      ];
+
+      for (const fileName of possibleRouteFiles) {
+        const filePath = path.join(routesDir, fileName);
+        if (fs.existsSync(filePath)) {
+          const content = fs.readFileSync(filePath, "utf8");
+
+          // Check for multer patterns in route file
+          if (
+            content.includes("upload.single") ||
+            content.includes("upload.array") ||
+            content.includes("upload.fields") ||
+            content.includes("multer") ||
+            content.includes("multipart/form-data")
+          ) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    } catch (error) {
+      console.error("Error checking route file for upload:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Check controller files for file upload handling
+   * @param {string} routePath - Route path
+   * @param {string} method - HTTP method
+   * @returns {boolean} True if controller handles file uploads
+   */
+  checkControllerForUpload(routePath, method) {
+    try {
+      const controllerMap = this.discoverControllerFiles();
+      let controllerFile = null;
+
+      // Find appropriate controller file
+      for (const [basePath, filePath] of Object.entries(controllerMap)) {
+        if (routePath.startsWith(basePath)) {
+          controllerFile = filePath;
+          break;
+        }
+      }
+
+      if (!controllerFile || !fs.existsSync(controllerFile)) {
+        return false;
+      }
+
+      const controllerContent = fs.readFileSync(controllerFile, "utf8");
+
+      // Check for file upload patterns in controller
+      if (
+        controllerContent.includes("req.file") ||
+        controllerContent.includes("req.files") ||
+        controllerContent.includes("multer") ||
+        controllerContent.includes("multipart") ||
+        controllerContent.includes("file.originalname") ||
+        controllerContent.includes("file.path") ||
+        controllerContent.includes("file.size")
+      ) {
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error("Error checking controller for upload:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if path pattern indicates file upload
+   * @param {string} path - Route path
+   * @returns {boolean} True if path suggests file upload
+   */
+  pathIndicatesFileUpload(path) {
+    const uploadKeywords = [
+      "upload",
+      "file",
+      "document",
+      "image",
+      "photo",
+      "attachment",
+      "media",
+      "asset",
+      "import",
+      "export",
+    ];
+
+    const pathLower = path.toLowerCase();
+    return uploadKeywords.some((keyword) => pathLower.includes(keyword));
   }
 
   /**
@@ -1181,13 +1388,20 @@ class RouteAnalyzer {
   /**
    * Get default headers for a method
    * @param {string} method - HTTP method
+   * @param {boolean} hasFileUpload - Whether route has file upload
    * @returns {Object|null} Default headers
    */
-  getDefaultHeaders(method) {
+  getDefaultHeaders(method, hasFileUpload = false) {
     if (method === "POST" || method === "PUT" || method === "PATCH") {
-      return {
-        "Content-Type": "application/json",
-      };
+      if (hasFileUpload) {
+        return {
+          "Content-Type": "multipart/form-data",
+        };
+      } else {
+        return {
+          "Content-Type": "application/json",
+        };
+      }
     }
     return null;
   }

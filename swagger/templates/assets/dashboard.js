@@ -176,7 +176,7 @@ function createApiRow(api, method) {
                         }
                         
                         ${
-                          method === "GET"
+                          method === "GET" && shouldShowQueryParams(api.path)
                             ? `
                         <div class="test-section">
                             <h4>❓ Query Parameters (Optional)</h4>
@@ -194,11 +194,28 @@ function createApiRow(api, method) {
                             ? `
                         <div class="test-section">
                             <h4>📝 Request Body</h4>
+                            ${
+                              api.hasFileUpload
+                                ? `
+                            <div class="file-upload-section">
+                                <label class="file-upload-label">
+                                    📎 Select File:
+                                    <input type="file" class="file-input" id="file-${uniqueId}" onclick="event.stopPropagation()" onchange="event.stopPropagation(); handleFileSelect(this, '${uniqueId}')">
+                                </label>
+                                <div class="file-info" id="file-info-${uniqueId}">No file selected</div>
+                            </div>
+                            <div class="form-fields">
+                                ${generateFormFields(sampleBody, uniqueId)}
+                            </div>
+                            `
+                                : `
                             <textarea class="request-editor" id="body-${uniqueId}" placeholder="Enter JSON request body..." onclick="event.stopPropagation()" onkeydown="event.stopPropagation()" onfocus="event.stopPropagation()">${JSON.stringify(
-                                sampleBody,
-                                null,
-                                2
-                              )}</textarea>
+                                    sampleBody,
+                                    null,
+                                    2
+                                  )}</textarea>
+                            `
+                            }
                         </div>
                         `
                             : ""
@@ -246,6 +263,140 @@ function createApiRow(api, method) {
             </div>
         </div>
     `;
+}
+
+// Check if GET API should show query parameters (for list APIs, not single item APIs)
+function shouldShowQueryParams(path) {
+  // Don't show query params if path has ID parameter (single item API)
+  if (path.includes("/:id") || path.includes(":id")) {
+    return false;
+  }
+
+  // Don't show query params for specific single-item endpoints
+  const singleItemPatterns = [
+    "/profile",
+    "/me",
+    "/current",
+    "/download",
+    "/export",
+    "/import",
+  ];
+
+  const pathLower = path.toLowerCase();
+  if (singleItemPatterns.some((pattern) => pathLower.includes(pattern))) {
+    return false;
+  }
+
+  // Show query params for list/collection endpoints
+  const listPatterns = [
+    "/all",
+    "/list",
+    "/search",
+    "users",
+    "documents",
+    "files",
+    "items",
+    "data",
+  ];
+
+  // If path ends with a collection name (plural), likely a list API
+  const pathParts = path
+    .split("/")
+    .filter((part) => part && !part.startsWith(":"));
+  const lastPart = pathParts[pathParts.length - 1];
+
+  if (lastPart) {
+    // Check if it's a plural noun (ends with 's') or matches list patterns
+    if (
+      lastPart.endsWith("s") ||
+      listPatterns.some((pattern) => lastPart.includes(pattern))
+    ) {
+      return true;
+    }
+  }
+
+  // Check if any part of path indicates it's a list API
+  if (listPatterns.some((pattern) => pathLower.includes(pattern))) {
+    return true;
+  }
+
+  // Default: if no ID parameter and looks like a collection, show query params
+  return !path.includes(":") && pathParts.length >= 2;
+}
+
+// Handle file selection
+function handleFileSelect(input, uniqueId) {
+  const fileInfo = document.getElementById(`file-info-${uniqueId}`);
+
+  if (input.files && input.files.length > 0) {
+    const file = input.files[0];
+    const fileSize = (file.size / 1024 / 1024).toFixed(2); // Convert to MB
+    fileInfo.innerHTML = `
+      <strong>📄 ${file.name}</strong><br>
+      <small>Size: ${fileSize} MB | Type: ${file.type || "Unknown"}</small>
+    `;
+    fileInfo.style.color = "var(--neon-green)";
+    fileInfo.style.borderColor = "var(--neon-green)";
+  } else {
+    fileInfo.innerHTML = "No file selected";
+    fileInfo.style.color = "var(--text-muted)";
+    fileInfo.style.borderColor = "var(--border)";
+  }
+}
+
+// Get file field name based on path
+function getFileFieldName(path) {
+  const pathLower = path.toLowerCase();
+
+  if (pathLower.includes("document")) return "document";
+  if (pathLower.includes("image") || pathLower.includes("photo"))
+    return "image";
+  if (pathLower.includes("file")) return "file";
+  if (pathLower.includes("attachment")) return "attachment";
+  if (pathLower.includes("media")) return "media";
+
+  return "file"; // default
+}
+
+// Generate form fields for file upload APIs
+function generateFormFields(sampleBody, uniqueId) {
+  if (!sampleBody || typeof sampleBody !== "object") {
+    return "";
+  }
+
+  let fieldsHtml = "";
+  Object.entries(sampleBody).forEach(([key, value]) => {
+    // Skip file fields as they are handled separately
+    if (
+      key.toLowerCase().includes("file") ||
+      key === "document" ||
+      key === "image"
+    ) {
+      return;
+    }
+
+    const isOptional =
+      typeof value === "string" && value.includes("(optional)");
+    const placeholder = isOptional ? `${key} (optional)` : key;
+    const fieldValue = isOptional
+      ? ""
+      : typeof value === "string"
+      ? value
+      : JSON.stringify(value);
+
+    fieldsHtml += `
+      <div class="form-field">
+        <label class="field-label">${key}${
+      isOptional ? " (optional)" : ""
+    }:</label>
+        <input type="text" class="field-input" id="field-${key}-${uniqueId}" 
+               placeholder="${placeholder}" value="${fieldValue}"
+               onclick="event.stopPropagation()" onkeydown="event.stopPropagation()" onfocus="event.stopPropagation()">
+      </div>
+    `;
+  });
+
+  return fieldsHtml;
 }
 
 // Get default sample body based on route path and method
@@ -468,26 +619,55 @@ async function testAPI(path, method, uniqueId) {
 
   // Get request body for POST/PUT requests
   let requestBody = null;
-  if (method === "POST" || method === "PUT") {
-    const bodyEditor = document.getElementById(`body-${uniqueId}`);
-    const bodyText = bodyEditor ? bodyEditor.value.trim() : "";
+  let isFileUpload = false;
 
-    if (bodyText) {
-      try {
-        requestBody = JSON.parse(bodyText);
-      } catch (error) {
-        showResponse(
-          responseContainer,
-          {
-            status: "Error",
-            statusCode: 400,
-            error: "Invalid JSON in request body",
-            details: error.message,
-          },
-          0,
-          "error"
-        );
-        return;
+  if (method === "POST" || method === "PUT") {
+    // Check if this is a file upload API
+    const fileInput = document.getElementById(`file-${uniqueId}`);
+
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+      // This is a file upload request
+      isFileUpload = true;
+      requestBody = new FormData();
+
+      // Add the file
+      requestBody.append(getFileFieldName(path), fileInput.files[0]);
+
+      // Add other form fields
+      const formFields = document.querySelectorAll(
+        `[id^="field-"][id$="-${uniqueId}"]`
+      );
+      formFields.forEach((field) => {
+        const fieldName = field.id
+          .replace(`field-`, "")
+          .replace(`-${uniqueId}`, "");
+        const fieldValue = field.value.trim();
+        if (fieldValue) {
+          requestBody.append(fieldName, fieldValue);
+        }
+      });
+    } else {
+      // Regular JSON request
+      const bodyEditor = document.getElementById(`body-${uniqueId}`);
+      const bodyText = bodyEditor ? bodyEditor.value.trim() : "";
+
+      if (bodyText) {
+        try {
+          requestBody = JSON.parse(bodyText);
+        } catch (error) {
+          showResponse(
+            responseContainer,
+            {
+              status: "Error",
+              statusCode: 400,
+              error: "Invalid JSON in request body",
+              details: error.message,
+            },
+            0,
+            "error"
+          );
+          return;
+        }
       }
     }
   }
@@ -503,10 +683,14 @@ async function testAPI(path, method, uniqueId) {
     // Prepare request options
     const requestOptions = {
       method: method,
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: {},
     };
+
+    // Set content type based on request type
+    if (!isFileUpload) {
+      requestOptions.headers["Content-Type"] = "application/json";
+    }
+    // For file uploads, don't set Content-Type - let browser set it with boundary
 
     // Add authorization header if token provided
     if (authToken) {
@@ -517,7 +701,11 @@ async function testAPI(path, method, uniqueId) {
 
     // Add request body for POST/PUT
     if (requestBody) {
-      requestOptions.body = JSON.stringify(requestBody);
+      if (isFileUpload) {
+        requestOptions.body = requestBody; // FormData object
+      } else {
+        requestOptions.body = JSON.stringify(requestBody); // JSON string
+      }
     }
 
     // Make the API request

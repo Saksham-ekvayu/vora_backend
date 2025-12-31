@@ -28,6 +28,9 @@ coverage/
 .DS_Store
 Thumbs.db
 
+# uploaded files
+uploads
+
 # IDE / editor
 .vscode/
 .idea/

@@ -14,10 +14,8 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    // Generate unique filename with timestamp
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const fileExtension = path.extname(file.originalname);
-    cb(null, file.fieldname + "-" + uniqueSuffix + fileExtension);
+    // Use original filename (this will replace existing files with same name)
+    cb(null, file.originalname);
   },
 });
 
@@ -114,24 +112,48 @@ const createDocument = async (req, res) => {
       });
     }
 
-    // Create document record
-    const document = new Document({
-      documentName: documentName || file.originalname,
-      fileUrl: file.path,
-      documentType: documentType,
-      uploadedBy: req.user._id,
-      fileSize: file.size,
+    // Check if document with same original filename already exists
+    const existingDocument = await Document.findOne({
       originalFileName: file.originalname,
+      uploadedBy: req.user._id,
+      isActive: true,
     });
 
-    await document.save();
+    let document;
+    let message;
+
+    if (existingDocument) {
+      // Update existing document
+      existingDocument.documentName = documentName || file.originalname;
+      existingDocument.fileUrl = file.path;
+      existingDocument.documentType = documentType;
+      existingDocument.fileSize = file.size;
+      existingDocument.updatedAt = new Date();
+
+      await existingDocument.save();
+      document = existingDocument;
+      message = "Document updated successfully";
+    } else {
+      // Create new document record
+      document = new Document({
+        documentName: documentName || file.originalname,
+        fileUrl: file.path,
+        documentType: documentType,
+        uploadedBy: req.user._id,
+        fileSize: file.size,
+        originalFileName: file.originalname,
+      });
+
+      await document.save();
+      message = "Document uploaded successfully";
+    }
 
     // Populate uploadedBy field for response
     await document.populate("uploadedBy", "name email role");
 
     res.status(201).json({
       success: true,
-      message: "Document uploaded successfully",
+      message: message,
       data: {
         document: {
           id: document._id,

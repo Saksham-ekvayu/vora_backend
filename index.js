@@ -5,7 +5,7 @@ const {
   bgYellow,
   bgBlue,
   bgMagenta,
-  bgWhiteBright,
+  bgGreen,
 } = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
@@ -90,7 +90,7 @@ async function start() {
       const ipv4 = getLocalIPv4();
       // ✅ Development ke liye actual IPv4
       if (process.env.NODE_ENV !== "production") {
-        console.log(bgWhiteBright(`Network access → http://${ipv4}:${PORT}`));
+        console.log(bgGreen(`Network access → http://${ipv4}:${PORT}`));
       }
       console.log(
         bgBlue(`Server listening on port → http://localhost:${PORT}`)

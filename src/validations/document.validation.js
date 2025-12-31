@@ -1,6 +1,51 @@
 const Joi = require("joi");
+const { body, validationResult } = require("express-validator");
 
-// Middleware to handle Joi validation errors
+// Middleware to handle validation errors (same pattern as auth/user)
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    // Return the first validation error message
+    const firstError = errors.array()[0];
+    return res.status(400).json({
+      success: false,
+      message: firstError.msg,
+      field: firstError.path,
+      value: firstError.value,
+    });
+  }
+  next();
+};
+
+// Document name validator using express-validator (same pattern as auth/user)
+const documentNameValidator = () =>
+  body("documentName")
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage("Document name must be between 2 and 100 characters");
+
+// File upload validation middleware
+const fileUploadValidation = (req, res, next) => {
+  // Check if file was uploaded
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      message: "No file uploaded. Please select a file to upload.",
+      field: "document",
+    });
+  }
+  next();
+};
+
+// Document upload validation (same pattern as auth/user)
+const documentUploadValidation = [
+  documentNameValidator(),
+  handleValidationErrors,
+  fileUploadValidation,
+];
+
+// Middleware to handle Joi validation errors (for other document operations)
 const handleJoiValidationErrors = (schema) => {
   return (req, res, next) => {
     const { error } = schema.validate(req.body, { abortEarly: false });
@@ -19,14 +64,6 @@ const handleJoiValidationErrors = (schema) => {
 };
 
 // Atomic validators (reusable Joi schema functions)
-const documentNameValidator = () =>
-  Joi.string().trim().min(2).max(100).required().messages({
-    "string.empty": "Document name is required",
-    "string.min": "Document name must be at least 2 characters long",
-    "string.max": "Document name cannot exceed 100 characters",
-    "any.required": "Document name is required",
-  });
-
 const documentTypeValidator = () =>
   Joi.string().valid("pdf", "doc", "docx", "xls", "xlsx").required().messages({
     "any.only": "Document type must be one of: pdf, doc, docx, xls, xlsx",
@@ -85,7 +122,10 @@ const searchValidator = () =>
 
 // Composite validation schemas
 const updateDocumentSchema = Joi.object({
-  documentName: documentNameValidator().optional(),
+  documentName: Joi.string().trim().min(2).max(100).optional().messages({
+    "string.min": "Document name must be at least 2 characters long",
+    "string.max": "Document name cannot exceed 100 characters",
+  }),
   documentType: documentTypeValidator().optional(),
   isActive: isActiveValidator(),
 })
@@ -116,40 +156,6 @@ const getDocumentsQuerySchema = Joi.object({
 });
 
 // File upload validation middleware (runs AFTER multer has parsed the form data)
-const fileUploadValidation = (req, res, next) => {
-  // Validate document name if provided
-  if (req.body && req.body.documentName) {
-    const { error } = Joi.object({
-      documentName: documentNameValidator(),
-    }).validate({ documentName: req.body.documentName });
-
-    if (error) {
-      // If validation fails, clean up the uploaded file
-      if (req.file && req.file.path) {
-        try {
-          const fs = require("fs");
-          if (fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path);
-          }
-        } catch (cleanupError) {
-          console.error(
-            "Error cleaning up file after validation failure:",
-            cleanupError
-          );
-        }
-      }
-
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message,
-        field: "documentName",
-      });
-    }
-  }
-
-  next();
-};
-
 // Validation middleware functions
 const updateDocumentValidation =
   handleJoiValidationErrors(updateDocumentSchema);
@@ -188,8 +194,13 @@ const getDocumentsQueryValidation = (req, res, next) => {
 };
 
 module.exports = {
-  // Atomic validators (exported in case needed elsewhere)
+  // Express-validator based (same pattern as auth/user)
   documentNameValidator,
+  handleValidationErrors,
+  fileUploadValidation,
+  documentUploadValidation,
+
+  // Joi-based validators (for other operations)
   documentTypeValidator,
   isActiveValidator,
   documentIdValidator,
@@ -204,7 +215,6 @@ module.exports = {
   getDocumentByIdValidation,
   deleteDocumentValidation,
   getDocumentsQueryValidation,
-  fileUploadValidation,
 
   // Schemas (exported for testing or custom usage)
   updateDocumentSchema,

@@ -22,18 +22,33 @@ const globalErrorHandler = (err, req, res, next) => {
   if (err.code === "LIMIT_FILE_COUNT") {
     return res.status(400).json({
       success: false,
-      message: err.message,
+      message: "Only 1 document can be uploaded at a time.",
       field: "document",
     });
   }
 
   // Handle other multer errors
   if (err.name === "MulterError") {
-    return res.status(400).json({
-      success: false,
-      message: "File upload error: " + err.message,
-      field: "document",
-    });
+    switch (err.code) {
+      case "LIMIT_UNEXPECTED_FILE":
+        return res.status(400).json({
+          success: false,
+          message: "Unexpected file field. Use 'document' as the field name.",
+          field: "document",
+        });
+      case "LIMIT_FILE_COUNT":
+        return res.status(400).json({
+          success: false,
+          message: "Only 1 document can be uploaded at a time.",
+          field: "document",
+        });
+      default:
+        return res.status(400).json({
+          success: false,
+          message: "File upload error: " + err.message,
+          field: "document",
+        });
+    }
   }
 
   // Default error response

@@ -12,11 +12,11 @@ const {
 
 // Import validations
 const {
+  documentUploadValidation,
   updateDocumentValidation,
   getDocumentByIdValidation,
   deleteDocumentValidation,
   getDocumentsQueryValidation,
-  fileUploadValidation,
 } = require("../validations/document.validation");
 
 // Import controller
@@ -44,7 +44,7 @@ router.post(
   authenticateToken,
   canCreateDocument, // Only experts can create documents
   upload.single("document"), // Handle file upload with field name "document"
-  fileUploadValidation, // Validate request body after multer parses it
+  documentUploadValidation, // Validate using the same pattern as auth/user
   createDocument
 );
 

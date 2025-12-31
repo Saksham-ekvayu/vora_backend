@@ -16,7 +16,7 @@ const {
   resetPasswordValidation,
   resendOtpValidation,
   sendVerificationOTPValidation,
-} = require("../validations/validation");
+} = require("../validations/user.validation");
 
 const router = express.Router();
 

@@ -37,11 +37,11 @@ const expertOnly = roleAccess("expert");
 const adminOrExpert = roleAccess("admin", "expert");
 const allRoles = roleAccess("admin", "expert", "user");
 
-// Document-specific role middleware
-const canCreateDocument = roleAccess("user"); // Only users can create documents
-const canUpdateDocument = roleAccess("user"); // Only users can update documents
-const canDeleteDocument = roleAccess("user"); // Only users can delete documents
-const canViewDocument = roleAccess("user"); // Only users can view documents
+// Generic role middleware for user operations
+const canCreate = roleAccess("user"); // Only users can create (documents, frameworks, etc.)
+const canUpdate = roleAccess("user"); // Only users can update (documents, frameworks, etc.)
+const canDelete = roleAccess("user"); // Only users can delete (documents, frameworks, etc.)
+const canView = roleAccess("user"); // Only users can view (documents, frameworks, etc.)
 
 module.exports = {
   roleAccess,
@@ -49,8 +49,8 @@ module.exports = {
   expertOnly,
   adminOrExpert,
   allRoles,
-  canCreateDocument,
-  canUpdateDocument,
-  canDeleteDocument,
-  canViewDocument,
+  canCreate,
+  canUpdate,
+  canDelete,
+  canView,
 };

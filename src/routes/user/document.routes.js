@@ -4,7 +4,7 @@ const router = express.Router();
 // Import middlewares
 const { authenticateToken } = require("../../middlewares/auth.middleware");
 const {
-  canCreate,
+  canUserCreate,
   canUpdate,
   canDelete,
   canView,
@@ -42,7 +42,7 @@ const {
 router.post(
   "/",
   authenticateToken,
-  canCreate, // Only users can create documents
+  canUserCreate, // Only users can create documents
   upload.single("document"), // Handle file upload with field name "document"
   documentUploadValidation, // Validate using the same pattern as auth/user
   createDocument

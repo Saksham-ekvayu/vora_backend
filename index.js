@@ -12,6 +12,7 @@ const authRoutes = require("./src/routes/auth/auth.routes");
 const userRoutes = require("./src/routes/admin/user.routes");
 const documentRoutes = require("./src/routes/user/document.routes");
 const frameworkRoutes = require("./src/routes/user/framework.routes");
+const expertFrameworkRoutes = require("./src/routes/expert/framework.routes");
 
 // Import error handling middleware
 const {
@@ -60,12 +61,14 @@ app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/users/documents", documentRoutes);
 app.use("/api/users/frameworks", frameworkRoutes);
+app.use("/api/expert/frameworks", expertFrameworkRoutes);
 
 // Register routes with dashboard for better documentation
 dashboard.registerRoutes("/api/auth", authRoutes);
 dashboard.registerRoutes("/api/user", userRoutes);
 dashboard.registerRoutes("/api/users/documents", documentRoutes);
 dashboard.registerRoutes("/api/users/frameworks", frameworkRoutes);
+dashboard.registerRoutes("/api/expert/frameworks", expertFrameworkRoutes);
 
 // Initialize dashboard (replaces your old endpoints)
 dashboard.init(app);

@@ -4,7 +4,7 @@ const router = express.Router();
 // Import middlewares
 const { authenticateToken } = require("../../middlewares/auth.middleware");
 const {
-  canCreate,
+  canUserCreate,
   canUpdate,
   canDelete,
   canView,
@@ -42,7 +42,7 @@ const {
 router.post(
   "/",
   authenticateToken,
-  canCreate, // Only users can create frameworks
+  canUserCreate, // Only users can create frameworks
   upload.single("framework"), // Handle file upload with field name "framework"
   frameworkUploadValidation, // Validate using the same pattern as auth/user
   createFramework

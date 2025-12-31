@@ -31,24 +31,79 @@ function setTheme(theme) {
 // Clipboard copy function with fallback
 async function copyToClipboard(text) {
   try {
+    // Method 1: Modern Clipboard API (HTTPS/localhost only)
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text);
+      return true;
+    }
+
+    // Method 2: Fallback using document.execCommand (works on HTTP)
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    textArea.style.opacity = "0";
+    textArea.style.pointerEvents = "none";
+    textArea.setAttribute("readonly", "");
+    textArea.setAttribute("contenteditable", "true");
+
+    document.body.appendChild(textArea);
+
+    // For iOS Safari
+    if (navigator.userAgent.match(/ipad|ipod|iphone/i)) {
+      const editable = textArea.contentEditable;
+      const readOnly = textArea.readOnly;
+      textArea.contentEditable = "true";
+      textArea.readOnly = false;
+      const range = document.createRange();
+      range.selectNodeContents(textArea);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      textArea.setSelectionRange(0, 999999);
+      textArea.contentEditable = editable;
+      textArea.readOnly = readOnly;
     } else {
-      // Fallback for HTTP and older browsers
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.position = "fixed";
-      textArea.style.opacity = "0";
-      document.body.appendChild(textArea);
       textArea.focus();
       textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
     }
+
+    const successful = document.execCommand("copy");
+    document.body.removeChild(textArea);
+
+    if (!successful) {
+      throw new Error("execCommand failed");
+    }
+
     return true;
   } catch (err) {
     console.error("Failed to copy:", err);
-    return false;
+
+    // Method 3: Last resort - show text in prompt for manual copy
+    try {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobile =
+        /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(
+          userAgent
+        );
+
+      if (isMobile) {
+        // On mobile, show a more user-friendly message
+        alert(
+          `Copy this text:\n\n${text.substring(0, 200)}${
+            text.length > 200 ? "..." : ""
+          }`
+        );
+      } else {
+        // On desktop, use prompt which allows text selection
+        prompt("Copy this text (Ctrl+C):", text);
+      }
+      return true;
+    } catch (promptErr) {
+      console.error("Prompt fallback failed:", promptErr);
+      return false;
+    }
   }
 }
 
@@ -75,7 +130,22 @@ function toggleRow(rowElement) {
   } else {
     rowElement.classList.add("expanded");
     expandSection.classList.add("show");
+
+    // Restore saved form data when expanding
+    const uniqueId = expandSection
+      .querySelector('[id*="-"]')
+      ?.id?.split("-")
+      .pop();
+    if (uniqueId) {
+      setTimeout(() => restoreFormFields(uniqueId), 100); // Small delay to ensure DOM is ready
+    }
   }
+
+  // Save scroll position after expansion/collapse
+  setTimeout(() => {
+    saveScrollPosition();
+    saveExpandedSections();
+  }, 100);
 }
 
 // Switch tabs in expanded section
@@ -89,6 +159,217 @@ function switchTab(tabName, element) {
 
   element.classList.add("active");
   expandSection.querySelector(`#${tabName}`).classList.add("active");
+}
+
+// Form Data Persistence Functions
+function saveFormData(uniqueId, data) {
+  try {
+    const formDataKey = `swagger_form_${uniqueId}`;
+    localStorage.setItem(formDataKey, JSON.stringify(data));
+  } catch (error) {
+    console.error("Error saving form data:", error);
+  }
+}
+
+function loadFormData(uniqueId) {
+  try {
+    const formDataKey = `swagger_form_${uniqueId}`;
+    const savedData = localStorage.getItem(formDataKey);
+    return savedData ? JSON.parse(savedData) : null;
+  } catch (error) {
+    console.error("Error loading form data:", error);
+    return null;
+  }
+}
+
+function clearFormData(uniqueId) {
+  try {
+    const formDataKey = `swagger_form_${uniqueId}`;
+    localStorage.removeItem(formDataKey);
+  } catch (error) {
+    console.error("Error clearing form data:", error);
+  }
+}
+
+function saveFieldValue(uniqueId, fieldName, value) {
+  const savedData = loadFormData(uniqueId) || {};
+  savedData[fieldName] = value;
+  saveFormData(uniqueId, savedData);
+}
+
+// Scroll Position Persistence Functions
+function saveScrollPosition() {
+  try {
+    const scrollPosition = {
+      x: window.pageXOffset || document.documentElement.scrollLeft,
+      y: window.pageYOffset || document.documentElement.scrollTop,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(
+      "swagger_scroll_position",
+      JSON.stringify(scrollPosition)
+    );
+  } catch (error) {
+    console.error("Error saving scroll position:", error);
+  }
+}
+
+function restoreScrollPosition() {
+  try {
+    const savedPosition = localStorage.getItem("swagger_scroll_position");
+    if (!savedPosition) return;
+
+    const position = JSON.parse(savedPosition);
+
+    // Only restore if saved within last 5 minutes (to avoid old positions)
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    if (position.timestamp < fiveMinutesAgo) {
+      localStorage.removeItem("swagger_scroll_position");
+      return;
+    }
+
+    // Restore scroll position after a short delay to ensure page is loaded
+    setTimeout(() => {
+      window.scrollTo(position.x, position.y);
+      console.log(`📍 Restored scroll position: ${position.x}, ${position.y}`);
+    }, 100);
+  } catch (error) {
+    console.error("Error restoring scroll position:", error);
+  }
+}
+
+function initScrollPersistence() {
+  // Save scroll position periodically while scrolling
+  let scrollTimeout;
+  window.addEventListener("scroll", () => {
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(saveScrollPosition, 150); // Debounce scroll saving
+  });
+
+  // Save scroll position before page unload
+  window.addEventListener("beforeunload", () => {
+    saveScrollPosition();
+    saveExpandedSections();
+  });
+
+  // Save scroll position when visibility changes (tab switching)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      saveScrollPosition();
+      saveExpandedSections();
+    }
+  });
+}
+
+// Expanded Sections Persistence
+function saveExpandedSections() {
+  try {
+    const expandedSections = [];
+    const expandedRows = document.querySelectorAll(".api-row.expanded");
+
+    expandedRows.forEach((row) => {
+      const endpoint = row.querySelector(".endpoint")?.textContent;
+      const method = row.querySelector(".method-badge")?.textContent;
+      if (endpoint && method) {
+        expandedSections.push({ endpoint, method });
+      }
+    });
+
+    localStorage.setItem(
+      "swagger_expanded_sections",
+      JSON.stringify({
+        sections: expandedSections,
+        timestamp: Date.now(),
+      })
+    );
+  } catch (error) {
+    console.error("Error saving expanded sections:", error);
+  }
+}
+
+function restoreExpandedSections() {
+  try {
+    const savedData = localStorage.getItem("swagger_expanded_sections");
+    if (!savedData) return;
+
+    const data = JSON.parse(savedData);
+
+    // Only restore if saved within last 10 minutes
+    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+    if (data.timestamp < tenMinutesAgo) {
+      localStorage.removeItem("swagger_expanded_sections");
+      return;
+    }
+
+    // Restore expanded sections after APIs are loaded
+    setTimeout(() => {
+      data.sections.forEach(({ endpoint, method }) => {
+        const rows = document.querySelectorAll(".api-row");
+        rows.forEach((row) => {
+          const rowEndpoint = row.querySelector(".endpoint")?.textContent;
+          const rowMethod = row.querySelector(".method-badge")?.textContent;
+
+          if (rowEndpoint === endpoint && rowMethod === method) {
+            const expandSection = row.querySelector(".expand-section");
+            if (expandSection && !row.classList.contains("expanded")) {
+              row.classList.add("expanded");
+              expandSection.classList.add("show");
+
+              // Restore form data for this section
+              const uniqueId = expandSection
+                .querySelector('[id*="-"]')
+                ?.id?.split("-")
+                .pop();
+              if (uniqueId) {
+                setTimeout(() => restoreFormFields(uniqueId), 100);
+              }
+            }
+          }
+        });
+      });
+
+      console.log(`📂 Restored ${data.sections.length} expanded sections`);
+    }, 300);
+  } catch (error) {
+    console.error("Error restoring expanded sections:", error);
+  }
+}
+
+function restoreFormFields(uniqueId) {
+  const savedData = loadFormData(uniqueId);
+  if (!savedData) return;
+
+  // Restore URL parameters
+  Object.keys(savedData).forEach((fieldName) => {
+    if (fieldName.startsWith("param-")) {
+      const paramInput = document.getElementById(`${fieldName}-${uniqueId}`);
+      if (paramInput && savedData[fieldName]) {
+        paramInput.value = savedData[fieldName];
+      }
+    }
+  });
+
+  // Restore query parameters
+  const queryInput = document.getElementById(`query-${uniqueId}`);
+  if (queryInput && savedData.query) {
+    queryInput.value = savedData.query;
+  }
+
+  // Restore request body
+  const bodyEditor = document.getElementById(`body-${uniqueId}`);
+  if (bodyEditor && savedData.body) {
+    bodyEditor.value = savedData.body;
+  }
+
+  // Restore form fields for file upload APIs
+  Object.keys(savedData).forEach((fieldName) => {
+    if (fieldName.startsWith("field-")) {
+      const fieldInput = document.getElementById(`${fieldName}-${uniqueId}`);
+      if (fieldInput && savedData[fieldName]) {
+        fieldInput.value = savedData[fieldName];
+      }
+    }
+  });
 }
 
 // Create API row HTML
@@ -176,12 +457,12 @@ function createApiRow(api, method) {
                         }
                         
                         ${
-                          method === "GET"
+                          method === "GET" && shouldShowQueryParams(api.path)
                             ? `
                         <div class="test-section">
                             <h4>❓ Query Parameters (Optional)</h4>
                             <div class="query-params">
-                                <input type="text" placeholder="page=1&limit=10&sort=name" class="query-input" id="query-${uniqueId}" onclick="event.stopPropagation()" onkeydown="event.stopPropagation()" onfocus="event.stopPropagation()">
+                                <input type="text" placeholder="page=1&limit=10&sort=name" class="query-input" id="query-${uniqueId}" onclick="event.stopPropagation()" onkeydown="event.stopPropagation()" onfocus="event.stopPropagation()" oninput="saveFieldValue('${uniqueId}', 'query', this.value)">
                                 <small class="param-hint">Format: key1=value1&key2=value2 (for filtering, pagination, sorting)</small>
                             </div>
                         </div>
@@ -194,11 +475,28 @@ function createApiRow(api, method) {
                             ? `
                         <div class="test-section">
                             <h4>📝 Request Body</h4>
-                            <textarea class="request-editor" id="body-${uniqueId}" placeholder="Enter JSON request body..." onclick="event.stopPropagation()" onkeydown="event.stopPropagation()" onfocus="event.stopPropagation()">${JSON.stringify(
-                                sampleBody,
-                                null,
-                                2
-                              )}</textarea>
+                            ${
+                              api.hasFileUpload
+                                ? `
+                            <div class="file-upload-section">
+                                <label class="file-upload-label">
+                                    📎 Select File:
+                                    <input type="file" class="file-input" id="file-${uniqueId}" onclick="event.stopPropagation()" onchange="event.stopPropagation(); handleFileSelect(this, '${uniqueId}')">
+                                </label>
+                                <div class="file-info" id="file-info-${uniqueId}">No file selected</div>
+                            </div>
+                            <div class="form-fields">
+                                ${generateFormFields(sampleBody, uniqueId)}
+                            </div>
+                            `
+                                : `
+                            <textarea class="request-editor" id="body-${uniqueId}" placeholder="Enter JSON request body..." onclick="event.stopPropagation()" onkeydown="event.stopPropagation()" onfocus="event.stopPropagation()" oninput="saveFieldValue('${uniqueId}', 'body', this.value)">${JSON.stringify(
+                                    sampleBody,
+                                    null,
+                                    2
+                                  )}</textarea>
+                            `
+                            }
                         </div>
                         `
                             : ""
@@ -246,6 +544,140 @@ function createApiRow(api, method) {
             </div>
         </div>
     `;
+}
+
+// Check if GET API should show query parameters (for list APIs, not single item APIs)
+function shouldShowQueryParams(path) {
+  // Don't show query params if path has ID parameter (single item API)
+  if (path.includes("/:id") || path.includes(":id")) {
+    return false;
+  }
+
+  // Don't show query params for specific single-item endpoints
+  const singleItemPatterns = [
+    "/profile",
+    "/me",
+    "/current",
+    "/download",
+    "/export",
+    "/import",
+  ];
+
+  const pathLower = path.toLowerCase();
+  if (singleItemPatterns.some((pattern) => pathLower.includes(pattern))) {
+    return false;
+  }
+
+  // Show query params for list/collection endpoints
+  const listPatterns = [
+    "/all",
+    "/list",
+    "/search",
+    "users",
+    "documents",
+    "files",
+    "items",
+    "data",
+  ];
+
+  // If path ends with a collection name (plural), likely a list API
+  const pathParts = path
+    .split("/")
+    .filter((part) => part && !part.startsWith(":"));
+  const lastPart = pathParts[pathParts.length - 1];
+
+  if (lastPart) {
+    // Check if it's a plural noun (ends with 's') or matches list patterns
+    if (
+      lastPart.endsWith("s") ||
+      listPatterns.some((pattern) => lastPart.includes(pattern))
+    ) {
+      return true;
+    }
+  }
+
+  // Check if any part of path indicates it's a list API
+  if (listPatterns.some((pattern) => pathLower.includes(pattern))) {
+    return true;
+  }
+
+  // Default: if no ID parameter and looks like a collection, show query params
+  return !path.includes(":") && pathParts.length >= 2;
+}
+
+// Handle file selection
+function handleFileSelect(input, uniqueId) {
+  const fileInfo = document.getElementById(`file-info-${uniqueId}`);
+
+  if (input.files && input.files.length > 0) {
+    const file = input.files[0];
+    const fileSize = (file.size / 1024 / 1024).toFixed(2); // Convert to MB
+    fileInfo.innerHTML = `
+      <strong>📄 ${file.name}</strong><br>
+      <small>Size: ${fileSize} MB | Type: ${file.type || "Unknown"}</small>
+    `;
+    fileInfo.style.color = "var(--neon-green)";
+    fileInfo.style.borderColor = "var(--neon-green)";
+  } else {
+    fileInfo.innerHTML = "No file selected";
+    fileInfo.style.color = "var(--text-muted)";
+    fileInfo.style.borderColor = "var(--border)";
+  }
+}
+
+// Get file field name based on path
+function getFileFieldName(path) {
+  const pathLower = path.toLowerCase();
+
+  if (pathLower.includes("document")) return "document";
+  if (pathLower.includes("image") || pathLower.includes("photo"))
+    return "image";
+  if (pathLower.includes("file")) return "file";
+  if (pathLower.includes("attachment")) return "attachment";
+  if (pathLower.includes("media")) return "media";
+
+  return "file"; // default
+}
+
+// Generate form fields for file upload APIs
+function generateFormFields(sampleBody, uniqueId) {
+  if (!sampleBody || typeof sampleBody !== "object") {
+    return "";
+  }
+
+  let fieldsHtml = "";
+  Object.entries(sampleBody).forEach(([key, value]) => {
+    // Skip file fields as they are handled separately
+    if (
+      key.toLowerCase().includes("file") ||
+      key === "document" ||
+      key === "image"
+    ) {
+      return;
+    }
+
+    const isOptional =
+      typeof value === "string" && value.includes("(optional)");
+    const placeholder = isOptional ? `${key} (optional)` : key;
+    const fieldValue = isOptional
+      ? ""
+      : typeof value === "string"
+      ? value
+      : JSON.stringify(value);
+
+    fieldsHtml += `
+      <div class="form-field">
+        <label class="field-label">${key}${
+      isOptional ? " (optional)" : ""
+    }:</label>
+        <input type="text" class="field-input" id="field-${key}-${uniqueId}" 
+               placeholder="${placeholder}" value="${fieldValue}"
+               onclick="event.stopPropagation()" onkeydown="event.stopPropagation()" onfocus="event.stopPropagation()" oninput="saveFieldValue('${uniqueId}', 'field-${key}', this.value)">
+      </div>
+    `;
+  });
+
+  return fieldsHtml;
 }
 
 // Get default sample body based on route path and method
@@ -316,7 +748,8 @@ function generateUrlParamInputs(path, uniqueId) {
                        placeholder="Enter ${paramName}" 
                        onclick="event.stopPropagation()" 
                        onkeydown="event.stopPropagation()" 
-                       onfocus="event.stopPropagation()">
+                       onfocus="event.stopPropagation()"
+                       oninput="saveFieldValue('${uniqueId}', 'param-${paramName}', this.value)">
             </div>
         `;
     })
@@ -342,6 +775,20 @@ async function copyCodeBlock(uniqueId, type, button) {
   }
 
   const success = await copyToClipboard(textToCopy);
+  showCopyFeedback(button, success);
+}
+
+// Copy response content
+async function copyResponse(responseId, button) {
+  const responseElement = document.getElementById(responseId);
+  if (!responseElement) {
+    console.error("Response element not found:", responseId);
+    showCopyFeedback(button, false);
+    return;
+  }
+
+  const responseText = responseElement.textContent;
+  const success = await copyToClipboard(responseText);
   showCopyFeedback(button, success);
 }
 
@@ -468,26 +915,55 @@ async function testAPI(path, method, uniqueId) {
 
   // Get request body for POST/PUT requests
   let requestBody = null;
-  if (method === "POST" || method === "PUT") {
-    const bodyEditor = document.getElementById(`body-${uniqueId}`);
-    const bodyText = bodyEditor ? bodyEditor.value.trim() : "";
+  let isFileUpload = false;
 
-    if (bodyText) {
-      try {
-        requestBody = JSON.parse(bodyText);
-      } catch (error) {
-        showResponse(
-          responseContainer,
-          {
-            status: "Error",
-            statusCode: 400,
-            error: "Invalid JSON in request body",
-            details: error.message,
-          },
-          0,
-          "error"
-        );
-        return;
+  if (method === "POST" || method === "PUT") {
+    // Check if this is a file upload API
+    const fileInput = document.getElementById(`file-${uniqueId}`);
+
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+      // This is a file upload request
+      isFileUpload = true;
+      requestBody = new FormData();
+
+      // Add the file
+      requestBody.append(getFileFieldName(path), fileInput.files[0]);
+
+      // Add other form fields
+      const formFields = document.querySelectorAll(
+        `[id^="field-"][id$="-${uniqueId}"]`
+      );
+      formFields.forEach((field) => {
+        const fieldName = field.id
+          .replace(`field-`, "")
+          .replace(`-${uniqueId}`, "");
+        const fieldValue = field.value.trim();
+        if (fieldValue) {
+          requestBody.append(fieldName, fieldValue);
+        }
+      });
+    } else {
+      // Regular JSON request
+      const bodyEditor = document.getElementById(`body-${uniqueId}`);
+      const bodyText = bodyEditor ? bodyEditor.value.trim() : "";
+
+      if (bodyText) {
+        try {
+          requestBody = JSON.parse(bodyText);
+        } catch (error) {
+          showResponse(
+            responseContainer,
+            {
+              status: "Error",
+              statusCode: 400,
+              error: "Invalid JSON in request body",
+              details: error.message,
+            },
+            0,
+            "error"
+          );
+          return;
+        }
       }
     }
   }
@@ -503,10 +979,14 @@ async function testAPI(path, method, uniqueId) {
     // Prepare request options
     const requestOptions = {
       method: method,
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: {},
     };
+
+    // Set content type based on request type
+    if (!isFileUpload) {
+      requestOptions.headers["Content-Type"] = "application/json";
+    }
+    // For file uploads, don't set Content-Type - let browser set it with boundary
 
     // Add authorization header if token provided
     if (authToken) {
@@ -517,7 +997,11 @@ async function testAPI(path, method, uniqueId) {
 
     // Add request body for POST/PUT
     if (requestBody) {
-      requestOptions.body = JSON.stringify(requestBody);
+      if (isFileUpload) {
+        requestOptions.body = requestBody; // FormData object
+      } else {
+        requestOptions.body = JSON.stringify(requestBody); // JSON string
+      }
     }
 
     // Make the API request
@@ -590,18 +1074,25 @@ function showResponse(container, response, responseTime, type) {
 
   const statusClass = `status-${type}`;
   const statusIcon = type === "success" ? "✅" : type === "error" ? "❌" : "ℹ️";
+  const responseText = JSON.stringify(response.body || response, null, 2);
+
+  // Generate unique ID for this response
+  const responseId = `response_${Date.now()}_${Math.random()
+    .toString(36)
+    .substr(2, 9)}`;
 
   container.innerHTML = `
         <div class="response-status ${statusClass}">
-            <span>${statusIcon} ${response.statusCode} ${response.status}</span>
-            <span class="response-time">${responseTime}ms</span>
+            <div class="status-info">
+                <span>${statusIcon} ${response.statusCode} ${response.status}</span>
+                <span class="response-time">${responseTime}ms</span>
+            </div>
+            <button class="copy-response-btn" onclick="copyResponse('${responseId}', this)" title="Copy response">
+                📋 Copy
+            </button>
         </div>
         <div class="response-content">
-            <div class="response-body">${JSON.stringify(
-              response.body || response,
-              null,
-              2
-            )}</div>
+            <div class="response-body" id="${responseId}">${responseText}</div>
         </div>
     `;
 
@@ -702,6 +1193,12 @@ async function loadApis() {
 
     // Update statistics
     updateStats(data.apis);
+
+    // Restore expanded sections and scroll position after content is loaded
+    setTimeout(() => {
+      restoreExpandedSections();
+      restoreScrollPosition();
+    }, 200);
   } catch (error) {
     console.error("Failed to load APIs:", error);
     document.getElementById(
@@ -913,6 +1410,12 @@ function showTokenNotification(message) {
 document.addEventListener("DOMContentLoaded", () => {
   // Initialize theme first
   initializeTheme();
+
+  // Initialize scroll position persistence
+  initScrollPersistence();
+
+  // Restore scroll position from previous session
+  restoreScrollPosition();
 
   loadApis();
 

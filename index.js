@@ -5,7 +5,7 @@ const {
   bgYellow,
   bgBlue,
   bgMagenta,
-  bgWhiteBright,
+  bgGreen,
 } = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
@@ -16,6 +16,13 @@ const { getLocalIPv4 } = require("./src/helpers/helper");
 // Import routes
 const authRoutes = require("./src/routes/auth.routes");
 const userRoutes = require("./src/routes/user.routes");
+const documentRoutes = require("./src/routes/document.routes");
+
+// Import error handling middleware
+const {
+  globalErrorHandler,
+  notFoundHandler,
+} = require("./src/middlewares/errorHandler.middleware");
 
 // Load environment variables
 dotenv.config();
@@ -39,9 +46,12 @@ app.get("/", (req, res) => {
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, "public")));
 
+// Serve uploaded files (with authentication middleware if needed)
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 // Initialize dashboard
 const dashboard = new SwaggerExpressDashboard({
-  title: "Cypher Sentinel API",
+  title: "VORA Backend API",
   description: "Backend API Control Dashboard",
   version: "1.0.0",
   basePath: "/api-docs",
@@ -53,13 +63,21 @@ const dashboard = new SwaggerExpressDashboard({
 // Use routes
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/documents", documentRoutes);
 
 // Register routes with dashboard for better documentation
 dashboard.registerRoutes("/api/auth", authRoutes);
 dashboard.registerRoutes("/api/user", userRoutes);
+dashboard.registerRoutes("/api/documents", documentRoutes);
 
 // Initialize dashboard (replaces your old endpoints)
 dashboard.init(app);
+
+// Global error handling middleware (must be after all routes)
+app.use(globalErrorHandler);
+
+// 404 handler for undefined routes
+app.use(notFoundHandler);
 
 let server;
 
@@ -72,7 +90,7 @@ async function start() {
       const ipv4 = getLocalIPv4();
       // ✅ Development ke liye actual IPv4
       if (process.env.NODE_ENV !== "production") {
-        console.log(bgWhiteBright(`Network access → http://${ipv4}:${PORT}`));
+        console.log(bgGreen(`Network access → http://${ipv4}:${PORT}`));
       }
       console.log(
         bgBlue(`Server listening on port → http://localhost:${PORT}`)

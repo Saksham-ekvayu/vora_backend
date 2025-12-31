@@ -4,7 +4,7 @@ const {
   profileUpdateValidation,
   createUserValidation,
   updateUserValidation,
-} = require("../middlewares/validation");
+} = require("../validations/user.validation");
 const {
   getUserById,
   editProfile,

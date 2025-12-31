@@ -4,13 +4,13 @@ const Joi = require("joi");
 const handleJoiValidationErrors = (schema) => {
   return (req, res, next) => {
     const { error } = schema.validate(req.body, { abortEarly: false });
-    
+
     if (error) {
       const firstError = error.details[0];
       return res.status(400).json({
         success: false,
         message: firstError.message,
-        field: firstError.path.join('.'),
+        field: firstError.path.join("."),
         value: firstError.context?.value,
       });
     }
@@ -19,27 +19,19 @@ const handleJoiValidationErrors = (schema) => {
 };
 
 // Atomic validators (reusable Joi schema functions)
-const documentNameValidator = () => 
-  Joi.string()
-    .trim()
-    .min(2)
-    .max(100)
-    .required()
-    .messages({
-      'string.empty': 'Document name is required',
-      'string.min': 'Document name must be at least 2 characters long',
-      'string.max': 'Document name cannot exceed 100 characters',
-      'any.required': 'Document name is required'
-    });
+const documentNameValidator = () =>
+  Joi.string().trim().min(2).max(100).required().messages({
+    "string.empty": "Document name is required",
+    "string.min": "Document name must be at least 2 characters long",
+    "string.max": "Document name cannot exceed 100 characters",
+    "any.required": "Document name is required",
+  });
 
 const documentTypeValidator = () =>
-  Joi.string()
-    .valid('pdf', 'doc', 'docx', 'xls', 'xlsx')
-    .required()
-    .messages({
-      'any.only': 'Document type must be one of: pdf, doc, docx, xls, xlsx',
-      'any.required': 'Document type is required'
-    });
+  Joi.string().valid("pdf", "doc", "docx", "xls", "xlsx").required().messages({
+    "any.only": "Document type must be one of: pdf, doc, docx, xls, xlsx",
+    "any.required": "Document type is required",
+  });
 
 const fileSizeValidator = () =>
   Joi.number()
@@ -47,100 +39,83 @@ const fileSizeValidator = () =>
     .max(10 * 1024 * 1024) // 10MB limit
     .required()
     .messages({
-      'number.positive': 'File size must be a positive number',
-      'number.max': 'File size cannot exceed 10MB',
-      'any.required': 'File size is required'
+      "number.positive": "File size must be a positive number",
+      "number.max": "File size cannot exceed 10MB",
+      "any.required": "File size is required",
     });
 
 const originalFileNameValidator = () =>
-  Joi.string()
-    .trim()
-    .min(1)
-    .max(255)
-    .required()
-    .messages({
-      'string.empty': 'Original file name is required',
-      'string.max': 'Original file name cannot exceed 255 characters',
-      'any.required': 'Original file name is required'
-    });
+  Joi.string().trim().min(1).max(255).required().messages({
+    "string.empty": "Original file name is required",
+    "string.max": "Original file name cannot exceed 255 characters",
+    "any.required": "Original file name is required",
+  });
 
 const fileUrlValidator = () =>
-  Joi.string()
-    .trim()
-    .uri()
-    .required()
-    .messages({
-      'string.uri': 'File URL must be a valid URL',
-      'string.empty': 'File URL is required',
-      'any.required': 'File URL is required'
-    });
+  Joi.string().trim().uri().required().messages({
+    "string.uri": "File URL must be a valid URL",
+    "string.empty": "File URL is required",
+    "any.required": "File URL is required",
+  });
 
 const uploadedByValidator = () =>
   Joi.string()
     .pattern(/^[0-9a-fA-F]{24}$/)
     .required()
     .messages({
-      'string.pattern.base': 'Uploaded by must be a valid MongoDB ObjectId',
-      'any.required': 'Uploaded by user is required'
+      "string.pattern.base": "Uploaded by must be a valid MongoDB ObjectId",
+      "any.required": "Uploaded by user is required",
     });
 
 const isActiveValidator = () =>
-  Joi.boolean()
-    .default(true)
-    .messages({
-      'boolean.base': 'isActive must be a boolean value'
-    });
+  Joi.boolean().default(true).messages({
+    "boolean.base": "isActive must be a boolean value",
+  });
 
 const documentIdValidator = () =>
   Joi.string()
     .pattern(/^[0-9a-fA-F]{24}$/)
     .required()
     .messages({
-      'string.pattern.base': 'Document ID must be a valid MongoDB ObjectId',
-      'any.required': 'Document ID is required'
+      "string.pattern.base": "Document ID must be a valid MongoDB ObjectId",
+      "any.required": "Document ID is required",
     });
 
 // Query parameter validators
 const pageValidator = () =>
-  Joi.number()
-    .integer()
-    .min(1)
-    .default(1)
-    .messages({
-      'number.integer': 'Page must be an integer',
-      'number.min': 'Page must be at least 1'
-    });
+  Joi.number().integer().min(1).default(1).messages({
+    "number.integer": "Page must be an integer",
+    "number.min": "Page must be at least 1",
+  });
 
 const limitValidator = () =>
-  Joi.number()
-    .integer()
-    .min(1)
-    .max(100)
-    .default(10)
-    .messages({
-      'number.integer': 'Limit must be an integer',
-      'number.min': 'Limit must be at least 1',
-      'number.max': 'Limit cannot exceed 100'
-    });
+  Joi.number().integer().min(1).max(100).default(10).messages({
+    "number.integer": "Limit must be an integer",
+    "number.min": "Limit must be at least 1",
+    "number.max": "Limit cannot exceed 100",
+  });
 
 const sortValidator = () =>
   Joi.string()
-    .valid('createdAt', '-createdAt', 'documentName', '-documentName', 'fileSize', '-fileSize')
-    .default('-createdAt')
+    .valid(
+      "createdAt",
+      "-createdAt",
+      "documentName",
+      "-documentName",
+      "fileSize",
+      "-fileSize"
+    )
+    .default("-createdAt")
     .messages({
-      'any.only': 'Sort must be one of: createdAt, -createdAt, documentName, -documentName, fileSize, -fileSize'
+      "any.only":
+        "Sort must be one of: createdAt, -createdAt, documentName, -documentName, fileSize, -fileSize",
     });
 
 const searchValidator = () =>
-  Joi.string()
-    .trim()
-    .min(1)
-    .max(100)
-    .optional()
-    .messages({
-      'string.min': 'Search term must be at least 1 character long',
-      'string.max': 'Search term cannot exceed 100 characters'
-    });
+  Joi.string().trim().min(1).max(100).optional().messages({
+    "string.min": "Search term must be at least 1 character long",
+    "string.max": "Search term cannot exceed 100 characters",
+  });
 
 // Composite validation schemas
 const createDocumentSchema = Joi.object({
@@ -150,23 +125,25 @@ const createDocumentSchema = Joi.object({
   originalFileName: originalFileNameValidator(),
   fileUrl: fileUrlValidator(),
   uploadedBy: uploadedByValidator(),
-  isActive: isActiveValidator()
+  isActive: isActiveValidator(),
 });
 
 const updateDocumentSchema = Joi.object({
   documentName: documentNameValidator().optional(),
   documentType: documentTypeValidator().optional(),
-  isActive: isActiveValidator()
-}).min(1).messages({
-  'object.min': 'At least one field must be provided for update'
-});
+  isActive: isActiveValidator(),
+})
+  .min(1)
+  .messages({
+    "object.min": "At least one field must be provided for update",
+  });
 
 const getDocumentByIdSchema = Joi.object({
-  id: documentIdValidator()
+  id: documentIdValidator(),
 });
 
 const deleteDocumentSchema = Joi.object({
-  id: documentIdValidator()
+  id: documentIdValidator(),
 });
 
 const getDocumentsQuerySchema = Joi.object({
@@ -174,20 +151,61 @@ const getDocumentsQuerySchema = Joi.object({
   limit: limitValidator(),
   sort: sortValidator(),
   search: searchValidator(),
-  documentType: Joi.string().valid('pdf', 'doc', 'docx', 'xls', 'xlsx').optional(),
-  uploadedBy: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional()
+  documentType: Joi.string()
+    .valid("pdf", "doc", "docx", "xls", "xlsx")
+    .optional(),
+  uploadedBy: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .optional(),
 });
 
+// File upload validation middleware (runs AFTER multer has parsed the form data)
+const fileUploadValidation = (req, res, next) => {
+  // Validate document name if provided
+  if (req.body && req.body.documentName) {
+    const { error } = Joi.object({
+      documentName: documentNameValidator(),
+    }).validate({ documentName: req.body.documentName });
+
+    if (error) {
+      // If validation fails, clean up the uploaded file
+      if (req.file && req.file.path) {
+        try {
+          const fs = require("fs");
+          if (fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+          }
+        } catch (cleanupError) {
+          console.error(
+            "Error cleaning up file after validation failure:",
+            cleanupError
+          );
+        }
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message,
+        field: "documentName",
+      });
+    }
+  }
+
+  next();
+};
+
 // Validation middleware functions
-const createDocumentValidation = handleJoiValidationErrors(createDocumentSchema);
-const updateDocumentValidation = handleJoiValidationErrors(updateDocumentSchema);
+const createDocumentValidation =
+  handleJoiValidationErrors(createDocumentSchema);
+const updateDocumentValidation =
+  handleJoiValidationErrors(updateDocumentSchema);
 const getDocumentByIdValidation = (req, res, next) => {
   const { error } = getDocumentByIdSchema.validate({ id: req.params.id });
   if (error) {
     return res.status(400).json({
       success: false,
       message: error.details[0].message,
-      field: 'id'
+      field: "id",
     });
   }
   next();
@@ -198,7 +216,7 @@ const deleteDocumentValidation = (req, res, next) => {
     return res.status(400).json({
       success: false,
       message: error.details[0].message,
-      field: 'id'
+      field: "id",
     });
   }
   next();
@@ -209,7 +227,7 @@ const getDocumentsQueryValidation = (req, res, next) => {
     return res.status(400).json({
       success: false,
       message: error.details[0].message,
-      field: error.details[0].path.join('.')
+      field: error.details[0].path.join("."),
     });
   }
   next();
@@ -230,18 +248,19 @@ module.exports = {
   sortValidator,
   searchValidator,
   handleJoiValidationErrors,
-  
+
   // Composite validation middleware
   createDocumentValidation,
   updateDocumentValidation,
   getDocumentByIdValidation,
   deleteDocumentValidation,
   getDocumentsQueryValidation,
-  
+  fileUploadValidation,
+
   // Schemas (exported for testing or custom usage)
   createDocumentSchema,
   updateDocumentSchema,
   getDocumentByIdSchema,
   deleteDocumentSchema,
-  getDocumentsQuerySchema
+  getDocumentsQuerySchema,
 };

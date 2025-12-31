@@ -34,10 +34,18 @@ const fileFilter = (req, file, cb) => {
   const allowedExtensions = [".pdf", ".doc", ".docx", ".xls", ".xlsx"];
   const fileExtension = path.extname(file.originalname).toLowerCase();
 
-  if (allowedTypes.includes(file.mimetype) && allowedExtensions.includes(fileExtension)) {
+  if (
+    allowedTypes.includes(file.mimetype) &&
+    allowedExtensions.includes(fileExtension)
+  ) {
     cb(null, true);
   } else {
-    cb(new Error("Invalid file type. Only PDF, DOC, DOCX, XLS, and XLSX files are allowed."), false);
+    // Create a proper error response that matches validation pattern
+    const error = new Error(
+      "Invalid file type. Only PDF, DOC, DOCX, XLS, and XLSX files are allowed."
+    );
+    error.code = "INVALID_FILE_TYPE";
+    cb(error, false);
   }
 };
 
@@ -49,6 +57,46 @@ const upload = multer({
   },
   fileFilter: fileFilter,
 });
+
+// Middleware to handle multer errors and format them consistently
+const handleMulterErrors = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    switch (err.code) {
+      case "LIMIT_FILE_SIZE":
+        return res.status(400).json({
+          success: false,
+          message: "File size too large. Maximum allowed size is 30MB.",
+          field: "document",
+        });
+      case "LIMIT_FILE_COUNT":
+        return res.status(400).json({
+          success: false,
+          message: "Too many files. Only one file is allowed.",
+          field: "document",
+        });
+      case "LIMIT_UNEXPECTED_FILE":
+        return res.status(400).json({
+          success: false,
+          message: "Unexpected file field. Use 'document' as the field name.",
+          field: "document",
+        });
+      default:
+        return res.status(400).json({
+          success: false,
+          message: "File upload error: " + err.message,
+          field: "document",
+        });
+    }
+  } else if (err && err.code === "INVALID_FILE_TYPE") {
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+      field: "document",
+    });
+  }
+
+  next(err);
+};
 
 // Helper function to get document type from file extension
 const getDocumentType = (filename) => {
@@ -236,10 +284,10 @@ const getDocumentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const document = await Document.findOne({ _id: id, isActive: true }).populate(
-      "uploadedBy",
-      "name email role"
-    );
+    const document = await Document.findOne({
+      _id: id,
+      isActive: true,
+    }).populate("uploadedBy", "name email role");
 
     if (!document) {
       return res.status(404).json({
@@ -383,7 +431,10 @@ const downloadDocument = async (req, res) => {
     }
 
     // Set appropriate headers for download
-    res.setHeader("Content-Disposition", `attachment; filename="${document.originalFileName}"`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${document.originalFileName}"`
+    );
     res.setHeader("Content-Type", "application/octet-stream");
 
     // Send file
@@ -418,14 +469,20 @@ const getUserDocuments = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Get user's documents
-    const documents = await Document.find({ uploadedBy: userId, isActive: true })
+    const documents = await Document.find({
+      uploadedBy: userId,
+      isActive: true,
+    })
       .populate("uploadedBy", "name email role")
       .sort(sort)
       .skip(skip)
       .limit(parseInt(limit));
 
     // Get total count
-    const totalDocuments = await Document.countDocuments({ uploadedBy: userId, isActive: true });
+    const totalDocuments = await Document.countDocuments({
+      uploadedBy: userId,
+      isActive: true,
+    });
     const totalPages = Math.ceil(totalDocuments / parseInt(limit));
 
     // Format response data
@@ -466,6 +523,7 @@ const getUserDocuments = async (req, res) => {
 
 module.exports = {
   upload,
+  handleMulterErrors,
   createDocument,
   getAllDocuments,
   getDocumentById,

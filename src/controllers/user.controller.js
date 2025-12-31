@@ -180,9 +180,19 @@ const getAllUsers = async (req, res) => {
       }),
     });
 
+    // Determine appropriate message based on data availability
+    let message = "User list retrieved successfully";
+    if (result.data.length === 0) {
+      if (result.searchTerm) {
+        message = `No users match your search for "${result.searchTerm}". Try a different search term.`;
+      } else {
+        message = "No users available in the system yet.";
+      }
+    }
+
     res.json({
       success: true,
-      message: "User list retrieved successfully",
+      message: message,
       users: result.data,
       pagination: result.pagination,
       searchTerm: result.searchTerm,

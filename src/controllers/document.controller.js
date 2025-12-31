@@ -248,9 +248,21 @@ const getAllDocuments = async (req, res) => {
       updatedAt: doc.updatedAt,
     }));
 
+    // Determine appropriate message based on data availability
+    let message = "Documents retrieved successfully";
+    if (formattedDocuments.length === 0) {
+      if (search || documentType || uploadedBy) {
+        message =
+          "No documents match your search criteria. Try adjusting your filters.";
+      } else {
+        message =
+          "No documents available yet. Upload your first document to get started.";
+      }
+    }
+
     res.status(200).json({
       success: true,
-      message: "Documents retrieved successfully",
+      message: message,
       data: {
         documents: formattedDocuments,
         pagination: {
@@ -542,9 +554,16 @@ const getUserDocuments = async (req, res) => {
       updatedAt: doc.updatedAt,
     }));
 
+    // Determine appropriate message based on data availability
+    let message = "User documents retrieved successfully";
+    if (formattedDocuments.length === 0) {
+      message =
+        "You haven't uploaded any documents yet. Upload your first document to get started.";
+    }
+
     res.status(200).json({
       success: true,
-      message: "User documents retrieved successfully",
+      message: message,
       data: {
         documents: formattedDocuments,
         pagination: {

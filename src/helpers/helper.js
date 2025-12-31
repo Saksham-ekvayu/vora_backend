@@ -73,6 +73,7 @@ const buildSearchFilter = (
  * @param {Object} options.filter - Additional MongoDB filter object
  * @param {string} options.select - Fields to select
  * @param {Object} options.sort - Sort object
+ * @param {string|Object} options.populate - Fields to populate (optional)
  * @param {Function} options.transform - Transform function for each document
  * @returns {Object} Paginated result with data and pagination info
  */
@@ -85,6 +86,7 @@ const paginateWithSearch = async (Model, options = {}) => {
     filter = {},
     select = "-password -otp",
     sort = { createdAt: -1 },
+    populate = null,
     transform = null,
   } = options;
 
@@ -98,6 +100,7 @@ const paginateWithSearch = async (Model, options = {}) => {
     filter: searchFilter,
     select,
     sort,
+    populate,
     transform,
   });
 
@@ -117,6 +120,7 @@ const paginateWithSearch = async (Model, options = {}) => {
  * @param {Object} options.filter - MongoDB filter object (default: {})
  * @param {string} options.select - Fields to select (default: excludes password and otp)
  * @param {Object} options.sort - Sort object (default: {createdAt: -1})
+ * @param {string|Object} options.populate - Fields to populate (optional)
  * @param {Function} options.transform - Optional function to transform each document
  * @returns {Object} Paginated result with data and pagination info
  */
@@ -127,6 +131,7 @@ const paginate = async (Model, options = {}) => {
     filter = {},
     select = "-password -otp",
     sort = { createdAt: -1 },
+    populate = null,
     transform = null,
   } = options;
 
@@ -138,12 +143,20 @@ const paginate = async (Model, options = {}) => {
   const totalItems = await Model.countDocuments(filter);
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
-  // Get paginated data
-  const data = await Model.find(filter)
+  // Build query
+  let query = Model.find(filter)
     .select(select)
     .skip(skip)
     .limit(itemsPerPage)
     .sort(sort);
+
+  // Add populate if specified
+  if (populate) {
+    query = query.populate(populate);
+  }
+
+  // Get paginated data
+  const data = await query;
 
   // Transform data if transform function is provided
   const transformedData = transform ? data.map(transform) : data;

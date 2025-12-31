@@ -1,4 +1,5 @@
 const Document = require("../models/document.model");
+const { paginateWithSearch } = require("../helpers/helper");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -196,67 +197,61 @@ const createDocument = async (req, res) => {
 // Get all documents with pagination, filtering, and search
 const getAllDocuments = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      sort = "-createdAt",
-      search,
-      documentType,
-      uploadedBy,
-    } = req.query;
+    const { search, documentType, uploadedBy } = req.query;
 
-    // Build filter object
-    const filter = { isActive: true };
+    // Build additional filters
+    const additionalFilters = { isActive: true };
 
     if (documentType) {
-      filter.documentType = documentType;
+      additionalFilters.documentType = documentType;
     }
 
     if (uploadedBy) {
-      filter.uploadedBy = uploadedBy;
+      additionalFilters.uploadedBy = uploadedBy;
     }
 
-    if (search) {
-      filter.$or = [
-        { documentName: { $regex: search, $options: "i" } },
-        { originalFileName: { $regex: search, $options: "i" } },
-      ];
+    // Build sort object
+    let sortObj = { createdAt: -1 }; // Default sort
+
+    if (req.query.sort) {
+      const sort = req.query.sort;
+      if (sort.startsWith("-")) {
+        sortObj = { [sort.substring(1)]: -1 };
+      } else {
+        sortObj = { [sort]: 1 };
+      }
     }
 
-    // Calculate pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // Get documents with pagination
-    const documents = await Document.find(filter)
-      .populate("uploadedBy", "name email role")
-      .sort(sort)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count for pagination
-    const totalDocuments = await Document.countDocuments(filter);
-    const totalPages = Math.ceil(totalDocuments / parseInt(limit));
-
-    // Format response data
-    const formattedDocuments = documents.map((doc) => ({
-      id: doc._id,
-      documentName: doc.documentName,
-      documentType: doc.documentType,
-      fileSize: doc.getFormattedFileSize(),
-      originalFileName: doc.originalFileName,
-      uploadedBy: {
-        id: doc.uploadedBy._id,
-        name: doc.uploadedBy.name,
-        email: doc.uploadedBy.email,
-        role: doc.uploadedBy.role,
-      },
-      createdAt: doc.createdAt,
-      updatedAt: doc.updatedAt,
-    }));
+    // Use pagination helper with search
+    const result = await paginateWithSearch(Document, {
+      page: req.query.page,
+      limit: req.query.limit || 10,
+      search: search,
+      searchFields: ["documentName", "originalFileName"],
+      filter: additionalFilters,
+      select: "", // Don't exclude any fields for documents
+      sort: sortObj,
+      populate: "uploadedBy",
+      transform: (doc) => ({
+        id: doc._id,
+        documentName: doc.documentName,
+        documentType: doc.documentType,
+        fileSize: doc.getFormattedFileSize(),
+        originalFileName: doc.originalFileName,
+        uploadedBy: {
+          id: doc.uploadedBy._id,
+          name: doc.uploadedBy.name,
+          email: doc.uploadedBy.email,
+          role: doc.uploadedBy.role,
+        },
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+      }),
+    });
 
     // Determine appropriate message based on data availability
     let message = "Documents retrieved successfully";
-    if (formattedDocuments.length === 0) {
+    if (result.data.length === 0) {
       if (search || documentType || uploadedBy) {
         message =
           "No documents match your search criteria. Try adjusting your filters.";
@@ -270,14 +265,8 @@ const getAllDocuments = async (req, res) => {
       success: true,
       message: message,
       data: {
-        documents: formattedDocuments,
-        pagination: {
-          currentPage: parseInt(page),
-          totalPages,
-          totalDocuments,
-          hasNextPage: parseInt(page) < totalPages,
-          hasPrevPage: parseInt(page) > 1,
-        },
+        documents: result.data,
+        pagination: result.pagination,
       },
     });
   } catch (error) {
@@ -526,48 +515,53 @@ const downloadDocument = async (req, res) => {
 const getUserDocuments = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { page = 1, limit = 10, sort = "-createdAt" } = req.query;
 
-    // Calculate pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // Get user's documents
-    const documents = await Document.find({
+    // Build filter for user's documents
+    const filter = {
       uploadedBy: userId,
       isActive: true,
-    })
-      .populate("uploadedBy", "name email role")
-      .sort(sort)
-      .skip(skip)
-      .limit(parseInt(limit));
+    };
 
-    // Get total count
-    const totalDocuments = await Document.countDocuments({
-      uploadedBy: userId,
-      isActive: true,
+    // Build sort object
+    let sortObj = { createdAt: -1 }; // Default sort
+
+    if (req.query.sort) {
+      const sort = req.query.sort;
+      if (sort.startsWith("-")) {
+        sortObj = { [sort.substring(1)]: -1 };
+      } else {
+        sortObj = { [sort]: 1 };
+      }
+    }
+
+    // Use pagination helper
+    const result = await paginateWithSearch(Document, {
+      page: req.query.page,
+      limit: req.query.limit || 10,
+      filter: filter,
+      select: "", // Don't exclude any fields for documents
+      sort: sortObj,
+      populate: "uploadedBy",
+      transform: (doc) => ({
+        id: doc._id,
+        documentName: doc.documentName,
+        documentType: doc.documentType,
+        fileSize: doc.getFormattedFileSize(),
+        originalFileName: doc.originalFileName,
+        uploadedBy: {
+          id: doc.uploadedBy._id,
+          name: doc.uploadedBy.name,
+          email: doc.uploadedBy.email,
+          role: doc.uploadedBy.role,
+        },
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+      }),
     });
-    const totalPages = Math.ceil(totalDocuments / parseInt(limit));
-
-    // Format response data
-    const formattedDocuments = documents.map((doc) => ({
-      id: doc._id,
-      documentName: doc.documentName,
-      documentType: doc.documentType,
-      fileSize: doc.getFormattedFileSize(),
-      originalFileName: doc.originalFileName,
-      uploadedBy: {
-        id: doc.uploadedBy._id,
-        name: doc.uploadedBy.name,
-        email: doc.uploadedBy.email,
-        role: doc.uploadedBy.role,
-      },
-      createdAt: doc.createdAt,
-      updatedAt: doc.updatedAt,
-    }));
 
     // Determine appropriate message based on data availability
     let message = "User documents retrieved successfully";
-    if (formattedDocuments.length === 0) {
+    if (result.data.length === 0) {
       message =
         "You haven't uploaded any documents yet. Upload your first document to get started.";
     }
@@ -576,14 +570,8 @@ const getUserDocuments = async (req, res) => {
       success: true,
       message: message,
       data: {
-        documents: formattedDocuments,
-        pagination: {
-          currentPage: parseInt(page),
-          totalPages,
-          totalDocuments,
-          hasNextPage: parseInt(page) < totalPages,
-          hasPrevPage: parseInt(page) > 1,
-        },
+        documents: result.data,
+        pagination: result.pagination,
       },
     });
   } catch (error) {

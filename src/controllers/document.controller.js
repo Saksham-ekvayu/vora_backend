@@ -86,6 +86,11 @@ const deleteFile = (filePath) => {
   }
 };
 
+// Helper function to remove file extension from filename
+const removeFileExtension = (filename) => {
+  return path.parse(filename).name;
+};
+
 // Create a new document
 const createDocument = async (req, res) => {
   try {
@@ -124,7 +129,8 @@ const createDocument = async (req, res) => {
 
     if (existingDocument) {
       // Update existing document
-      existingDocument.documentName = documentName || file.originalname;
+      existingDocument.documentName =
+        documentName || removeFileExtension(file.originalname);
       existingDocument.fileUrl = file.path;
       existingDocument.documentType = documentType;
       existingDocument.fileSize = file.size;
@@ -136,7 +142,7 @@ const createDocument = async (req, res) => {
     } else {
       // Create new document record
       document = new Document({
-        documentName: documentName || file.originalname,
+        documentName: documentName || removeFileExtension(file.originalname),
         fileUrl: file.path,
         documentType: documentType,
         uploadedBy: req.user._id,
@@ -376,6 +382,11 @@ const updateDocument = async (req, res) => {
       document.documentType = documentType;
       document.fileSize = file.size;
       document.originalFileName = file.originalname;
+
+      // If no documentName provided in body, use filename without extension
+      if (documentName === undefined) {
+        document.documentName = removeFileExtension(file.originalname);
+      }
     }
 
     // Update other fields

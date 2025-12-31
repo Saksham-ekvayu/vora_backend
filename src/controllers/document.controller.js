@@ -58,46 +58,6 @@ const upload = multer({
   fileFilter: fileFilter,
 });
 
-// Middleware to handle multer errors and format them consistently
-const handleMulterErrors = (err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    switch (err.code) {
-      case "LIMIT_FILE_SIZE":
-        return res.status(400).json({
-          success: false,
-          message: "File size too large. Maximum allowed size is 30MB.",
-          field: "document",
-        });
-      case "LIMIT_FILE_COUNT":
-        return res.status(400).json({
-          success: false,
-          message: "Too many files. Only one file is allowed.",
-          field: "document",
-        });
-      case "LIMIT_UNEXPECTED_FILE":
-        return res.status(400).json({
-          success: false,
-          message: "Unexpected file field. Use 'document' as the field name.",
-          field: "document",
-        });
-      default:
-        return res.status(400).json({
-          success: false,
-          message: "File upload error: " + err.message,
-          field: "document",
-        });
-    }
-  } else if (err && err.code === "INVALID_FILE_TYPE") {
-    return res.status(400).json({
-      success: false,
-      message: err.message,
-      field: "document",
-    });
-  }
-
-  next(err);
-};
-
 // Helper function to get document type from file extension
 const getDocumentType = (filename) => {
   const extension = path.extname(filename).toLowerCase();
@@ -178,7 +138,12 @@ const createDocument = async (req, res) => {
           documentType: document.documentType,
           fileSize: document.getFormattedFileSize(),
           originalFileName: document.originalFileName,
-          uploadedBy: document.uploadedBy,
+          uploadedBy: {
+            id: document.uploadedBy._id,
+            name: document.uploadedBy.name,
+            email: document.uploadedBy.email,
+            role: document.uploadedBy.role,
+          },
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
         },
@@ -250,7 +215,12 @@ const getAllDocuments = async (req, res) => {
       documentType: doc.documentType,
       fileSize: doc.getFormattedFileSize(),
       originalFileName: doc.originalFileName,
-      uploadedBy: doc.uploadedBy,
+      uploadedBy: {
+        id: doc.uploadedBy._id,
+        name: doc.uploadedBy.name,
+        email: doc.uploadedBy.email,
+        role: doc.uploadedBy.role,
+      },
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     }));
@@ -307,7 +277,12 @@ const getDocumentById = async (req, res) => {
           fileSize: document.getFormattedFileSize(),
           originalFileName: document.originalFileName,
           fileUrl: document.fileUrl,
-          uploadedBy: document.uploadedBy,
+          uploadedBy: {
+            id: document.uploadedBy._id,
+            name: document.uploadedBy.name,
+            email: document.uploadedBy.email,
+            role: document.uploadedBy.role,
+          },
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
         },
@@ -359,7 +334,12 @@ const updateDocument = async (req, res) => {
           documentType: document.documentType,
           fileSize: document.getFormattedFileSize(),
           originalFileName: document.originalFileName,
-          uploadedBy: document.uploadedBy,
+          uploadedBy: {
+            id: document.uploadedBy._id,
+            name: document.uploadedBy.name,
+            email: document.uploadedBy.email,
+            role: document.uploadedBy.role,
+          },
           isActive: document.isActive,
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
@@ -492,7 +472,12 @@ const getUserDocuments = async (req, res) => {
       documentType: doc.documentType,
       fileSize: doc.getFormattedFileSize(),
       originalFileName: doc.originalFileName,
-      uploadedBy: doc.uploadedBy,
+      uploadedBy: {
+        id: doc.uploadedBy._id,
+        name: doc.uploadedBy.name,
+        email: doc.uploadedBy.email,
+        role: doc.uploadedBy.role,
+      },
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     }));
@@ -523,7 +508,6 @@ const getUserDocuments = async (req, res) => {
 
 module.exports = {
   upload,
-  handleMulterErrors,
   createDocument,
   getAllDocuments,
   getDocumentById,

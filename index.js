@@ -18,6 +18,12 @@ const authRoutes = require("./src/routes/auth.routes");
 const userRoutes = require("./src/routes/user.routes");
 const documentRoutes = require("./src/routes/document.routes");
 
+// Import error handling middleware
+const {
+  globalErrorHandler,
+  notFoundHandler,
+} = require("./src/middlewares/errorHandler.middleware");
+
 // Load environment variables
 dotenv.config();
 
@@ -68,50 +74,10 @@ dashboard.registerRoutes("/api/documents", documentRoutes);
 dashboard.init(app);
 
 // Global error handling middleware (must be after all routes)
-app.use((err, req, res, next) => {
-  console.error("Global error handler:", err);
-
-  // Handle multer errors
-  if (err.code === "LIMIT_FILE_SIZE") {
-    return res.status(400).json({
-      success: false,
-      message: "File size too large. Maximum allowed size is 30MB.",
-      field: "document",
-    });
-  }
-
-  if (err.code === "INVALID_FILE_TYPE") {
-    return res.status(400).json({
-      success: false,
-      message: err.message,
-      field: "document",
-    });
-  }
-
-  // Handle other multer errors
-  if (err.name === "MulterError") {
-    return res.status(400).json({
-      success: false,
-      message: "File upload error: " + err.message,
-      field: "document",
-    });
-  }
-
-  // Default error response
-  res.status(500).json({
-    success: false,
-    message: "Internal server error",
-    error: process.env.NODE_ENV === "development" ? err.message : undefined,
-  });
-});
+app.use(globalErrorHandler);
 
 // 404 handler for undefined routes
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-  });
-});
+app.use(notFoundHandler);
 
 let server;
 

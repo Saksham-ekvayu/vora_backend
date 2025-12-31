@@ -33,40 +33,6 @@ const documentTypeValidator = () =>
     "any.required": "Document type is required",
   });
 
-const fileSizeValidator = () =>
-  Joi.number()
-    .positive()
-    .max(10 * 1024 * 1024) // 10MB limit
-    .required()
-    .messages({
-      "number.positive": "File size must be a positive number",
-      "number.max": "File size cannot exceed 10MB",
-      "any.required": "File size is required",
-    });
-
-const originalFileNameValidator = () =>
-  Joi.string().trim().min(1).max(255).required().messages({
-    "string.empty": "Original file name is required",
-    "string.max": "Original file name cannot exceed 255 characters",
-    "any.required": "Original file name is required",
-  });
-
-const fileUrlValidator = () =>
-  Joi.string().trim().uri().required().messages({
-    "string.uri": "File URL must be a valid URL",
-    "string.empty": "File URL is required",
-    "any.required": "File URL is required",
-  });
-
-const uploadedByValidator = () =>
-  Joi.string()
-    .pattern(/^[0-9a-fA-F]{24}$/)
-    .required()
-    .messages({
-      "string.pattern.base": "Uploaded by must be a valid MongoDB ObjectId",
-      "any.required": "Uploaded by user is required",
-    });
-
 const isActiveValidator = () =>
   Joi.boolean().default(true).messages({
     "boolean.base": "isActive must be a boolean value",
@@ -118,16 +84,6 @@ const searchValidator = () =>
   });
 
 // Composite validation schemas
-const createDocumentSchema = Joi.object({
-  documentName: documentNameValidator(),
-  documentType: documentTypeValidator(),
-  fileSize: fileSizeValidator(),
-  originalFileName: originalFileNameValidator(),
-  fileUrl: fileUrlValidator(),
-  uploadedBy: uploadedByValidator(),
-  isActive: isActiveValidator(),
-});
-
 const updateDocumentSchema = Joi.object({
   documentName: documentNameValidator().optional(),
   documentType: documentTypeValidator().optional(),
@@ -195,8 +151,6 @@ const fileUploadValidation = (req, res, next) => {
 };
 
 // Validation middleware functions
-const createDocumentValidation =
-  handleJoiValidationErrors(createDocumentSchema);
 const updateDocumentValidation =
   handleJoiValidationErrors(updateDocumentSchema);
 const getDocumentByIdValidation = (req, res, next) => {
@@ -237,10 +191,6 @@ module.exports = {
   // Atomic validators (exported in case needed elsewhere)
   documentNameValidator,
   documentTypeValidator,
-  fileSizeValidator,
-  originalFileNameValidator,
-  fileUrlValidator,
-  uploadedByValidator,
   isActiveValidator,
   documentIdValidator,
   pageValidator,
@@ -250,7 +200,6 @@ module.exports = {
   handleJoiValidationErrors,
 
   // Composite validation middleware
-  createDocumentValidation,
   updateDocumentValidation,
   getDocumentByIdValidation,
   deleteDocumentValidation,
@@ -258,7 +207,6 @@ module.exports = {
   fileUploadValidation,
 
   // Schemas (exported for testing or custom usage)
-  createDocumentSchema,
   updateDocumentSchema,
   getDocumentByIdSchema,
   deleteDocumentSchema,

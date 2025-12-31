@@ -327,7 +327,10 @@ const updateDocument = async (req, res) => {
     const { id } = req.params;
     const { documentName, isActive } = req.body;
 
-    const document = await Document.findOne({ _id: id, isActive: true });
+    const document = await Document.findOne({
+      _id: id,
+      isActive: true,
+    });
 
     if (!document) {
       return res.status(404).json({
@@ -336,7 +339,34 @@ const updateDocument = async (req, res) => {
       });
     }
 
-    // Update fields
+    // Handle file update if new file is uploaded
+    if (req.file) {
+      const file = req.file;
+
+      // Get document type from file extension
+      const documentType = getDocumentType(file.originalname);
+      if (!documentType) {
+        // Delete uploaded file if type is invalid
+        deleteFile(file.path);
+        return res.status(400).json({
+          success: false,
+          message: "Invalid file type detected.",
+        });
+      }
+
+      // Delete old file if it exists
+      if (document.fileUrl && fs.existsSync(document.fileUrl)) {
+        deleteFile(document.fileUrl);
+      }
+
+      // Update file-related fields
+      document.fileUrl = file.path;
+      document.documentType = documentType;
+      document.fileSize = file.size;
+      document.originalFileName = file.originalname;
+    }
+
+    // Update other fields
     if (documentName !== undefined) {
       document.documentName = documentName;
     }
@@ -349,7 +379,9 @@ const updateDocument = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Document updated successfully",
+      message: req.file
+        ? "Document and file updated successfully"
+        : "Document updated successfully",
       data: {
         document: {
           id: document._id,
@@ -370,6 +402,11 @@ const updateDocument = async (req, res) => {
       },
     });
   } catch (error) {
+    // Delete uploaded file if update fails
+    if (req.file) {
+      deleteFile(req.file.path);
+    }
+
     console.error("Error updating document:", error);
     res.status(500).json({
       success: false,

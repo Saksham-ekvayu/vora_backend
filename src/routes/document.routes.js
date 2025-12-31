@@ -103,14 +103,15 @@ router.get(
 
 /**
  * @route   PUT /api/documents/:id
- * @desc    Update document details (not the file)
+ * @desc    Update document details and optionally replace file
  * @access  Private (Expert only)
- * @body    { documentName?, isActive? }
+ * @body    { documentName?, isActive? } (multipart/form-data with optional file)
  */
 router.put(
   "/:id",
   authenticateToken,
   canUpdateDocument, // Only experts can update documents
+  upload.single("document"), // Handle optional file upload
   getDocumentByIdValidation,
   updateDocumentValidation,
   updateDocument

@@ -16,6 +16,7 @@ const { getLocalIPv4 } = require("./src/helpers/helper");
 // Import routes
 const authRoutes = require("./src/routes/auth.routes");
 const userRoutes = require("./src/routes/user.routes");
+const documentRoutes = require("./src/routes/document.routes");
 
 // Load environment variables
 dotenv.config();
@@ -39,6 +40,9 @@ app.get("/", (req, res) => {
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, "public")));
 
+// Serve uploaded files (with authentication middleware if needed)
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 // Initialize dashboard
 const dashboard = new SwaggerExpressDashboard({
   title: "Cypher Sentinel API",
@@ -53,10 +57,12 @@ const dashboard = new SwaggerExpressDashboard({
 // Use routes
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/documents", documentRoutes);
 
 // Register routes with dashboard for better documentation
 dashboard.registerRoutes("/api/auth", authRoutes);
 dashboard.registerRoutes("/api/user", userRoutes);
+dashboard.registerRoutes("/api/documents", documentRoutes);
 
 // Initialize dashboard (replaces your old endpoints)
 dashboard.init(app);

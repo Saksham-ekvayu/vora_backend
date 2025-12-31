@@ -2,6 +2,27 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
+/**
+ * Flexible Multer Configuration
+ *
+ * This module provides reusable multer configurations that accept upload directories
+ * at usage time instead of being fixed in the configuration.
+ *
+ * Usage Examples:
+ *
+ * 1. Document Upload:
+ *    const upload = createDocumentUpload("src/uploads/user-documents");
+ *    router.post('/upload', upload.single('document'), handler);
+ *
+ * 2. Image Upload:
+ *    const imageUpload = createImageUpload("src/uploads/profile-images");
+ *    router.post('/upload-image', imageUpload.single('image'), handler);
+ *
+ * 3. Multiple Upload Directories:
+ *    const userDocs = createDocumentUpload("src/uploads/user-documents");
+ *    const expertDocs = createDocumentUpload("src/uploads/expert-frameworks");
+ */
+
 // Helper function to get document type from file extension
 const getDocumentType = (filename) => {
   const extension = path.extname(filename).toLowerCase();

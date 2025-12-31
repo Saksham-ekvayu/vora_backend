@@ -33,7 +33,8 @@ const globalErrorHandler = (err, req, res, next) => {
       case "LIMIT_UNEXPECTED_FILE":
         return res.status(400).json({
           success: false,
-          message: "Unexpected file field. Use 'document' as the field name.",
+          message:
+            "Only 1 document can be uploaded at a time. Please select a single file.",
           field: "document",
         });
       case "LIMIT_FILE_COUNT":

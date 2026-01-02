@@ -94,7 +94,38 @@ const addRequest = async (endpoint, options = {}) => {
     const response = await aiAxiosInstance(config);
     return response;
   } catch (error) {
-    // Re-throw with additional context
+    // Handle specific error types
+    if (error.code === "ECONNREFUSED") {
+      const connectionError = new Error(
+        "AI service is not available. Please try again later."
+      );
+      connectionError.code = "ECONNREFUSED";
+      connectionError.originalError = error;
+      connectionError.endpoint = endpoint;
+      throw connectionError;
+    }
+
+    if (error.code === "ENOTFOUND") {
+      const dnsError = new Error(
+        "AI service is not available. Please check configuration."
+      );
+      dnsError.code = "ENOTFOUND";
+      dnsError.originalError = error;
+      dnsError.endpoint = endpoint;
+      throw dnsError;
+    }
+
+    if (error.code === "ETIMEDOUT") {
+      const timeoutError = new Error(
+        "AI service request timed out. Please try again later."
+      );
+      timeoutError.code = "ETIMEDOUT";
+      timeoutError.originalError = error;
+      timeoutError.endpoint = endpoint;
+      throw timeoutError;
+    }
+
+    // Re-throw with additional context for other errors
     const enhancedError = new Error(`AI API request failed: ${error.message}`);
     enhancedError.originalError = error;
     enhancedError.endpoint = endpoint;

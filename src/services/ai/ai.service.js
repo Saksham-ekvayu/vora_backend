@@ -98,9 +98,6 @@ class AIService {
       if (error.code === "ENOENT") {
         throw new Error(`File not found: ${filePath}`);
       }
-      if (error.code === "ECONNREFUSED") {
-        throw new Error("AI service is not available. Please try again later.");
-      }
       if (error.response?.status === 413) {
         throw new Error("File too large for AI processing");
       }
@@ -111,7 +108,7 @@ class AIService {
         throw new Error("AI service internal error. Please try again later.");
       }
 
-      throw new Error(`AI upload failed: ${error.message}`);
+      throw error; // Re-throw the error from aiClient (which has proper error messages)
     }
   }
 
@@ -219,7 +216,7 @@ class AIService {
       };
     } catch (error) {
       console.error("❌ AI Status Check Error:", error.message);
-      throw new Error(`Failed to check AI processing status: ${error.message}`);
+      throw error; // Re-throw the error from aiClient (which has proper error messages)
     }
   }
 }

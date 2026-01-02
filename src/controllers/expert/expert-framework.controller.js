@@ -18,17 +18,49 @@ const getFormattedFileSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
-const formatAIProcessingData = (aiProcessing) => {
+const formatAIProcessingData = (
+  aiProcessing,
+  includeControls = false,
+  canAccessControls = false
+) => {
   if (!aiProcessing?.uuid) return null;
-  return {
+
+  const baseData = {
     uuid: aiProcessing.uuid,
     status: aiProcessing.status,
     control_extraction_status: aiProcessing.control_extraction_status,
     processedAt: aiProcessing.processedAt,
-    controlsCount: aiProcessing.controlsCount || 0,
     controlsExtractedAt: aiProcessing.controlsExtractedAt || null,
     errorMessage: aiProcessing.errorMessage || null,
   };
+
+  // Include controls data if requested and user has access
+  if (includeControls && canAccessControls) {
+    if (hasExtractedControls({ aiProcessing })) {
+      baseData.extractedControls = aiProcessing.extractedControls;
+      baseData.controlsCount = aiProcessing.controlsCount || 0;
+    } else if (isProcessingInProgress({ aiProcessing })) {
+      baseData.controlsCount = 0;
+      baseData.processingMessage =
+        "Framework is being processed by AI service. Controls will be available once processing is complete.";
+    } else if (hasProcessingFailed({ aiProcessing })) {
+      baseData.controlsCount = 0;
+      baseData.processingMessage = "AI processing failed for this framework";
+    } else {
+      baseData.controlsCount = 0;
+      baseData.processingMessage =
+        "Framework processing has not started yet. Please upload the framework to AI service first.";
+    }
+  } else if (includeControls && !canAccessControls) {
+    baseData.controlsCount = 0;
+    baseData.processingMessage =
+      "Controls data is only available to the framework owner";
+  } else {
+    // Default behavior - just show count
+    baseData.controlsCount = aiProcessing.controlsCount || 0;
+  }
+
+  return baseData;
 };
 
 const updateAIStatus = async (framework, aiData) => {
@@ -295,11 +327,11 @@ const getFrameworkById = async (req, res) => {
       });
     }
 
-    // Check if user can access this framework (only for controls access)
+    // Check if user can access this framework's controls
     const canAccessControls =
       framework.uploadedBy._id.toString() === req.user._id.toString();
 
-    // Base framework data
+    // Base framework data with enhanced AI processing that includes controls
     const responseData = {
       framework: {
         id: framework._id,
@@ -314,48 +346,15 @@ const getFrameworkById = async (req, res) => {
           email: framework.uploadedBy.email,
           role: framework.uploadedBy.role,
         },
-        aiProcessing: formatAIProcessingData(framework.aiProcessing),
+        aiProcessing: formatAIProcessingData(
+          framework.aiProcessing,
+          true,
+          canAccessControls
+        ),
         createdAt: framework.createdAt,
         updatedAt: framework.updatedAt,
       },
     };
-
-    // Add controls data if user owns the framework and AI processing exists
-    if (canAccessControls && framework.aiProcessing.uuid) {
-      if (hasExtractedControls(framework)) {
-        responseData.controls = {
-          status: "completed",
-          count: framework.aiProcessing.controlsCount,
-          data: framework.aiProcessing.extractedControls,
-          extractedAt: framework.aiProcessing.controlsExtractedAt,
-        };
-      } else if (isProcessingInProgress(framework)) {
-        responseData.controls = {
-          status: "processing",
-          message:
-            "Framework is being processed by AI service. Controls will be available once processing is complete.",
-          isProcessing: true,
-        };
-      } else if (hasProcessingFailed(framework)) {
-        responseData.controls = {
-          status: "failed",
-          message: "AI processing failed for this framework",
-          errorMessage: framework.aiProcessing.errorMessage,
-        };
-      } else {
-        responseData.controls = {
-          status: "pending",
-          message:
-            "Framework processing has not started yet. Please upload the framework to AI service first.",
-        };
-      }
-    } else if (!canAccessControls && framework.aiProcessing.uuid) {
-      // Show limited info for non-owners
-      responseData.controls = {
-        status: "restricted",
-        message: "Controls data is only available to the framework owner",
-      };
-    }
 
     let message = "Framework retrieved successfully";
     if (canAccessControls && hasExtractedControls(framework)) {

@@ -18,11 +18,7 @@ const getFormattedFileSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
-const formatAIProcessingData = (
-  aiProcessing,
-  includeControls = false,
-  canAccessControls = false
-) => {
+const formatAIProcessingData = (aiProcessing, includeControls = false) => {
   if (!aiProcessing?.uuid) return null;
 
   const baseData = {
@@ -34,8 +30,8 @@ const formatAIProcessingData = (
     errorMessage: aiProcessing.errorMessage || null,
   };
 
-  // Include controls data if requested and user has access
-  if (includeControls && canAccessControls) {
+  // Include controls data if requested
+  if (includeControls) {
     if (hasExtractedControls({ aiProcessing })) {
       baseData.extractedControls = aiProcessing.extractedControls;
       baseData.controlsCount = aiProcessing.controlsCount || 0;
@@ -51,10 +47,6 @@ const formatAIProcessingData = (
       baseData.processingMessage =
         "Framework processing has not started yet. Please upload the framework to AI service first.";
     }
-  } else if (includeControls && !canAccessControls) {
-    baseData.controlsCount = 0;
-    baseData.processingMessage =
-      "Controls data is only available to the framework owner";
   } else {
     // Default behavior - just show count
     baseData.controlsCount = aiProcessing.controlsCount || 0;
@@ -327,10 +319,6 @@ const getFrameworkById = async (req, res) => {
       });
     }
 
-    // Check if user can access this framework's controls
-    const canAccessControls =
-      framework.uploadedBy._id.toString() === req.user._id.toString();
-
     // Base framework data with enhanced AI processing that includes controls
     const responseData = {
       framework: {
@@ -346,18 +334,14 @@ const getFrameworkById = async (req, res) => {
           email: framework.uploadedBy.email,
           role: framework.uploadedBy.role,
         },
-        aiProcessing: formatAIProcessingData(
-          framework.aiProcessing,
-          true,
-          canAccessControls
-        ),
+        aiProcessing: formatAIProcessingData(framework.aiProcessing, true),
         createdAt: framework.createdAt,
         updatedAt: framework.updatedAt,
       },
     };
 
     let message = "Framework retrieved successfully";
-    if (canAccessControls && hasExtractedControls(framework)) {
+    if (hasExtractedControls(framework)) {
       message = `Framework retrieved successfully with ${framework.aiProcessing.controlsCount} extracted controls`;
     }
 
@@ -645,13 +629,6 @@ const uploadFrameworkToAIService = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Framework not found",
-      });
-    }
-
-    if (framework.uploadedBy._id.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "You can only upload your own frameworks to AI service",
       });
     }
 

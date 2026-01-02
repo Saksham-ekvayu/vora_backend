@@ -41,14 +41,6 @@ const uploadFrameworkToAI = async (filePath) => {
       );
     }
 
-    console.log(
-      `📤 Uploading framework to AI service: ${path.basename(filePath)}`
-    );
-    console.log(
-      `📊 File size: ${(fileStats.size / 1024 / 1024).toFixed(2)} MB`
-    );
-    console.log(`📄 File type: ${fileExtension}`);
-
     // Create FormData for multipart upload
     const formData = new FormData();
 
@@ -84,7 +76,7 @@ const uploadFrameworkToAI = async (filePath) => {
     });
 
     // Make request to AI upload endpoint
-    const response = await addRequest("/upload", {
+    const response = await addRequest("/expert/framework/upload", {
       method: "POST",
       data: formData,
       headers: {

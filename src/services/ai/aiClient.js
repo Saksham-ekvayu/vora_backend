@@ -6,7 +6,7 @@ const axios = require("axios");
  * Provides a centralized HTTP client for AI API communication
  * with base URL configuration and common request handling.
  */
-console.log(process.env.AI_BASE_URL_API);
+
 // AI API Base Configuration
 const AI_BASE_URL = process.env.AI_BASE_URL_API || "http://192.168.1.30:8002";
 

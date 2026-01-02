@@ -7,6 +7,8 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
+const cacheService = require("../../services/cache.service");
+const { invalidateCache } = require("../../middlewares/cache.middleware");
 
 // Create upload instance with specific directory for user frameworks
 const upload = createDocumentUpload("src/uploads/user-frameworks");
@@ -76,6 +78,12 @@ const createFramework = async (req, res) => {
 
     // Populate uploadedBy field for response
     await framework.populate("uploadedBy", "name email role");
+
+    // Cache the framework
+    await cacheService.cacheFramework(framework);
+
+    // Invalidate framework list caches
+    await invalidateCache.frameworks(req.user._id);
 
     res.status(201).json({
       success: true,
@@ -203,10 +211,8 @@ const getFrameworkById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await Framework.findOne({
-      _id: id,
-      isActive: true,
-    }).populate("uploadedBy", "name email role");
+    // Try to get from cache first
+    let framework = await cacheService.getFrameworkById(id);
 
     if (!framework) {
       return res.status(404).json({
@@ -223,7 +229,9 @@ const getFrameworkById = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: framework.getFormattedFileSize(),
+          fileSize: framework.getFormattedFileSize
+            ? framework.getFormattedFileSize()
+            : "N/A",
           originalFileName: framework.originalFileName,
           fileUrl: framework.fileUrl,
           uploadedBy: {
@@ -308,6 +316,12 @@ const updateFramework = async (req, res) => {
     await framework.save();
     await framework.populate("uploadedBy", "name email role");
 
+    // Update cache
+    await cacheService.cacheFramework(framework);
+
+    // Invalidate related caches
+    await invalidateCache.frameworks(req.user._id);
+
     res.status(200).json({
       success: true,
       message: req.file
@@ -364,6 +378,10 @@ const deleteFramework = async (req, res) => {
     // Soft delete - set isActive to false
     framework.isActive = false;
     await framework.save();
+
+    // Invalidate caches
+    await invalidateCache.framework(id);
+    await invalidateCache.frameworks(framework.uploadedBy);
 
     res.status(200).json({
       success: true,

@@ -7,6 +7,8 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
+const cacheService = require("../../services/cache.service");
+const { invalidateCache } = require("../../middlewares/cache.middleware");
 
 // Create upload instance with specific directory for user documents
 const upload = createDocumentUpload("src/uploads/user-documents");
@@ -76,6 +78,12 @@ const createDocument = async (req, res) => {
 
     // Populate uploadedBy field for response
     await document.populate("uploadedBy", "name email role");
+
+    // Cache the document
+    await cacheService.cacheDocument(document);
+
+    // Invalidate document list caches
+    await invalidateCache.documents(req.user._id);
 
     res.status(201).json({
       success: true,
@@ -203,10 +211,8 @@ const getDocumentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const document = await Document.findOne({
-      _id: id,
-      isActive: true,
-    }).populate("uploadedBy", "name email role");
+    // Try to get from cache first
+    let document = await cacheService.getDocumentById(id);
 
     if (!document) {
       return res.status(404).json({
@@ -223,7 +229,9 @@ const getDocumentById = async (req, res) => {
           id: document._id,
           documentName: document.documentName,
           documentType: document.documentType,
-          fileSize: document.getFormattedFileSize(),
+          fileSize: document.getFormattedFileSize
+            ? document.getFormattedFileSize()
+            : "N/A",
           originalFileName: document.originalFileName,
           fileUrl: document.fileUrl,
           uploadedBy: {
@@ -308,6 +316,12 @@ const updateDocument = async (req, res) => {
     await document.save();
     await document.populate("uploadedBy", "name email role");
 
+    // Update cache
+    await cacheService.cacheDocument(document);
+
+    // Invalidate related caches
+    await invalidateCache.documents(req.user._id);
+
     res.status(200).json({
       success: true,
       message: req.file
@@ -364,6 +378,10 @@ const deleteDocument = async (req, res) => {
     // Soft delete - set isActive to false
     document.isActive = false;
     await document.save();
+
+    // Invalidate caches
+    await invalidateCache.document(id);
+    await invalidateCache.documents(document.uploadedBy);
 
     res.status(200).json({
       success: true,

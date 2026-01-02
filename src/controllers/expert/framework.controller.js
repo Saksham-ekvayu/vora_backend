@@ -7,6 +7,12 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
+const {
+  cacheOperations,
+  generateCacheKey,
+  CACHE_TTL,
+} = require("../../config/cache.config");
+const { invalidateCache } = require("../../middlewares/cache.middleware");
 
 // Create upload instance with specific directory for expert frameworks
 const upload = createDocumentUpload("src/uploads/expert-frameworks");
@@ -76,6 +82,13 @@ const createFramework = async (req, res) => {
 
     // Populate uploadedBy field for response
     await framework.populate("uploadedBy", "name email role");
+
+    // Cache the expert framework
+    const cacheKey = generateCacheKey("expert_framework", framework._id);
+    await cacheOperations.set(cacheKey, framework, CACHE_TTL.LONG);
+
+    // Invalidate expert framework list caches
+    await invalidateCache.frameworks(req.user._id);
 
     res.status(201).json({
       success: true,
@@ -203,16 +216,29 @@ const getFrameworkById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await ExpertFramework.findOne({
-      _id: id,
-      isActive: true,
-    }).populate("uploadedBy", "name email role");
+    // Try to get from cache first
+    const cacheKey = generateCacheKey("expert_framework", id);
+    let framework = await cacheOperations.get(cacheKey);
 
     if (!framework) {
-      return res.status(404).json({
-        success: false,
-        message: "Framework not found",
-      });
+      // Fetch from database
+      framework = await ExpertFramework.findOne({
+        _id: id,
+        isActive: true,
+      }).populate("uploadedBy", "name email role");
+
+      if (!framework) {
+        return res.status(404).json({
+          success: false,
+          message: "Framework not found",
+        });
+      }
+
+      // Cache the framework
+      await cacheOperations.set(cacheKey, framework, CACHE_TTL.LONG);
+      console.log(`✅ Expert framework ${id} cached in Redis`);
+    } else {
+      console.log(`✅ Expert framework ${id} retrieved from Redis cache`);
     }
 
     res.status(200).json({
@@ -223,7 +249,9 @@ const getFrameworkById = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: framework.getFormattedFileSize(),
+          fileSize: framework.getFormattedFileSize
+            ? framework.getFormattedFileSize()
+            : "N/A",
           originalFileName: framework.originalFileName,
           fileUrl: framework.fileUrl,
           uploadedBy: {

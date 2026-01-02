@@ -6,6 +6,8 @@ const path = require("path");
 const SwaggerExpressDashboard = require("./swagger");
 const { connectDB, disconnectDB } = require("./src/database/database");
 const { getLocalIPv4 } = require("./src/helpers/helper");
+const { initializeRedis, closeRedis } = require("./src/config/cache.config");
+const cacheService = require("./src/services/cache.service");
 
 // Import routes
 const authRoutes = require("./src/routes/auth/auth.routes");
@@ -13,6 +15,7 @@ const userRoutes = require("./src/routes/admin/user.routes");
 const documentRoutes = require("./src/routes/user/document.routes");
 const frameworkRoutes = require("./src/routes/user/framework.routes");
 const expertFrameworkRoutes = require("./src/routes/expert/framework.routes");
+const cacheRoutes = require("./src/routes/admin/cache.routes");
 
 // Import error handling middleware
 const {
@@ -62,6 +65,7 @@ app.use("/api/user", userRoutes);
 app.use("/api/users/documents", documentRoutes);
 app.use("/api/users/frameworks", frameworkRoutes);
 app.use("/api/expert/frameworks", expertFrameworkRoutes);
+app.use("/api/admin/cache", cacheRoutes);
 
 // Register routes with dashboard for better documentation
 dashboard.registerRoutes("/api/auth", authRoutes);
@@ -69,6 +73,7 @@ dashboard.registerRoutes("/api/user", userRoutes);
 dashboard.registerRoutes("/api/users/documents", documentRoutes);
 dashboard.registerRoutes("/api/users/frameworks", frameworkRoutes);
 dashboard.registerRoutes("/api/expert/frameworks", expertFrameworkRoutes);
+dashboard.registerRoutes("/api/admin/cache", cacheRoutes);
 
 // Initialize dashboard (replaces your old endpoints)
 dashboard.init(app);
@@ -84,16 +89,25 @@ let server;
 async function start() {
   try {
     await connectDB(MONGODB_URI);
-    console.log(bgMagenta("Connected to MongoDB"));
+    console.log(bgMagenta("📊 Connected to MongoDB"));
+
+    // Initialize caching
+    await initializeRedis();
+    console.log(bgMagenta("Cache system initialized"));
+
+    // Warm up cache with frequently accessed data
+    setTimeout(() => {
+      cacheService.warmupCache();
+    }, 5000); // Wait 5 seconds after startup
 
     server = app.listen(PORT, "0.0.0.0", () => {
       const ipv4 = getLocalIPv4();
       // ✅ Development ke liye actual IPv4
       if (process.env.NODE_ENV !== "production") {
-        console.log(bgGreen(`Network access → http://${ipv4}:${PORT}`));
+        console.log(bgGreen(`🌐 Network access → http://${ipv4}:${PORT}`));
       }
       console.log(
-        bgBlue(`Server listening on port → http://localhost:${PORT}`)
+        bgBlue(`🌐 Server listening on port → http://localhost:${PORT}`)
       );
     });
   } catch (err) {
@@ -105,6 +119,7 @@ async function start() {
 function gracefulShutdown() {
   console.log(bgYellow("Shutting down..."));
   Promise.resolve()
+    .then(() => closeRedis())
     .then(() => disconnectDB())
     .then(() => {
       if (server) server.close(() => process.exit(0));

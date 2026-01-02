@@ -7,12 +7,12 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
-const {
-  cacheOperations,
-  generateCacheKey,
-  CACHE_TTL,
-} = require("../../config/cache.config");
-const { invalidateCache } = require("../../middlewares/cache.middleware");
+// const {
+//   cacheOperations,
+//   generateCacheKey,
+//   CACHE_TTL,
+// } = require("../../config/cache.config");
+// const { invalidateCache } = require("../../middlewares/cache.middleware");
 const {
   uploadFrameworkToAI,
   getExtractedControls,
@@ -103,13 +103,6 @@ const createFramework = async (req, res) => {
 
     // Populate uploadedBy field for response
     await framework.populate("uploadedBy", "name email role");
-
-    // Cache the expert framework
-    const cacheKey = generateCacheKey("expert_framework", framework._id);
-    await cacheOperations.set(cacheKey, framework, CACHE_TTL.LONG);
-
-    // Invalidate expert framework list caches
-    await invalidateCache.frameworks(req.user._id);
 
     res.status(201).json({
       success: true,
@@ -239,29 +232,17 @@ const getFrameworkById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Try to get from cache first
-    const cacheKey = generateCacheKey("expert_framework", id);
-    let framework = await cacheOperations.get(cacheKey);
+    // Fetch from database
+    const framework = await ExpertFramework.findOne({
+      _id: id,
+      isActive: true,
+    }).populate("uploadedBy", "name email role");
 
     if (!framework) {
-      // Fetch from database
-      framework = await ExpertFramework.findOne({
-        _id: id,
-        isActive: true,
-      }).populate("uploadedBy", "name email role");
-
-      if (!framework) {
-        return res.status(404).json({
-          success: false,
-          message: "Framework not found",
-        });
-      }
-
-      // Cache the framework
-      await cacheOperations.set(cacheKey, framework, CACHE_TTL.LONG);
-      console.log(`✅ Expert framework ${id} cached in Redis`);
-    } else {
-      console.log(`✅ Expert framework ${id} retrieved from Redis cache`);
+      return res.status(404).json({
+        success: false,
+        message: "Framework not found",
+      });
     }
 
     res.status(200).json({
@@ -641,13 +622,6 @@ const uploadFrameworkToAIService = async (req, res) => {
       errorMessage: null,
     });
 
-    // Invalidate cache for this framework
-    const cacheKey = generateCacheKey("expert_framework", framework._id);
-    await cacheOperations.del(cacheKey);
-
-    // Invalidate expert framework list caches
-    await invalidateCache.frameworks(req.user._id);
-
     res.status(200).json({
       success: true,
       message: "Framework uploaded to AI service successfully",
@@ -763,7 +737,7 @@ const getFrameworkControls = async (req, res) => {
     ) {
       return res.status(200).json({
         success: true,
-        message: `Found ${framework.aiProcessing.controlsCount} cached controls`,
+        message: `Found ${framework.aiProcessing.controlsCount} extracted controls`,
         data: {
           framework: {
             id: framework._id,
@@ -814,11 +788,14 @@ const getFrameworkControls = async (req, res) => {
 
     // Processing complete - store controls in database
     if (aiResult.controls && aiResult.controls.length > 0) {
+      console.log(
+        `💾 Storing ${aiResult.controls.length} controls in database`
+      );
       await framework.storeExtractedControls(aiResult.controls);
 
-      // Invalidate cache for this framework
-      const cacheKey = generateCacheKey("expert_framework", framework._id);
-      await cacheOperations.del(cacheKey);
+      console.log(
+        `✅ Controls stored successfully for framework: ${framework.frameworkName}`
+      );
     }
 
     res.status(200).json({

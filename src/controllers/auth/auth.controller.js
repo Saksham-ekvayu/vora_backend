@@ -352,7 +352,7 @@ const sendVerificationOTP = async (req, res) => {
 };
 
 // Logout user
-// Logout user with token blacklisting
+// Logout user with token blacklisting (cache disabled)
 const logout = async (req, res) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
@@ -368,13 +368,13 @@ const logout = async (req, res) => {
     const decoded = jwt.decode(token);
     const tokenExpiry = decoded.exp * 1000; // Convert to milliseconds
 
-    // Add token to blacklist in Redis with TTL until token expires
-    const cacheService = require("../../services/cache.service");
-    const ttl = Math.floor((tokenExpiry - Date.now()) / 1000); // TTL in seconds
+    // Add token to blacklist in Redis with TTL until token expires (commented out)
+    // const cacheService = require("../../services/cache.service");
+    // const ttl = Math.floor((tokenExpiry - Date.now()) / 1000); // TTL in seconds
 
-    if (ttl > 0) {
-      await cacheService.setCache(`blacklist_${token}`, "revoked", ttl);
-    }
+    // if (ttl > 0) {
+    //   await cacheService.setCache(`blacklist_${token}`, "revoked", ttl);
+    // }
 
     res.json({
       success: true,

@@ -7,8 +7,8 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
-const cacheService = require("../../services/cache.service");
-const { invalidateCache } = require("../../middlewares/cache.middleware");
+// const cacheService = require("../../services/cache.service");
+// const { invalidateCache } = require("../../middlewares/cache.middleware");
 
 // Create upload instance with specific directory for user frameworks
 const upload = createDocumentUpload("src/uploads/user-frameworks");
@@ -79,11 +79,11 @@ const createFramework = async (req, res) => {
     // Populate uploadedBy field for response
     await framework.populate("uploadedBy", "name email role");
 
-    // Cache the framework
-    await cacheService.cacheFramework(framework);
+    // Cache the framework (commented out)
+    // await cacheService.cacheFramework(framework);
 
-    // Invalidate framework list caches
-    await invalidateCache.frameworks(req.user._id);
+    // Invalidate framework list caches (commented out)
+    // await invalidateCache.frameworks(req.user._id);
 
     res.status(201).json({
       success: true,
@@ -211,8 +211,14 @@ const getFrameworkById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Try to get from cache first
-    let framework = await cacheService.getFrameworkById(id);
+    // Try to get from cache first (commented out)
+    // let framework = await cacheService.getFrameworkById(id);
+
+    // Fetch directly from database
+    const framework = await Framework.findOne({
+      _id: id,
+      isActive: true,
+    }).populate("uploadedBy", "name email role");
 
     if (!framework) {
       return res.status(404).json({
@@ -316,11 +322,11 @@ const updateFramework = async (req, res) => {
     await framework.save();
     await framework.populate("uploadedBy", "name email role");
 
-    // Update cache
-    await cacheService.cacheFramework(framework);
+    // Update cache (commented out)
+    // await cacheService.cacheFramework(framework);
 
-    // Invalidate related caches
-    await invalidateCache.frameworks(req.user._id);
+    // Invalidate related caches (commented out)
+    // await invalidateCache.frameworks(req.user._id);
 
     res.status(200).json({
       success: true,
@@ -379,9 +385,9 @@ const deleteFramework = async (req, res) => {
     framework.isActive = false;
     await framework.save();
 
-    // Invalidate caches
-    await invalidateCache.framework(id);
-    await invalidateCache.frameworks(framework.uploadedBy);
+    // Invalidate caches (commented out)
+    // await invalidateCache.framework(id);
+    // await invalidateCache.frameworks(framework.uploadedBy);
 
     res.status(200).json({
       success: true,

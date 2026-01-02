@@ -3,8 +3,8 @@ const {
   generateTempPassword,
   paginateWithSearch,
 } = require("../../helpers/helper");
-const cacheService = require("../../services/cache.service");
-const { invalidateCache } = require("../../middlewares/cache.middleware");
+// const cacheService = require("../../services/cache.service");
+// const { invalidateCache } = require("../../middlewares/cache.middleware");
 
 // Create user by admin
 const createUserByAdmin = async (req, res) => {
@@ -52,8 +52,8 @@ const createUserByAdmin = async (req, res) => {
 
     await newUser.save();
 
-    // Cache the new user
-    await cacheService.cacheUser(newUser);
+    // Cache the new user (commented out)
+    // await cacheService.cacheUser(newUser);
 
     res.status(201).json({
       success: true,
@@ -114,8 +114,8 @@ const updateUserByAdmin = async (req, res) => {
 
     await user.save();
 
-    // Update cache
-    await cacheService.cacheUser(user);
+    // Update cache (commented out)
+    // await cacheService.cacheUser(user);
 
     res.status(200).json({
       success: true,
@@ -216,8 +216,11 @@ const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Try to get from cache first
-    let user = await cacheService.getUserById(id);
+    // Try to get from cache first (commented out)
+    // let user = await cacheService.getUserById(id);
+
+    // Fetch directly from database
+    const user = await User.findById(id).select("-password -otp");
 
     if (!user) {
       return res
@@ -264,8 +267,8 @@ const deleteUser = async (req, res) => {
 
     await User.findByIdAndDelete(id);
 
-    // Invalidate user cache
-    await invalidateCache.user(id);
+    // Invalidate user cache (commented out)
+    // await invalidateCache.user(id);
 
     res.json({ success: true, message: "User deleted successfully" });
   } catch (error) {
@@ -300,8 +303,8 @@ const editProfile = async (req, res) => {
       runValidators: true,
     }).select("-password -otp");
 
-    // Update cache
-    await cacheService.cacheUser(updatedUser);
+    // Update cache (commented out)
+    // await cacheService.cacheUser(updatedUser);
 
     res.json({
       success: true,

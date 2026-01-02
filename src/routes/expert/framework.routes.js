@@ -133,25 +133,25 @@ router.delete(
 );
 
 /**
- * @route   POST /api/expert/frameworks/:frameworkId/upload-to-ai
+ * @route   POST /api/expert/frameworks/:id/upload-to-ai
  * @desc    Upload framework to AI service for processing
  * @access  Private (Expert only)
  */
 router.post(
-  "/:frameworkId/upload-to-ai",
+  "/:id/upload-to-ai",
   authenticateToken,
   canExpertCreate, // Only experts can upload to AI service
-  getExpertFrameworkByIdValidation, // Validate frameworkId in params
+  getExpertFrameworkByIdValidation, // Validate id in params
   uploadFrameworkToAIService
 );
 
 /**
- * @route   GET /api/expert/frameworks/:frameworkId/controls
+ * @route   GET /api/expert/frameworks/:id/controls
  * @desc    Get extracted controls from AI service for a framework
  * @access  Private (Expert only)
  */
 router.get(
-  "/:frameworkId/controls",
+  "/:id/controls",
   authenticateToken,
   canExpertView, // Only experts can view controls
   getExpertFrameworkByIdValidation,

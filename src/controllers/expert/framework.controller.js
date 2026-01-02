@@ -565,20 +565,20 @@ const getExpertFrameworks = async (req, res) => {
 // Upload framework to AI service for processing
 const uploadFrameworkToAIService = async (req, res) => {
   try {
-    const { frameworkId } = req.params;
+    const { id } = req.params;
 
-    // Validate frameworkId (already validated by middleware, but double-check)
-    if (!frameworkId) {
+    // Validate id (already validated by middleware, but double-check)
+    if (!id) {
       return res.status(400).json({
         success: false,
         message: "Framework ID is required",
-        field: "frameworkId",
+        field: "id",
       });
     }
 
     // Find framework in database
     const framework = await ExpertFramework.findOne({
-      _id: frameworkId,
+      _id: id,
       isActive: true,
     }).populate("uploadedBy", "name email role");
 
@@ -669,12 +669,10 @@ const uploadFrameworkToAIService = async (req, res) => {
   } catch (error) {
     console.error("❌ Error uploading framework to AI service:", error);
 
-    // Try to update framework with error status if we have frameworkId
-    if (req.params.frameworkId) {
+    // Try to update framework with error status if we have id
+    if (req.params.id) {
       try {
-        const framework = await ExpertFramework.findById(
-          req.params.frameworkId
-        );
+        const framework = await ExpertFramework.findById(req.params.id);
         if (framework) {
           await framework.updateAIStatus({
             status: "failed",
@@ -727,11 +725,11 @@ const uploadFrameworkToAIService = async (req, res) => {
 // Get extracted controls from AI service
 const getFrameworkControls = async (req, res) => {
   try {
-    const { frameworkId } = req.params;
+    const { id } = req.params;
 
     // Find framework in database
     const framework = await ExpertFramework.findOne({
-      _id: frameworkId,
+      _id: id,
       isActive: true,
     }).populate("uploadedBy", "name email role");
 

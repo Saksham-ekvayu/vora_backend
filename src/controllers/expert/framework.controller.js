@@ -1,5 +1,4 @@
 const ExpertFramework = require("../../models/expertFramework.model");
-const ExpertFrameworkService = require("../../services/expertFramework.service");
 const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {
@@ -8,17 +7,103 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
+const aiService = require("../../services/ai.service");
 
-const { uploadFrameworkToAI } = require("../../services/ai/aiUpload.service");
-const { aiFrameworkWsService } = require("../../services/ai/aiFramework.ws");
+// Helper functions
+const getFormattedFileSize = (bytes) => {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+};
 
-// Create upload instance with specific directory for expert frameworks
+const formatAIProcessingData = (aiProcessing) => {
+  if (!aiProcessing?.uuid) return null;
+  return {
+    uuid: aiProcessing.uuid,
+    status: aiProcessing.status,
+    control_extraction_status: aiProcessing.control_extraction_status,
+    processedAt: aiProcessing.processedAt,
+    controlsCount: aiProcessing.controlsCount || 0,
+    controlsExtractedAt: aiProcessing.controlsExtractedAt || null,
+    errorMessage: aiProcessing.errorMessage || null,
+  };
+};
+
+const updateAIStatus = async (framework, aiData) => {
+  framework.aiProcessing.uuid = aiData.uuid || framework.aiProcessing.uuid;
+  framework.aiProcessing.status =
+    aiData.status || framework.aiProcessing.status;
+  framework.aiProcessing.control_extraction_status =
+    aiData.control_extraction_status ||
+    framework.aiProcessing.control_extraction_status;
+  framework.aiProcessing.processedAt = aiData.processedAt || new Date();
+  framework.aiProcessing.errorMessage = aiData.errorMessage || null;
+  return await framework.save();
+};
+
+const storeExtractedControls = async (framework, controlsData) => {
+  let controls = [];
+
+  if (Array.isArray(controlsData)) {
+    controls = controlsData;
+  } else if (controlsData && typeof controlsData === "object") {
+    if (controlsData.controls && Array.isArray(controlsData.controls)) {
+      controls = controlsData.controls;
+    } else if (controlsData.data && Array.isArray(controlsData.data)) {
+      controls = controlsData.data;
+    }
+
+    if (controlsData.status) {
+      framework.aiProcessing.status = controlsData.status;
+      framework.aiProcessing.control_extraction_status = controlsData.status;
+    }
+  }
+
+  framework.aiProcessing.extractedControls = controls;
+  framework.aiProcessing.controlsCount = controls.length;
+  framework.aiProcessing.controlsExtractedAt = new Date();
+
+  if (
+    !framework.aiProcessing.status ||
+    framework.aiProcessing.status !== "completed"
+  ) {
+    framework.aiProcessing.status = "completed";
+    framework.aiProcessing.control_extraction_status = "completed";
+  }
+
+  return await framework.save();
+};
+
+const hasExtractedControls = (framework) => {
+  return (
+    framework.aiProcessing.extractedControls &&
+    framework.aiProcessing.extractedControls.length > 0 &&
+    (framework.aiProcessing.status === "completed" ||
+      framework.aiProcessing.control_extraction_status === "completed")
+  );
+};
+
+const isProcessingInProgress = (framework) => {
+  return (
+    framework.aiProcessing.status === "processing" ||
+    framework.aiProcessing.status === "uploaded" ||
+    framework.aiProcessing.control_extraction_status === "processing" ||
+    framework.aiProcessing.control_extraction_status === "started"
+  );
+};
+
+const hasProcessingFailed = (framework) => {
+  return framework.aiProcessing.status === "failed";
+};
+
+// Create upload instance
 const upload = createDocumentUpload("src/uploads/expert-frameworks");
 
 // Create a new framework
 const createFramework = async (req, res) => {
   try {
-    // Check if file was uploaded
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -30,10 +115,8 @@ const createFramework = async (req, res) => {
     const { frameworkName } = req.body;
     const file = req.file;
 
-    // Get framework type from file extension
     const frameworkType = getDocumentType(file.originalname);
     if (!frameworkType) {
-      // Delete uploaded file if type is invalid
       deleteFile(file.path);
       return res.status(400).json({
         success: false,
@@ -41,7 +124,6 @@ const createFramework = async (req, res) => {
       });
     }
 
-    // Check if framework with same original filename already exists
     const existingFramework = await ExpertFramework.findOne({
       originalFileName: file.originalname,
       uploadedBy: req.user._id,
@@ -52,7 +134,6 @@ const createFramework = async (req, res) => {
     let message;
 
     if (existingFramework) {
-      // Update existing framework
       existingFramework.frameworkName =
         frameworkName || removeFileExtension(file.originalname);
       existingFramework.fileUrl = file.path;
@@ -64,7 +145,6 @@ const createFramework = async (req, res) => {
       framework = existingFramework;
       message = "Framework updated successfully";
     } else {
-      // Create new framework record
       framework = new ExpertFramework({
         frameworkName: frameworkName || removeFileExtension(file.originalname),
         fileUrl: file.path,
@@ -78,7 +158,6 @@ const createFramework = async (req, res) => {
       message = "Framework uploaded successfully";
     }
 
-    // Populate uploadedBy field for response
     await framework.populate("uploadedBy", "name email role");
 
     res.status(201).json({
@@ -89,7 +168,7 @@ const createFramework = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: framework.getFormattedFileSize(),
+          fileSize: getFormattedFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
           uploadedBy: {
             id: framework.uploadedBy._id,
@@ -104,7 +183,6 @@ const createFramework = async (req, res) => {
       },
     });
   } catch (error) {
-    // Delete uploaded file if framework creation fails
     if (req.file) {
       deleteFile(req.file.path);
     }
@@ -118,12 +196,11 @@ const createFramework = async (req, res) => {
   }
 };
 
-// Get all frameworks with pagination, filtering, and search
+// Get all frameworks
 const getAllFrameworks = async (req, res) => {
   try {
     const { search, frameworkType, uploadedBy } = req.query;
 
-    // Build additional filters
     const additionalFilters = { isActive: true };
 
     if (frameworkType) {
@@ -134,8 +211,7 @@ const getAllFrameworks = async (req, res) => {
       additionalFilters.uploadedBy = uploadedBy;
     }
 
-    // Build sort object
-    let sortObj = { createdAt: -1 }; // Default sort
+    let sortObj = { createdAt: -1 };
 
     if (req.query.sort) {
       const sort = req.query.sort;
@@ -146,21 +222,20 @@ const getAllFrameworks = async (req, res) => {
       }
     }
 
-    // Use pagination helper with search
     const result = await paginateWithSearch(ExpertFramework, {
       page: req.query.page,
       limit: req.query.limit || 10,
       search: search,
       searchFields: ["frameworkName", "originalFileName"],
       filter: additionalFilters,
-      select: "", // Don't exclude any fields for frameworks
+      select: "",
       sort: sortObj,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,
         frameworkName: doc.frameworkName,
         frameworkType: doc.frameworkType,
-        fileSize: doc.getFormattedFileSize(),
+        fileSize: getFormattedFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
         uploadedBy: {
           id: doc.uploadedBy._id,
@@ -174,7 +249,6 @@ const getAllFrameworks = async (req, res) => {
       }),
     });
 
-    // Determine appropriate message based on data availability
     let message = "Expert frameworks retrieved successfully";
     if (result.data.length === 0) {
       if (search || frameworkType || uploadedBy) {
@@ -209,7 +283,6 @@ const getFrameworkById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Fetch from database
     const framework = await ExpertFramework.findOne({
       _id: id,
       isActive: true,
@@ -230,9 +303,7 @@ const getFrameworkById = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: framework.getFormattedFileSize
-            ? framework.getFormattedFileSize()
-            : "N/A",
+          fileSize: getFormattedFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
           fileUrl: framework.fileUrl,
           uploadedBy: {
@@ -275,14 +346,11 @@ const updateFramework = async (req, res) => {
       });
     }
 
-    // Handle file update if new file is uploaded
     if (req.file) {
       const file = req.file;
 
-      // Get framework type from file extension
       const frameworkType = getDocumentType(file.originalname);
       if (!frameworkType) {
-        // Delete uploaded file if type is invalid
         deleteFile(file.path);
         return res.status(400).json({
           success: false,
@@ -290,24 +358,20 @@ const updateFramework = async (req, res) => {
         });
       }
 
-      // Delete old file if it exists
       if (framework.fileUrl && fs.existsSync(framework.fileUrl)) {
         deleteFile(framework.fileUrl);
       }
 
-      // Update file-related fields
       framework.fileUrl = file.path;
       framework.frameworkType = frameworkType;
       framework.fileSize = file.size;
       framework.originalFileName = file.originalname;
 
-      // If no frameworkName provided in body, use filename without extension
       if (frameworkName === undefined) {
         framework.frameworkName = removeFileExtension(file.originalname);
       }
     }
 
-    // Update other fields
     if (frameworkName !== undefined) {
       framework.frameworkName = frameworkName;
     }
@@ -328,7 +392,7 @@ const updateFramework = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: framework.getFormattedFileSize(),
+          fileSize: getFormattedFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
           uploadedBy: {
             id: framework.uploadedBy._id,
@@ -343,7 +407,6 @@ const updateFramework = async (req, res) => {
       },
     });
   } catch (error) {
-    // Delete uploaded file if update fails
     if (req.file) {
       deleteFile(req.file.path);
     }
@@ -357,7 +420,7 @@ const updateFramework = async (req, res) => {
   }
 };
 
-// Delete framework (soft delete)
+// Delete framework
 const deleteFramework = async (req, res) => {
   try {
     const { id } = req.params;
@@ -374,7 +437,6 @@ const deleteFramework = async (req, res) => {
       });
     }
 
-    // Soft delete - set isActive to false
     framework.isActive = false;
     await framework.save();
 
@@ -409,7 +471,6 @@ const downloadFramework = async (req, res) => {
       });
     }
 
-    // Check if file exists
     if (!fs.existsSync(framework.fileUrl)) {
       return res.status(404).json({
         success: false,
@@ -417,14 +478,12 @@ const downloadFramework = async (req, res) => {
       });
     }
 
-    // Set appropriate headers for download
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${framework.originalFileName}"`
     );
     res.setHeader("Content-Type", "application/octet-stream");
 
-    // Send file
     res.download(framework.fileUrl, framework.originalFileName, (err) => {
       if (err) {
         console.error("Error downloading file:", err);
@@ -451,14 +510,12 @@ const getExpertFrameworks = async (req, res) => {
   try {
     const expertId = req.user._id;
 
-    // Build filter for expert's frameworks
     const filter = {
       uploadedBy: expertId,
       isActive: true,
     };
 
-    // Build sort object
-    let sortObj = { createdAt: -1 }; // Default sort
+    let sortObj = { createdAt: -1 };
 
     if (req.query.sort) {
       const sort = req.query.sort;
@@ -469,19 +526,18 @@ const getExpertFrameworks = async (req, res) => {
       }
     }
 
-    // Use pagination helper
     const result = await paginateWithSearch(ExpertFramework, {
       page: req.query.page,
       limit: req.query.limit || 10,
       filter: filter,
-      select: "", // Don't exclude any fields for frameworks
+      select: "",
       sort: sortObj,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,
         frameworkName: doc.frameworkName,
         frameworkType: doc.frameworkType,
-        fileSize: doc.getFormattedFileSize(),
+        fileSize: getFormattedFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
         uploadedBy: {
           id: doc.uploadedBy._id,
@@ -489,13 +545,12 @@ const getExpertFrameworks = async (req, res) => {
           email: doc.uploadedBy.email,
           role: doc.uploadedBy.role,
         },
-        aiProcessing: formatAIProcessingData(framework.aiProcessing),
+        aiProcessing: formatAIProcessingData(doc.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       }),
     });
 
-    // Determine appropriate message based on data availability
     let message = "Expert frameworks retrieved successfully";
     if (result.data.length === 0) {
       message =
@@ -520,12 +575,11 @@ const getExpertFrameworks = async (req, res) => {
   }
 };
 
-// Upload framework to AI service for processing
+// Upload framework to AI service
 const uploadFrameworkToAIService = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validate id (already validated by middleware, but double-check)
     if (!id) {
       return res.status(400).json({
         success: false,
@@ -534,7 +588,6 @@ const uploadFrameworkToAIService = async (req, res) => {
       });
     }
 
-    // Find framework in database
     const framework = await ExpertFramework.findOne({
       _id: id,
       isActive: true,
@@ -547,7 +600,6 @@ const uploadFrameworkToAIService = async (req, res) => {
       });
     }
 
-    // Check if framework belongs to the requesting expert
     if (framework.uploadedBy._id.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -555,7 +607,6 @@ const uploadFrameworkToAIService = async (req, res) => {
       });
     }
 
-    // Check if file exists on disk
     if (!fs.existsSync(framework.fileUrl)) {
       return res.status(404).json({
         success: false,
@@ -563,7 +614,6 @@ const uploadFrameworkToAIService = async (req, res) => {
       });
     }
 
-    // Check if framework is already uploaded to AI
     if (
       framework.aiProcessing.uuid &&
       framework.aiProcessing.status !== "failed"
@@ -583,15 +633,13 @@ const uploadFrameworkToAIService = async (req, res) => {
       });
     }
 
-    // Upload to AI service
-    const aiResult = await uploadFrameworkToAI(framework.fileUrl);
+    const aiResult = await aiService.uploadFramework(framework.fileUrl);
 
     if (!aiResult.success) {
       throw new Error("AI upload failed");
     }
 
-    // Update framework with AI response data
-    await ExpertFrameworkService.updateAIStatus(framework, {
+    await updateAIStatus(framework, {
       uuid: aiResult.aiResponse.uuid,
       status: aiResult.aiResponse.status,
       control_extraction_status: aiResult.aiResponse.control_extraction_status,
@@ -599,19 +647,28 @@ const uploadFrameworkToAIService = async (req, res) => {
       errorMessage: null,
     });
 
-    // Automatically start WebSocket connection to monitor AI processing
+    // Start background monitoring
     try {
-      // Create a dummy WebSocket client to monitor AI processing
-      aiFrameworkWsService.startBackgroundMonitoring(
+      aiService.startBackgroundMonitoring(
         aiResult.aiResponse.uuid,
-        id
+        id,
+        async (message) => {
+          if (
+            message.status === "completed" &&
+            (message.controls || message.data)
+          ) {
+            const fw = await ExpertFramework.findById(id);
+            if (fw) {
+              await storeExtractedControls(fw, message);
+            }
+          }
+        }
       );
     } catch (wsError) {
       console.error(
         `❌ Failed to start background monitoring for framework ${id}:`,
         wsError
       );
-      // Don't fail the main request if WebSocket monitoring fails
     }
 
     res.status(200).json({
@@ -638,12 +695,11 @@ const uploadFrameworkToAIService = async (req, res) => {
   } catch (error) {
     console.error("❌ Error uploading framework to AI service:", error);
 
-    // Try to update framework with error status if we have id
     if (req.params.id) {
       try {
         const framework = await ExpertFramework.findById(req.params.id);
         if (framework) {
-          await ExpertFrameworkService.updateAIStatus(framework, {
+          await updateAIStatus(framework, {
             status: "failed",
             errorMessage: error.message,
             processedAt: new Date(),
@@ -654,7 +710,6 @@ const uploadFrameworkToAIService = async (req, res) => {
       }
     }
 
-    // Handle specific error types
     if (error.message.includes("File not found")) {
       return res.status(404).json({
         success: false,
@@ -691,12 +746,11 @@ const uploadFrameworkToAIService = async (req, res) => {
   }
 };
 
-// Get extracted controls from AI service via WebSocket
+// Get framework controls
 const getFrameworkControls = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Find framework in database
     const framework = await ExpertFramework.findOne({
       _id: id,
       isActive: true,
@@ -709,7 +763,6 @@ const getFrameworkControls = async (req, res) => {
       });
     }
 
-    // Check if framework belongs to the requesting expert
     if (framework.uploadedBy._id.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -717,7 +770,6 @@ const getFrameworkControls = async (req, res) => {
       });
     }
 
-    // Check if framework has been uploaded to AI
     if (!framework.aiProcessing.uuid) {
       return res.status(400).json({
         success: false,
@@ -726,30 +778,24 @@ const getFrameworkControls = async (req, res) => {
       });
     }
 
-    // If controls are already stored in database, return them directly
-    if (ExpertFrameworkService.hasExtractedControls(framework)) {
+    if (hasExtractedControls(framework)) {
       return res.status(200).json({
         success: true,
         message: `Found ${framework.aiProcessing.controlsCount} extracted controls`,
         data: {
-          aiProcessing: ExpertFrameworkService.formatAIProcessingData(
-            framework.aiProcessing
-          ),
+          aiProcessing: formatAIProcessingData(framework.aiProcessing),
           controls: framework.aiProcessing.extractedControls,
         },
       });
     }
 
-    // If processing is in progress, return status
-    if (ExpertFrameworkService.isProcessingInProgress(framework)) {
+    if (isProcessingInProgress(framework)) {
       return res.status(202).json({
         success: true,
         message:
           "Framework is being processed by AI service. Controls will be available once processing is complete.",
         data: {
-          aiProcessing: ExpertFrameworkService.formatAIProcessingData(
-            framework.aiProcessing
-          ),
+          aiProcessing: formatAIProcessingData(framework.aiProcessing),
           controls: null,
           isProcessing: true,
           instructions:
@@ -758,29 +804,23 @@ const getFrameworkControls = async (req, res) => {
       });
     }
 
-    // If processing failed
-    if (ExpertFrameworkService.hasProcessingFailed(framework)) {
+    if (hasProcessingFailed(framework)) {
       return res.status(400).json({
         success: false,
         message: "AI processing failed for this framework",
         data: {
-          aiProcessing: ExpertFrameworkService.formatAIProcessingData(
-            framework.aiProcessing
-          ),
+          aiProcessing: formatAIProcessingData(framework.aiProcessing),
           errorMessage: framework.aiProcessing.errorMessage,
         },
       });
     }
 
-    // If no processing has started yet
     return res.status(400).json({
       success: false,
       message:
         "Framework processing has not started yet. Please upload the framework to AI service first.",
       data: {
-        aiProcessing: ExpertFrameworkService.formatAIProcessingData(
-          framework.aiProcessing
-        ),
+        aiProcessing: formatAIProcessingData(framework.aiProcessing),
       },
     });
   } catch (error) {

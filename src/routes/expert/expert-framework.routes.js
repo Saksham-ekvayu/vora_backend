@@ -7,7 +7,7 @@ const {
   canExpertCreate,
   canExpertUpdate,
   canExpertDelete,
-  canExpertView,
+  allRoles, // For GET operations - all roles can view
 } = require("../../middlewares/roleAccess.middleware");
 
 // Import validations
@@ -17,7 +17,7 @@ const {
   getExpertFrameworkByIdValidation,
   deleteExpertFrameworkValidation,
   getExpertFrameworksQueryValidation,
-} = require("../../validations/expertFramework.validation");
+} = require("../../validations/expert-framework.validation");
 
 // Import controller
 const {
@@ -30,8 +30,7 @@ const {
   downloadFramework,
   getExpertFrameworks,
   uploadFrameworkToAIService,
-  getFrameworkControls,
-} = require("../../controllers/expert/framework.controller");
+} = require("../../controllers/expert/expert-framework.controller");
 
 // Routes
 
@@ -53,39 +52,39 @@ router.post(
 /**
  * @route   GET /api/expert/frameworks
  * @desc    Get all frameworks with pagination, filtering, and search
- * @access  Private (Expert only)
+ * @access  Private (All roles can view)
  * @query   { page?, limit?, sort?, search?, frameworkType?, uploadedBy? }
  */
 router.get(
   "/",
   authenticateToken,
-  canExpertView, // Only experts can view frameworks
+  allRoles, // All roles can view frameworks
   getExpertFrameworksQueryValidation,
   getAllFrameworks
 );
 
 /**
  * @route   GET /api/expert/frameworks/my-frameworks
- * @desc    Get current expert's frameworks
- * @access  Private (Expert only)
+ * @desc    Get current user's frameworks (frameworks uploaded by the logged-in user)
+ * @access  Private (All roles can view their own frameworks)
  * @query   { page?, limit?, sort? }
  */
 router.get(
   "/my-frameworks",
   authenticateToken,
-  canExpertView, // Only experts can view their own frameworks
+  allRoles, // All roles can view frameworks
   getExpertFrameworks
 );
 
 /**
  * @route   GET /api/expert/frameworks/:id
  * @desc    Get framework by ID
- * @access  Private (Expert only)
+ * @access  Private (All roles can view)
  */
 router.get(
   "/:id",
   authenticateToken,
-  canExpertView, // Only experts can view frameworks
+  allRoles, // All roles can view frameworks
   getExpertFrameworkByIdValidation,
   getFrameworkById
 );
@@ -93,12 +92,12 @@ router.get(
 /**
  * @route   GET /api/expert/frameworks/:id/download
  * @desc    Download framework file
- * @access  Private (Expert only)
+ * @access  Private (All roles can download)
  */
 router.get(
   "/:id/download",
   authenticateToken,
-  canExpertView, // Only experts can download frameworks
+  allRoles, // All roles can download frameworks
   getExpertFrameworkByIdValidation,
   downloadFramework
 );
@@ -143,19 +142,6 @@ router.post(
   canExpertCreate, // Only experts can upload to AI service
   getExpertFrameworkByIdValidation, // Validate id in params
   uploadFrameworkToAIService
-);
-
-/**
- * @route   GET /api/expert/frameworks/:id/controls
- * @desc    Get extracted controls from AI service for a framework
- * @access  Private (Expert only)
- */
-router.get(
-  "/:id/controls",
-  authenticateToken,
-  canExpertView, // Only experts can view controls
-  getExpertFrameworkByIdValidation,
-  getFrameworkControls
 );
 
 module.exports = router;

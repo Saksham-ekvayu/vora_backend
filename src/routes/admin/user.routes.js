@@ -12,7 +12,7 @@ const {
   deleteUser,
   createUserByAdmin,
   updateUserByAdmin,
-} = require("../../controllers/admin/user.controller");
+} = require("../../controllers/admin/user-management.controller");
 // const { userByIdCache } = require("../../middlewares/cache.middleware");
 
 const router = express.Router();

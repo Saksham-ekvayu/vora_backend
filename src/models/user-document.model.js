@@ -1,25 +1,25 @@
 const mongoose = require("mongoose");
 
-const frameworkSchema = new mongoose.Schema(
+const documentSchema = new mongoose.Schema(
   {
-    frameworkName: {
+    documentName: {
       type: String,
-      required: [true, "Framework name is required"],
+      required: [true, "Document name is required"],
       trim: true,
-      minlength: [2, "Framework name must be at least 2 characters long"],
-      maxlength: [100, "Framework name cannot exceed 100 characters"],
+      minlength: [2, "Document name must be at least 2 characters long"],
+      maxlength: [100, "Document name cannot exceed 100 characters"],
     },
     fileUrl: {
       type: String,
       required: [true, "File URL is required"],
       trim: true,
     },
-    frameworkType: {
+    documentType: {
       type: String,
-      required: [true, "Framework type is required"],
+      required: [true, "Document type is required"],
       enum: {
         values: ["pdf", "doc", "docx", "xls", "xlsx"],
-        message: "Framework type must be one of: pdf, doc, docx, xls, xlsx",
+        message: "Document type must be one of: pdf, doc, docx, xls, xlsx",
       },
     },
     uploadedBy: {
@@ -47,17 +47,17 @@ const frameworkSchema = new mongoose.Schema(
 );
 
 // Index for better query performance
-frameworkSchema.index({ uploadedBy: 1 });
-frameworkSchema.index({ frameworkType: 1 });
-frameworkSchema.index({ createdAt: -1 });
+documentSchema.index({ uploadedBy: 1 });
+documentSchema.index({ documentType: 1 });
+documentSchema.index({ createdAt: -1 });
 
 // Virtual for file extension
-frameworkSchema.virtual("fileExtension").get(function () {
-  return this.frameworkType;
+documentSchema.virtual("fileExtension").get(function () {
+  return this.documentType;
 });
 
 // Method to get formatted file size
-frameworkSchema.methods.getFormattedFileSize = function () {
+documentSchema.methods.getFormattedFileSize = function () {
   const bytes = this.fileSize;
   if (bytes === 0) return "0 Bytes";
 
@@ -68,22 +68,26 @@ frameworkSchema.methods.getFormattedFileSize = function () {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
-// Static method to get frameworks by type
-frameworkSchema.statics.getByType = function (frameworkType) {
-  return this.find({ frameworkType, isActive: true }).populate(
+// Static method to get documents by type
+documentSchema.statics.getByType = function (documentType) {
+  return this.find({ documentType, isActive: true }).populate(
     "uploadedBy",
     "name email role"
   );
 };
 
-// Static method to get user frameworks
-frameworkSchema.statics.getUserFrameworks = function (userId) {
+// Static method to get user documents
+documentSchema.statics.getUserDocuments = function (userId) {
   return this.find({ uploadedBy: userId, isActive: true }).populate(
     "uploadedBy",
     "name email role"
   );
 };
 
-const Framework = mongoose.model("Framework", frameworkSchema);
+const Document = mongoose.model(
+  "Document",
+  documentSchema,
+  "user-documents" // Custom collection name
+);
 
-module.exports = Framework;
+module.exports = Document;

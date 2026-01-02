@@ -351,11 +351,47 @@ const sendVerificationOTP = async (req, res) => {
   }
 };
 
+// Logout user
+// Logout user with token blacklisting
+const logout = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "No token provided",
+      });
+    }
+
+    // Decode token to get expiry time
+    const decoded = jwt.decode(token);
+    const tokenExpiry = decoded.exp * 1000; // Convert to milliseconds
+
+    // Add token to blacklist in Redis with TTL until token expires
+    const cacheService = require("../../services/cache.service");
+    const ttl = Math.floor((tokenExpiry - Date.now()) / 1000); // TTL in seconds
+
+    if (ttl > 0) {
+      await cacheService.setCache(`blacklist_${token}`, "revoked", ttl);
+    }
+
+    res.json({
+      success: true,
+      message: "Logout successful. Token has been revoked.",
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 module.exports = {
   register,
   verifyOTP,
   resendOTP,
   login,
+  logout,
   forgotPassword,
   resetPassword,
   sendVerificationOTP,

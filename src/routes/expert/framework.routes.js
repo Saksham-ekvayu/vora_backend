@@ -45,7 +45,7 @@ router.post(
   "/",
   authenticateToken,
   canExpertCreate, // Only experts can create frameworks
-  upload.single("framework"), // Handle file upload with field name "framework"
+  upload.single("file"), // Handle file upload with field name "file"
   expertFrameworkUploadValidation, // Validate using the same pattern as auth/user
   createFramework
 );

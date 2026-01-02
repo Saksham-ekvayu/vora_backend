@@ -2,9 +2,13 @@ const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
 const cors = require("cors");
-const { bgRed, bgYellow, bgBlue, bgMagenta, bgGreen } = require("colorette");
+const { bgRed, bgYellow, bgBlue, bgMagenta, bgGreen, bgMagentaBright } = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
+
+// Load environment variables FIRST
+dotenv.config();
+
 const SwaggerExpressDashboard = require("./swagger");
 const { connectDB, disconnectDB } = require("./src/database/database");
 const { getLocalIPv4 } = require("./src/helpers/helper");
@@ -26,9 +30,6 @@ const {
   globalErrorHandler,
   notFoundHandler,
 } = require("./src/middlewares/errorHandler.middleware");
-
-// Load environment variables
-dotenv.config();
 
 const PORT = process.env.PORT;
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -222,18 +223,11 @@ async function start() {
       if (process.env.NODE_ENV !== "production") {
         console.log(bgGreen(`🌐 Network access → http://${ipv4}:${PORT}`));
         console.log(
-          bgGreen(
-            `🔌 WebSocket access → ws://${ipv4}:${PORT}/ws/framework-controls/{id}`
-          )
+          bgMagentaBright(`🤖 AI Service Base URL: ${process.env.AI_BASE_URL_API}`)
         );
       }
       console.log(
         bgBlue(`🌐 Server listening on port → http://localhost:${PORT}`)
-      );
-      console.log(
-        bgBlue(
-          `🔌 WebSocket server → ws://localhost:${PORT}/ws/framework-controls/{id}`
-        )
       );
     });
   } catch (err) {

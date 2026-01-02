@@ -63,6 +63,15 @@ aiAxiosInstance.interceptors.response.use(
  */
 const addRequest = async (endpoint, options = {}) => {
   try {
+    // Validate inputs
+    if (!endpoint) {
+      throw new Error("Endpoint is required");
+    }
+
+    if (!AI_BASE_URL) {
+      throw new Error("AI_BASE_URL is not configured");
+    }
+
     const {
       method = "GET",
       data = null,

@@ -13,7 +13,9 @@ const roleAccess = (...allowedRoles) => {
       if (!allowedRoles.includes(req.user.role)) {
         return res.status(403).json({
           success: false,
-          message: `Access denied! This action requires one of the following roles: ${allowedRoles.join(', ')}. Your role: ${req.user.role}`,
+          message: `Access denied! This action requires one of the following roles: ${allowedRoles.join(
+            ", "
+          )}. Your role: ${req.user.role}`,
         });
       }
 
@@ -30,16 +32,22 @@ const roleAccess = (...allowedRoles) => {
 };
 
 // Specific role middleware functions for common use cases
-const adminOnly = roleAccess('admin');
-const expertOnly = roleAccess('expert');
-const adminOrExpert = roleAccess('admin', 'expert');
-const allRoles = roleAccess('admin', 'expert', 'user');
+const adminOnly = roleAccess("admin");
+const expertOnly = roleAccess("expert");
+const adminOrExpert = roleAccess("admin", "expert");
+const allRoles = roleAccess("admin", "expert", "user");
 
-// Document-specific role middleware
-const canCreateDocument = roleAccess('expert'); // Only experts can create documents
-const canUpdateDocument = roleAccess('expert'); // Only experts can update documents
-const canDeleteDocument = roleAccess('expert'); // Only experts can delete documents
-const canViewDocument = roleAccess('admin', 'expert', 'user'); // Anyone can view documents
+// Generic role middleware for user operations
+const canUserCreate = roleAccess("user"); // Only users can create (documents, frameworks, etc.)
+const canUpdate = roleAccess("user"); // Only users can update (documents, frameworks, etc.)
+const canDelete = roleAccess("user"); // Only users can delete (documents, frameworks, etc.)
+const canView = roleAccess("user"); // Only users can view (documents, frameworks, etc.)
+
+// Generic role middleware for expert operations
+const canExpertCreate = roleAccess("expert"); // Only experts can create (frameworks, etc.)
+const canExpertUpdate = roleAccess("expert"); // Only experts can update (frameworks, etc.)
+const canExpertDelete = roleAccess("expert"); // Only experts can delete (frameworks, etc.)
+const canExpertView = roleAccess("expert"); // Only experts can view (frameworks, etc.)
 
 module.exports = {
   roleAccess,
@@ -47,8 +55,12 @@ module.exports = {
   expertOnly,
   adminOrExpert,
   allRoles,
-  canCreateDocument,
-  canUpdateDocument,
-  canDeleteDocument,
-  canViewDocument,
+  canUserCreate,
+  canUpdate,
+  canDelete,
+  canView,
+  canExpertCreate,
+  canExpertUpdate,
+  canExpertDelete,
+  canExpertView,
 };

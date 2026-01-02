@@ -1,12 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const {
-  bgRed,
-  bgYellow,
-  bgBlue,
-  bgMagenta,
-  bgGreen,
-} = require("colorette");
+const { bgRed, bgYellow, bgBlue, bgMagenta, bgGreen } = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
 const SwaggerExpressDashboard = require("./swagger");
@@ -14,9 +8,11 @@ const { connectDB, disconnectDB } = require("./src/database/database");
 const { getLocalIPv4 } = require("./src/helpers/helper");
 
 // Import routes
-const authRoutes = require("./src/routes/auth.routes");
-const userRoutes = require("./src/routes/user.routes");
-const documentRoutes = require("./src/routes/document.routes");
+const authRoutes = require("./src/routes/auth/auth.routes");
+const userRoutes = require("./src/routes/admin/user.routes");
+const documentRoutes = require("./src/routes/user/document.routes");
+const frameworkRoutes = require("./src/routes/user/framework.routes");
+const expertFrameworkRoutes = require("./src/routes/expert/framework.routes");
 
 // Import error handling middleware
 const {
@@ -63,12 +59,16 @@ const dashboard = new SwaggerExpressDashboard({
 // Use routes
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
-app.use("/api/documents", documentRoutes);
+app.use("/api/users/documents", documentRoutes);
+app.use("/api/users/frameworks", frameworkRoutes);
+app.use("/api/expert/frameworks", expertFrameworkRoutes);
 
 // Register routes with dashboard for better documentation
 dashboard.registerRoutes("/api/auth", authRoutes);
 dashboard.registerRoutes("/api/user", userRoutes);
-dashboard.registerRoutes("/api/documents", documentRoutes);
+dashboard.registerRoutes("/api/users/documents", documentRoutes);
+dashboard.registerRoutes("/api/users/frameworks", frameworkRoutes);
+dashboard.registerRoutes("/api/expert/frameworks", expertFrameworkRoutes);
 
 // Initialize dashboard (replaces your old endpoints)
 dashboard.init(app);

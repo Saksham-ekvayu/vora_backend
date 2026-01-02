@@ -2,13 +2,13 @@ const express = require("express");
 const router = express.Router();
 
 // Import middlewares
-const { authenticateToken } = require("../middlewares/auth.middleware");
+const { authenticateToken } = require("../../middlewares/auth.middleware");
 const {
-  canCreateDocument,
-  canUpdateDocument,
-  canDeleteDocument,
-  canViewDocument,
-} = require("../middlewares/roleAccess.middleware");
+  canUserCreate,
+  canUpdate,
+  canDelete,
+  canView,
+} = require("../../middlewares/roleAccess.middleware");
 
 // Import validations
 const {
@@ -17,7 +17,7 @@ const {
   getDocumentByIdValidation,
   deleteDocumentValidation,
   getDocumentsQueryValidation,
-} = require("../validations/document.validation");
+} = require("../../validations/document.validation");
 
 // Import controller
 const {
@@ -29,20 +29,20 @@ const {
   deleteDocument,
   downloadDocument,
   getUserDocuments,
-} = require("../controllers/document.controller");
+} = require("../../controllers/user/document.controller");
 
 // Routes
 
 /**
  * @route   POST /api/documents
  * @desc    Create a new document (upload file)
- * @access  Private (Expert only)
+ * @access  Private (User only)
  * @body    { documentName?: string } (multipart/form-data with file)
  */
 router.post(
   "/",
   authenticateToken,
-  canCreateDocument, // Only experts can create documents
+  canUserCreate, // Only users can create documents
   upload.single("document"), // Handle file upload with field name "document"
   documentUploadValidation, // Validate using the same pattern as auth/user
   createDocument
@@ -51,13 +51,13 @@ router.post(
 /**
  * @route   GET /api/documents
  * @desc    Get all documents with pagination, filtering, and search
- * @access  Private (All authenticated users can view)
+ * @access  Private (User only)
  * @query   { page?, limit?, sort?, search?, documentType?, uploadedBy? }
  */
 router.get(
   "/",
   authenticateToken,
-  canViewDocument, // All authenticated users can view documents
+  canView, // Only users can view documents
   getDocumentsQueryValidation,
   getAllDocuments
 );
@@ -65,25 +65,25 @@ router.get(
 /**
  * @route   GET /api/documents/my-documents
  * @desc    Get current user's documents
- * @access  Private (All authenticated users)
+ * @access  Private (User only)
  * @query   { page?, limit?, sort? }
  */
 router.get(
   "/my-documents",
   authenticateToken,
-  canViewDocument, // All authenticated users can view their own documents
+  canView, // Only users can view their own documents
   getUserDocuments
 );
 
 /**
  * @route   GET /api/documents/:id
  * @desc    Get document by ID
- * @access  Private (All authenticated users can view)
+ * @access  Private (User only)
  */
 router.get(
   "/:id",
   authenticateToken,
-  canViewDocument, // All authenticated users can view documents
+  canView, // Only users can view documents
   getDocumentByIdValidation,
   getDocumentById
 );
@@ -91,12 +91,12 @@ router.get(
 /**
  * @route   GET /api/documents/:id/download
  * @desc    Download document file
- * @access  Private (All authenticated users can download)
+ * @access  Private (User only)
  */
 router.get(
   "/:id/download",
   authenticateToken,
-  canViewDocument, // All authenticated users can download documents
+  canView, // Only users can download documents
   getDocumentByIdValidation,
   downloadDocument
 );
@@ -104,13 +104,13 @@ router.get(
 /**
  * @route   PUT /api/documents/:id
  * @desc    Update document details and optionally replace file
- * @access  Private (Expert only)
+ * @access  Private (User only)
  * @body    { documentName?, isActive? } (multipart/form-data with optional file)
  */
 router.put(
   "/:id",
   authenticateToken,
-  canUpdateDocument, // Only experts can update documents
+  canUpdate, // Only users can update documents
   upload.single("document"), // Handle optional file upload
   getDocumentByIdValidation,
   updateDocumentValidation,
@@ -120,12 +120,12 @@ router.put(
 /**
  * @route   DELETE /api/documents/:id
  * @desc    Delete document (soft delete)
- * @access  Private (Expert only)
+ * @access  Private (User only)
  */
 router.delete(
   "/:id",
   authenticateToken,
-  canDeleteDocument, // Only experts can delete documents
+  canDelete, // Only users can delete documents
   deleteDocumentValidation,
   deleteDocument
 );

@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-const User = require("../models/user.model");
-const { generateOTP, sendOTPEmail } = require("../services/email.service");
+const User = require("../../models/user.model");
+const { generateOTP, sendOTPEmail } = require("../../services/email.service");
 
 // Register user and send OTP
 const register = async (req, res) => {

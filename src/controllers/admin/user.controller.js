@@ -1,8 +1,8 @@
-const User = require("../models/user.model");
+const User = require("../../models/user.model");
 const {
   generateTempPassword,
   paginateWithSearch,
-} = require("../helpers/helper");
+} = require("../../helpers/helper");
 
 // Create user by admin
 const createUserByAdmin = async (req, res) => {

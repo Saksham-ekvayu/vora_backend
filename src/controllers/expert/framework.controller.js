@@ -18,6 +18,23 @@ const {
   getExtractedControls,
 } = require("../../services/ai/aiUpload.service");
 
+// Helper function to format AI processing data
+const formatAIProcessingData = (aiProcessing) => {
+  if (!aiProcessing?.uuid) {
+    return null;
+  }
+
+  return {
+    uuid: aiProcessing.uuid,
+    status: aiProcessing.status,
+    control_extraction_status: aiProcessing.control_extraction_status,
+    processedAt: aiProcessing.processedAt,
+    controlsCount: aiProcessing.controlsCount || 0,
+    controlsExtractedAt: aiProcessing.controlsExtractedAt || null,
+    errorMessage: aiProcessing.errorMessage || null,
+  };
+};
+
 // Create upload instance with specific directory for expert frameworks
 const upload = createDocumentUpload("src/uploads/expert-frameworks");
 
@@ -110,16 +127,7 @@ const createFramework = async (req, res) => {
             email: framework.uploadedBy.email,
             role: framework.uploadedBy.role,
           },
-          aiProcessing: {
-            uuid: framework.aiProcessing?.uuid || null,
-            status: framework.aiProcessing?.status || "pending",
-            control_extraction_status:
-              framework.aiProcessing?.control_extraction_status || "pending",
-            processedAt: framework.aiProcessing?.processedAt || null,
-            controlsCount: framework.aiProcessing?.controlsCount || 0,
-            controlsExtractedAt:
-              framework.aiProcessing?.controlsExtractedAt || null,
-          },
+          aiProcessing: formatAIProcessingData(framework.aiProcessing),
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
         },
@@ -190,13 +198,7 @@ const getAllFrameworks = async (req, res) => {
           email: doc.uploadedBy.email,
           role: doc.uploadedBy.role,
         },
-        aiProcessing: {
-          uuid: doc.aiProcessing?.uuid || null,
-          status: doc.aiProcessing?.status || "pending",
-          control_extraction_status:
-            doc.aiProcessing?.control_extraction_status || "pending",
-          processedAt: doc.aiProcessing?.processedAt || null,
-        },
+        aiProcessing: formatAIProcessingData(doc.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       }),
@@ -281,14 +283,7 @@ const getFrameworkById = async (req, res) => {
             email: framework.uploadedBy.email,
             role: framework.uploadedBy.role,
           },
-          aiProcessing: {
-            uuid: framework.aiProcessing?.uuid || null,
-            status: framework.aiProcessing?.status || "pending",
-            control_extraction_status:
-              framework.aiProcessing?.control_extraction_status || "pending",
-            processedAt: framework.aiProcessing?.processedAt || null,
-            errorMessage: framework.aiProcessing?.errorMessage || null,
-          },
+          aiProcessing: formatAIProcessingData(framework.aiProcessing),
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
         },
@@ -536,13 +531,7 @@ const getExpertFrameworks = async (req, res) => {
           email: doc.uploadedBy.email,
           role: doc.uploadedBy.role,
         },
-        aiProcessing: {
-          uuid: doc.aiProcessing?.uuid || null,
-          status: doc.aiProcessing?.status || "pending",
-          control_extraction_status:
-            doc.aiProcessing?.control_extraction_status || "pending",
-          processedAt: doc.aiProcessing?.processedAt || null,
-        },
+        aiProcessing: formatAIProcessingData(framework.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       }),

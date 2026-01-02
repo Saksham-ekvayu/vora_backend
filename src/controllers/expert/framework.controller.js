@@ -576,9 +576,9 @@ const getExpertFrameworks = async (req, res) => {
 // Upload framework to AI service for processing
 const uploadFrameworkToAIService = async (req, res) => {
   try {
-    const { frameworkId } = req.body || {};
+    const { frameworkId } = req.params;
 
-    // Validate frameworkId
+    // Validate frameworkId (already validated by middleware, but double-check)
     if (!frameworkId) {
       return res.status(400).json({
         success: false,
@@ -681,9 +681,11 @@ const uploadFrameworkToAIService = async (req, res) => {
     console.error("❌ Error uploading framework to AI service:", error);
 
     // Try to update framework with error status if we have frameworkId
-    if (req.body.frameworkId) {
+    if (req.params.frameworkId) {
       try {
-        const framework = await ExpertFramework.findById(req.body.frameworkId);
+        const framework = await ExpertFramework.findById(
+          req.params.frameworkId
+        );
         if (framework) {
           await framework.updateAIStatus({
             status: "failed",

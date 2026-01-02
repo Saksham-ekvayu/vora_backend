@@ -17,7 +17,6 @@ const {
   getExpertFrameworkByIdValidation,
   deleteExpertFrameworkValidation,
   getExpertFrameworksQueryValidation,
-  uploadFrameworkToAIValidation,
 } = require("../../validations/expertFramework.validation");
 
 // Import controller
@@ -134,17 +133,15 @@ router.delete(
 );
 
 /**
- * @route   POST /api/expert/frameworks/upload-to-ai
+ * @route   POST /api/expert/frameworks/:frameworkId/upload-to-ai
  * @desc    Upload framework to AI service for processing
  * @access  Private (Expert only)
- * @body    { frameworkId: string }
  */
 router.post(
-  "/upload-to-ai",
+  "/:frameworkId/upload-to-ai",
   authenticateToken,
   canExpertCreate, // Only experts can upload to AI service
-  upload.none(), // Handle form-data without files
-  uploadFrameworkToAIValidation,
+  getExpertFrameworkByIdValidation, // Validate frameworkId in params
   uploadFrameworkToAIService
 );
 

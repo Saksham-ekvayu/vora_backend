@@ -217,7 +217,6 @@ const getExtractedControls = async (uuid) => {
       };
     } else {
       // Unexpected response format or empty array
-      console.log(`⚠️ Controls extraction completed but no controls found`);
       return {
         success: true,
         isProcessing: false,

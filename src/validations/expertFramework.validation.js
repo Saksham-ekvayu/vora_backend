@@ -254,12 +254,10 @@ module.exports = {
   getExpertFrameworkByIdValidation,
   deleteExpertFrameworkValidation,
   getExpertFrameworksQueryValidation,
-  uploadFrameworkToAIValidation,
 
   // Schemas (exported for testing or custom usage)
   updateExpertFrameworkSchema,
   getExpertFrameworkByIdSchema,
   deleteExpertFrameworkSchema,
   getExpertFrameworksQuerySchema,
-  uploadFrameworkToAISchema,
 };

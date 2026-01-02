@@ -10,12 +10,12 @@ const {
   canView,
 } = require("../../middlewares/roleAccess.middleware");
 
-// Import cache middlewares
-const {
-  documentListCache,
-  userDocumentsCache,
-  documentByIdCache,
-} = require("../../middlewares/cache.middleware");
+// Import cache middlewares (commented out)
+// const {
+//   documentListCache,
+//   userDocumentsCache,
+//   documentByIdCache,
+// } = require("../../middlewares/cache.middleware");
 
 // Import validations
 const {
@@ -24,7 +24,7 @@ const {
   getDocumentByIdValidation,
   deleteDocumentValidation,
   getDocumentsQueryValidation,
-} = require("../../validations/document.validation");
+} = require("../../validations/user-document.validation");
 
 // Import controller
 const {
@@ -36,7 +36,7 @@ const {
   deleteDocument,
   downloadDocument,
   getUserDocuments,
-} = require("../../controllers/user/document.controller");
+} = require("../../controllers/user/user-document.controller");
 
 // Routes
 
@@ -65,7 +65,7 @@ router.get(
   "/",
   authenticateToken,
   canView, // Only users can view documents
-  documentListCache, // Cache middleware
+  // documentListCache, // Cache middleware (commented out)
   getDocumentsQueryValidation,
   getAllDocuments
 );
@@ -80,7 +80,7 @@ router.get(
   "/my-documents",
   authenticateToken,
   canView, // Only users can view their own documents
-  userDocumentsCache, // Cache middleware
+  // userDocumentsCache, // Cache middleware (commented out)
   getUserDocuments
 );
 
@@ -93,7 +93,7 @@ router.get(
   "/:id",
   authenticateToken,
   canView, // Only users can view documents
-  documentByIdCache, // Cache middleware
+  // documentByIdCache, // Cache middleware (commented out)
   getDocumentByIdValidation,
   getDocumentById
 );

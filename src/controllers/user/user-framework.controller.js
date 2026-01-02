@@ -1,4 +1,4 @@
-const ExpertFramework = require("../../models/expertFramework.model");
+const Framework = require("../../models/user-framework.model");
 const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {
@@ -7,15 +7,11 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
-const {
-  cacheOperations,
-  generateCacheKey,
-  CACHE_TTL,
-} = require("../../config/cache.config");
-const { invalidateCache } = require("../../middlewares/cache.middleware");
+// const cacheService = require("../../services/cache.service");
+// const { invalidateCache } = require("../../middlewares/cache.middleware");
 
-// Create upload instance with specific directory for expert frameworks
-const upload = createDocumentUpload("src/uploads/expert-frameworks");
+// Create upload instance with specific directory for user frameworks
+const upload = createDocumentUpload("src/uploads/user-frameworks");
 
 // Create a new framework
 const createFramework = async (req, res) => {
@@ -44,7 +40,7 @@ const createFramework = async (req, res) => {
     }
 
     // Check if framework with same original filename already exists
-    const existingFramework = await ExpertFramework.findOne({
+    const existingFramework = await Framework.findOne({
       originalFileName: file.originalname,
       uploadedBy: req.user._id,
       isActive: true,
@@ -67,7 +63,7 @@ const createFramework = async (req, res) => {
       message = "Framework updated successfully";
     } else {
       // Create new framework record
-      framework = new ExpertFramework({
+      framework = new Framework({
         frameworkName: frameworkName || removeFileExtension(file.originalname),
         fileUrl: file.path,
         frameworkType: frameworkType,
@@ -83,12 +79,11 @@ const createFramework = async (req, res) => {
     // Populate uploadedBy field for response
     await framework.populate("uploadedBy", "name email role");
 
-    // Cache the expert framework
-    const cacheKey = generateCacheKey("expert_framework", framework._id);
-    await cacheOperations.set(cacheKey, framework, CACHE_TTL.LONG);
+    // Cache the framework (commented out)
+    // await cacheService.cacheFramework(framework);
 
-    // Invalidate expert framework list caches
-    await invalidateCache.frameworks(req.user._id);
+    // Invalidate framework list caches (commented out)
+    // await invalidateCache.frameworks(req.user._id);
 
     res.status(201).json({
       success: true,
@@ -117,7 +112,7 @@ const createFramework = async (req, res) => {
       deleteFile(req.file.path);
     }
 
-    console.error("Error creating expert framework:", error);
+    console.error("Error creating framework:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error while creating framework",
@@ -155,7 +150,7 @@ const getAllFrameworks = async (req, res) => {
     }
 
     // Use pagination helper with search
-    const result = await paginateWithSearch(ExpertFramework, {
+    const result = await paginateWithSearch(Framework, {
       page: req.query.page,
       limit: req.query.limit || 10,
       search: search,
@@ -182,7 +177,7 @@ const getAllFrameworks = async (req, res) => {
     });
 
     // Determine appropriate message based on data availability
-    let message = "Expert frameworks retrieved successfully";
+    let message = "Frameworks retrieved successfully";
     if (result.data.length === 0) {
       if (search || frameworkType || uploadedBy) {
         message =
@@ -202,7 +197,7 @@ const getAllFrameworks = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error getting expert frameworks:", error);
+    console.error("Error getting frameworks:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error while retrieving frameworks",
@@ -216,29 +211,20 @@ const getFrameworkById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Try to get from cache first
-    const cacheKey = generateCacheKey("expert_framework", id);
-    let framework = await cacheOperations.get(cacheKey);
+    // Try to get from cache first (commented out)
+    // let framework = await cacheService.getFrameworkById(id);
+
+    // Fetch directly from database
+    const framework = await Framework.findOne({
+      _id: id,
+      isActive: true,
+    }).populate("uploadedBy", "name email role");
 
     if (!framework) {
-      // Fetch from database
-      framework = await ExpertFramework.findOne({
-        _id: id,
-        isActive: true,
-      }).populate("uploadedBy", "name email role");
-
-      if (!framework) {
-        return res.status(404).json({
-          success: false,
-          message: "Framework not found",
-        });
-      }
-
-      // Cache the framework
-      await cacheOperations.set(cacheKey, framework, CACHE_TTL.LONG);
-      console.log(`✅ Expert framework ${id} cached in Redis`);
-    } else {
-      console.log(`✅ Expert framework ${id} retrieved from Redis cache`);
+      return res.status(404).json({
+        success: false,
+        message: "Framework not found",
+      });
     }
 
     res.status(200).json({
@@ -266,7 +252,7 @@ const getFrameworkById = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error getting expert framework by ID:", error);
+    console.error("Error getting framework by ID:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error while retrieving framework",
@@ -281,7 +267,7 @@ const updateFramework = async (req, res) => {
     const { id } = req.params;
     const { frameworkName, isActive } = req.body;
 
-    const framework = await ExpertFramework.findOne({
+    const framework = await Framework.findOne({
       _id: id,
       isActive: true,
     });
@@ -336,6 +322,12 @@ const updateFramework = async (req, res) => {
     await framework.save();
     await framework.populate("uploadedBy", "name email role");
 
+    // Update cache (commented out)
+    // await cacheService.cacheFramework(framework);
+
+    // Invalidate related caches (commented out)
+    // await invalidateCache.frameworks(req.user._id);
+
     res.status(200).json({
       success: true,
       message: req.file
@@ -366,7 +358,7 @@ const updateFramework = async (req, res) => {
       deleteFile(req.file.path);
     }
 
-    console.error("Error updating expert framework:", error);
+    console.error("Error updating framework:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error while updating framework",
@@ -380,10 +372,7 @@ const deleteFramework = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await ExpertFramework.findOne({
-      _id: id,
-      isActive: true,
-    });
+    const framework = await Framework.findOne({ _id: id, isActive: true });
 
     if (!framework) {
       return res.status(404).json({
@@ -396,12 +385,16 @@ const deleteFramework = async (req, res) => {
     framework.isActive = false;
     await framework.save();
 
+    // Invalidate caches (commented out)
+    // await invalidateCache.framework(id);
+    // await invalidateCache.frameworks(framework.uploadedBy);
+
     res.status(200).json({
       success: true,
       message: "Framework deleted successfully",
     });
   } catch (error) {
-    console.error("Error deleting expert framework:", error);
+    console.error("Error deleting framework:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error while deleting framework",
@@ -415,10 +408,7 @@ const downloadFramework = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await ExpertFramework.findOne({
-      _id: id,
-      isActive: true,
-    });
+    const framework = await Framework.findOne({ _id: id, isActive: true });
 
     if (!framework) {
       return res.status(404).json({
@@ -455,7 +445,7 @@ const downloadFramework = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error downloading expert framework:", error);
+    console.error("Error downloading framework:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error while downloading framework",
@@ -464,14 +454,14 @@ const downloadFramework = async (req, res) => {
   }
 };
 
-// Get expert's frameworks
-const getExpertFrameworks = async (req, res) => {
+// Get user's frameworks
+const getUserFrameworks = async (req, res) => {
   try {
-    const expertId = req.user._id;
+    const userId = req.user._id;
 
-    // Build filter for expert's frameworks
+    // Build filter for user's frameworks
     const filter = {
-      uploadedBy: expertId,
+      uploadedBy: userId,
       isActive: true,
     };
 
@@ -488,7 +478,7 @@ const getExpertFrameworks = async (req, res) => {
     }
 
     // Use pagination helper
-    const result = await paginateWithSearch(ExpertFramework, {
+    const result = await paginateWithSearch(Framework, {
       page: req.query.page,
       limit: req.query.limit || 10,
       filter: filter,
@@ -513,7 +503,7 @@ const getExpertFrameworks = async (req, res) => {
     });
 
     // Determine appropriate message based on data availability
-    let message = "Expert frameworks retrieved successfully";
+    let message = "User frameworks retrieved successfully";
     if (result.data.length === 0) {
       message =
         "You haven't uploaded any frameworks yet. Upload your first framework to get started.";
@@ -528,10 +518,10 @@ const getExpertFrameworks = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error getting expert frameworks:", error);
+    console.error("Error getting user frameworks:", error);
     res.status(500).json({
       success: false,
-      message: "Internal server error while retrieving expert frameworks",
+      message: "Internal server error while retrieving user frameworks",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
@@ -545,5 +535,5 @@ module.exports = {
   updateFramework,
   deleteFramework,
   downloadFramework,
-  getExpertFrameworks,
+  getUserFrameworks,
 };

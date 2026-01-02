@@ -3,8 +3,9 @@ const {
   generateTempPassword,
   paginateWithSearch,
 } = require("../../helpers/helper");
-const cacheService = require("../../services/cache.service");
-const { invalidateCache } = require("../../middlewares/cache.middleware");
+const { sendTempPasswordEmail } = require("../../services/email.service");
+// const cacheService = require("../../services/cache.service");
+// const { invalidateCache } = require("../../middlewares/cache.middleware");
 
 // Create user by admin
 const createUserByAdmin = async (req, res) => {
@@ -52,20 +53,44 @@ const createUserByAdmin = async (req, res) => {
 
     await newUser.save();
 
-    // Cache the new user
-    await cacheService.cacheUser(newUser);
+    // Send temporary password via email
+    const emailSent = await sendTempPasswordEmail(email, tempPassword, name);
+
+    if (!emailSent) {
+      // If email fails, we should still inform admin but log the issue
+      console.error(`Failed to send temporary password email to ${email}`);
+      return res.status(201).json({
+        success: true,
+        message:
+          "User created successfully, but failed to send email. Please provide the temporary password manually.",
+        user: {
+          id: newUser._id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+          phone: newUser.phone,
+        },
+        warning: "Email delivery failed. Please contact the user directly.",
+      });
+    }
+
+    // Cache the new user (commented out)
+    // await cacheService.cacheUser(newUser);
 
     res.status(201).json({
       success: true,
-      message: "User created successfully",
+      message:
+        "User created successfully. Temporary password has been sent to their email address.",
       user: {
         id: newUser._id,
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
         phone: newUser.phone,
-        temporaryPassword: tempPassword, // return so admin can share/reset;
       },
+      emailSent: true,
+      instructions:
+        "The user will receive their temporary password via email and must update it on first login.",
     });
   } catch (error) {
     console.error("Create user by admin error:", error);
@@ -114,8 +139,8 @@ const updateUserByAdmin = async (req, res) => {
 
     await user.save();
 
-    // Update cache
-    await cacheService.cacheUser(user);
+    // Update cache (commented out)
+    // await cacheService.cacheUser(user);
 
     res.status(200).json({
       success: true,
@@ -216,8 +241,11 @@ const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Try to get from cache first
-    let user = await cacheService.getUserById(id);
+    // Try to get from cache first (commented out)
+    // let user = await cacheService.getUserById(id);
+
+    // Fetch directly from database
+    const user = await User.findById(id).select("-password -otp");
 
     if (!user) {
       return res
@@ -264,8 +292,8 @@ const deleteUser = async (req, res) => {
 
     await User.findByIdAndDelete(id);
 
-    // Invalidate user cache
-    await invalidateCache.user(id);
+    // Invalidate user cache (commented out)
+    // await invalidateCache.user(id);
 
     res.json({ success: true, message: "User deleted successfully" });
   } catch (error) {
@@ -300,8 +328,8 @@ const editProfile = async (req, res) => {
       runValidators: true,
     }).select("-password -otp");
 
-    // Update cache
-    await cacheService.cacheUser(updatedUser);
+    // Update cache (commented out)
+    // await cacheService.cacheUser(updatedUser);
 
     res.json({
       success: true,

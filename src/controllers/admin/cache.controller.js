@@ -1,16 +1,16 @@
-const cacheService = require("../../services/cache.service");
-const { cacheOperations } = require("../../config/cache.config");
-const { invalidateCache } = require("../../middlewares/cache.middleware");
+// const cacheService = require("../../services/cache.service");
+// const { cacheOperations } = require("../../config/cache.config");
+// const { invalidateCache } = require("../../middlewares/cache.middleware");
 
-// Get cache health and statistics
+// Get cache health and statistics (cache disabled)
 const getCacheHealth = async (req, res) => {
   try {
-    const health = await cacheService.healthCheck();
+    // const health = await cacheService.healthCheck();
 
     res.status(200).json({
-      success: true,
-      message: "Cache health retrieved successfully",
-      data: health,
+      success: false,
+      message: "Cache is currently disabled",
+      data: { status: "disabled" },
     });
   } catch (error) {
     console.error("Error getting cache health:", error);
@@ -22,15 +22,15 @@ const getCacheHealth = async (req, res) => {
   }
 };
 
-// Get cache statistics
+// Get cache statistics (cache disabled)
 const getCacheStats = async (req, res) => {
   try {
-    const stats = cacheOperations.getStats();
+    // const stats = cacheOperations.getStats();
 
     res.status(200).json({
-      success: true,
-      message: "Cache statistics retrieved successfully",
-      data: stats,
+      success: false,
+      message: "Cache is currently disabled",
+      data: { status: "disabled" },
     });
   } catch (error) {
     console.error("Error getting cache stats:", error);
@@ -42,14 +42,14 @@ const getCacheStats = async (req, res) => {
   }
 };
 
-// Warm up cache
+// Warm up cache (cache disabled)
 const warmupCache = async (req, res) => {
   try {
-    await cacheService.warmupCache();
+    // await cacheService.warmupCache();
 
     res.status(200).json({
-      success: true,
-      message: "Cache warmup completed successfully",
+      success: false,
+      message: "Cache is currently disabled",
     });
   } catch (error) {
     console.error("Error warming up cache:", error);
@@ -61,7 +61,7 @@ const warmupCache = async (req, res) => {
   }
 };
 
-// Clear specific cache patterns
+// Clear specific cache patterns (cache disabled)
 const clearCache = async (req, res) => {
   try {
     const { pattern } = req.body;
@@ -73,28 +73,28 @@ const clearCache = async (req, res) => {
       });
     }
 
-    let result;
-    switch (pattern) {
-      case "frameworks":
-        result = await invalidateCache.frameworks();
-        break;
-      case "documents":
-        result = await invalidateCache.documents();
-        break;
-      case "users":
-        result = await invalidateCache.user();
-        break;
-      case "all":
-        result = await invalidateCache.all();
-        break;
-      default:
-        result = await cacheOperations.clearPattern(pattern);
-    }
+    // let result;
+    // switch (pattern) {
+    //   case "frameworks":
+    //     result = await invalidateCache.frameworks();
+    //     break;
+    //   case "documents":
+    //     result = await invalidateCache.documents();
+    //     break;
+    //   case "users":
+    //     result = await invalidateCache.user();
+    //     break;
+    //   case "all":
+    //     result = await invalidateCache.all();
+    //     break;
+    //   default:
+    //     result = await cacheOperations.clearPattern(pattern);
+    // }
 
     res.status(200).json({
-      success: true,
-      message: `Cache cleared successfully for pattern: ${pattern}`,
-      data: { pattern, cleared: true },
+      success: false,
+      message: "Cache is currently disabled",
+      data: { pattern, cleared: false },
     });
   } catch (error) {
     console.error("Error clearing cache:", error);
@@ -106,7 +106,7 @@ const clearCache = async (req, res) => {
   }
 };
 
-// Preload user data
+// Preload user data (cache disabled)
 const preloadUserData = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -118,14 +118,12 @@ const preloadUserData = async (req, res) => {
       });
     }
 
-    const result = await cacheService.preloadUserData(userId);
+    // const result = await cacheService.preloadUserData(userId);
 
     res.status(200).json({
-      success: true,
-      message: result
-        ? "User data preloaded successfully"
-        : "Failed to preload user data",
-      data: { userId, preloaded: result },
+      success: false,
+      message: "Cache is currently disabled",
+      data: { userId, preloaded: false },
     });
   } catch (error) {
     console.error("Error preloading user data:", error);
@@ -137,15 +135,15 @@ const preloadUserData = async (req, res) => {
   }
 };
 
-// Get framework statistics from cache
+// Get framework statistics from cache (cache disabled)
 const getFrameworkStats = async (req, res) => {
   try {
-    const stats = await cacheService.getFrameworkStats();
+    // const stats = await cacheService.getFrameworkStats();
 
     res.status(200).json({
-      success: true,
-      message: "Framework statistics retrieved successfully",
-      data: stats,
+      success: false,
+      message: "Cache is currently disabled",
+      data: { status: "disabled" },
     });
   } catch (error) {
     console.error("Error getting framework stats:", error);
@@ -157,15 +155,15 @@ const getFrameworkStats = async (req, res) => {
   }
 };
 
-// Get document statistics from cache
+// Get document statistics from cache (cache disabled)
 const getDocumentStats = async (req, res) => {
   try {
-    const stats = await cacheService.getDocumentStats();
+    // const stats = await cacheService.getDocumentStats();
 
     res.status(200).json({
-      success: true,
-      message: "Document statistics retrieved successfully",
-      data: stats,
+      success: false,
+      message: "Cache is currently disabled",
+      data: { status: "disabled" },
     });
   } catch (error) {
     console.error("Error getting document stats:", error);

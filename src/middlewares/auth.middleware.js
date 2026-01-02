@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/user.model");
-const cacheService = require("../services/cache.service");
+// const cacheService = require("../services/cache.service");
 
 const authenticateToken = async (req, res, next) => {
   try {
@@ -15,14 +15,14 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    // Check if token is blacklisted
-    const isBlacklisted = await cacheService.getCache(`blacklist_${token}`);
-    if (isBlacklisted) {
-      return res.status(401).json({
-        success: false,
-        message: "Token has been revoked. Please login again.",
-      });
-    }
+    // Check if token is blacklisted (commented out - cache disabled)
+    // const isBlacklisted = await cacheService.getCache(`blacklist_${token}`);
+    // if (isBlacklisted) {
+    //   return res.status(401).json({
+    //     success: false,
+    //     message: "Token has been revoked. Please login again.",
+    //   });
+    // }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.userId);

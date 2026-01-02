@@ -1,21 +1,24 @@
 const express = require("express");
+const http = require("http");
 const cors = require("cors");
 const { bgRed, bgYellow, bgBlue, bgMagenta, bgGreen } = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
+
+// Load environment variables FIRST
+dotenv.config();
+
 const SwaggerExpressDashboard = require("./swagger");
 const { connectDB, disconnectDB } = require("./src/database/database");
 const { getLocalIPv4 } = require("./src/helpers/helper");
-const { initializeRedis, closeRedis } = require("./src/config/cache.config");
-const cacheService = require("./src/services/cache.service");
+const aiService = require("./src/services/ai/ai.service");
 
 // Import routes
 const authRoutes = require("./src/routes/auth/auth.routes");
 const userRoutes = require("./src/routes/admin/user.routes");
-const documentRoutes = require("./src/routes/user/document.routes");
-const frameworkRoutes = require("./src/routes/user/framework.routes");
-const expertFrameworkRoutes = require("./src/routes/expert/framework.routes");
-const cacheRoutes = require("./src/routes/admin/cache.routes");
+const documentRoutes = require("./src/routes/user/user-document.routes");
+const frameworkRoutes = require("./src/routes/user/user-framework.routes");
+const expertFrameworkRoutes = require("./src/routes/expert/expert-framework.routes");
 
 // Import error handling middleware
 const {
@@ -23,14 +26,12 @@ const {
   notFoundHandler,
 } = require("./src/middlewares/errorHandler.middleware");
 
-// Load environment variables
-dotenv.config();
-
 const PORT = process.env.PORT;
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Create Express app
 const app = express();
+const server = http.createServer(app);
 
 // Middleware
 app.use(cors());
@@ -65,7 +66,6 @@ app.use("/api/user", userRoutes);
 app.use("/api/users/documents", documentRoutes);
 app.use("/api/users/frameworks", frameworkRoutes);
 app.use("/api/expert/frameworks", expertFrameworkRoutes);
-app.use("/api/admin/cache", cacheRoutes);
 
 // Register routes with dashboard for better documentation
 dashboard.registerRoutes("/api/auth", authRoutes);
@@ -73,9 +73,8 @@ dashboard.registerRoutes("/api/user", userRoutes);
 dashboard.registerRoutes("/api/users/documents", documentRoutes);
 dashboard.registerRoutes("/api/users/frameworks", frameworkRoutes);
 dashboard.registerRoutes("/api/expert/frameworks", expertFrameworkRoutes);
-dashboard.registerRoutes("/api/admin/cache", cacheRoutes);
 
-// Initialize dashboard (replaces your old endpoints)
+// Initialize dashboard
 dashboard.init(app);
 
 // Global error handling middleware (must be after all routes)
@@ -84,23 +83,14 @@ app.use(globalErrorHandler);
 // 404 handler for undefined routes
 app.use(notFoundHandler);
 
-let server;
+let httpServer;
 
 async function start() {
   try {
     await connectDB(MONGODB_URI);
     console.log(bgMagenta("📊 Connected to MongoDB"));
 
-    // Initialize caching
-    await initializeRedis();
-    console.log(bgMagenta("Cache system initialized"));
-
-    // Warm up cache with frequently accessed data
-    setTimeout(() => {
-      cacheService.warmupCache();
-    }, 5000); // Wait 5 seconds after startup
-
-    server = app.listen(PORT, "0.0.0.0", () => {
+    httpServer = server.listen(PORT, "0.0.0.0", () => {
       const ipv4 = getLocalIPv4();
       // ✅ Development ke liye actual IPv4
       if (process.env.NODE_ENV !== "production") {
@@ -118,11 +108,14 @@ async function start() {
 
 function gracefulShutdown() {
   console.log(bgYellow("Shutting down..."));
+
+  // Close all AI WebSocket connections
+  aiService.closeAllConnections();
+
   Promise.resolve()
-    .then(() => closeRedis())
     .then(() => disconnectDB())
     .then(() => {
-      if (server) server.close(() => process.exit(0));
+      if (httpServer) httpServer.close(() => process.exit(0));
       else process.exit(0);
     })
     .catch((err) => {

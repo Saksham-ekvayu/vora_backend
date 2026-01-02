@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const expertFrameworkSchema = new mongoose.Schema(
+const frameworkSchema = new mongoose.Schema(
   {
     frameworkName: {
       type: String,
@@ -25,7 +25,7 @@ const expertFrameworkSchema = new mongoose.Schema(
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "Uploaded by expert is required"],
+      required: [true, "Uploaded by user is required"],
     },
     fileSize: {
       type: Number,
@@ -47,17 +47,17 @@ const expertFrameworkSchema = new mongoose.Schema(
 );
 
 // Index for better query performance
-expertFrameworkSchema.index({ uploadedBy: 1 });
-expertFrameworkSchema.index({ frameworkType: 1 });
-expertFrameworkSchema.index({ createdAt: -1 });
+frameworkSchema.index({ uploadedBy: 1 });
+frameworkSchema.index({ frameworkType: 1 });
+frameworkSchema.index({ createdAt: -1 });
 
 // Virtual for file extension
-expertFrameworkSchema.virtual("fileExtension").get(function () {
+frameworkSchema.virtual("fileExtension").get(function () {
   return this.frameworkType;
 });
 
 // Method to get formatted file size
-expertFrameworkSchema.methods.getFormattedFileSize = function () {
+frameworkSchema.methods.getFormattedFileSize = function () {
   const bytes = this.fileSize;
   if (bytes === 0) return "0 Bytes";
 
@@ -69,24 +69,25 @@ expertFrameworkSchema.methods.getFormattedFileSize = function () {
 };
 
 // Static method to get frameworks by type
-expertFrameworkSchema.statics.getByType = function (frameworkType) {
+frameworkSchema.statics.getByType = function (frameworkType) {
   return this.find({ frameworkType, isActive: true }).populate(
     "uploadedBy",
     "name email role"
   );
 };
 
-// Static method to get expert frameworks
-expertFrameworkSchema.statics.getExpertFrameworks = function (expertId) {
-  return this.find({ uploadedBy: expertId, isActive: true }).populate(
+// Static method to get user frameworks
+frameworkSchema.statics.getUserFrameworks = function (userId) {
+  return this.find({ uploadedBy: userId, isActive: true }).populate(
     "uploadedBy",
     "name email role"
   );
 };
 
-const ExpertFramework = mongoose.model(
-  "ExpertFramework",
-  expertFrameworkSchema
+const Framework = mongoose.model(
+  "Framework",
+  frameworkSchema,
+  "user-frameworks" // Custom collection name
 );
 
-module.exports = ExpertFramework;
+module.exports = Framework;

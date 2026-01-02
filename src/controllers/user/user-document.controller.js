@@ -1,4 +1,4 @@
-const Document = require("../../models/document.model");
+const Document = require("../../models/user-document.model");
 const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {
@@ -7,8 +7,8 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
-const cacheService = require("../../services/cache.service");
-const { invalidateCache } = require("../../middlewares/cache.middleware");
+// const cacheService = require("../../services/cache.service");
+// const { invalidateCache } = require("../../middlewares/cache.middleware");
 
 // Create upload instance with specific directory for user documents
 const upload = createDocumentUpload("src/uploads/user-documents");
@@ -79,11 +79,11 @@ const createDocument = async (req, res) => {
     // Populate uploadedBy field for response
     await document.populate("uploadedBy", "name email role");
 
-    // Cache the document
-    await cacheService.cacheDocument(document);
+    // Cache the document (commented out)
+    // await cacheService.cacheDocument(document);
 
-    // Invalidate document list caches
-    await invalidateCache.documents(req.user._id);
+    // Invalidate document list caches (commented out)
+    // await invalidateCache.documents(req.user._id);
 
     res.status(201).json({
       success: true,
@@ -211,8 +211,14 @@ const getDocumentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Try to get from cache first
-    let document = await cacheService.getDocumentById(id);
+    // Try to get from cache first (commented out)
+    // let document = await cacheService.getDocumentById(id);
+
+    // Fetch directly from database
+    const document = await Document.findOne({
+      _id: id,
+      isActive: true,
+    }).populate("uploadedBy", "name email role");
 
     if (!document) {
       return res.status(404).json({
@@ -316,11 +322,11 @@ const updateDocument = async (req, res) => {
     await document.save();
     await document.populate("uploadedBy", "name email role");
 
-    // Update cache
-    await cacheService.cacheDocument(document);
+    // Update cache (commented out)
+    // await cacheService.cacheDocument(document);
 
-    // Invalidate related caches
-    await invalidateCache.documents(req.user._id);
+    // Invalidate related caches (commented out)
+    // await invalidateCache.documents(req.user._id);
 
     res.status(200).json({
       success: true,
@@ -379,9 +385,9 @@ const deleteDocument = async (req, res) => {
     document.isActive = false;
     await document.save();
 
-    // Invalidate caches
-    await invalidateCache.document(id);
-    await invalidateCache.documents(document.uploadedBy);
+    // Invalidate caches (commented out)
+    // await invalidateCache.document(id);
+    // await invalidateCache.documents(document.uploadedBy);
 
     res.status(200).json({
       success: true,

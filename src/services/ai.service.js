@@ -197,6 +197,31 @@ class AIService {
     }
     this.activeConnections.clear();
   }
+
+  /**
+   * Check AI processing status by UUID
+   * @param {string} uuid - AI processing UUID
+   * @returns {Promise<Object>} Processing status
+   */
+  async checkProcessingStatus(uuid) {
+    try {
+      if (!uuid) {
+        throw new Error("UUID is required");
+      }
+
+      const response = await addRequest(`/expert/framework/status/${uuid}`, {
+        method: "GET",
+      });
+
+      return {
+        success: true,
+        status: response.data,
+      };
+    } catch (error) {
+      console.error("❌ AI Status Check Error:", error.message);
+      throw new Error(`Failed to check AI processing status: ${error.message}`);
+    }
+  }
 }
 
 // Create singleton instance

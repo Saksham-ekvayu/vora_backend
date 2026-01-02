@@ -30,7 +30,6 @@ const {
   downloadFramework,
   getExpertFrameworks,
   uploadFrameworkToAIService,
-  getFrameworkControls,
 } = require("../../controllers/expert/expert-framework.controller");
 
 // Routes
@@ -143,19 +142,6 @@ router.post(
   canExpertCreate, // Only experts can upload to AI service
   getExpertFrameworkByIdValidation, // Validate id in params
   uploadFrameworkToAIService
-);
-
-/**
- * @route   GET /api/expert/frameworks/:id/controls
- * @desc    Get extracted controls from AI service for a framework
- * @access  Private (Expert only)
- */
-router.get(
-  "/:id/controls",
-  authenticateToken,
-  canExpertView, // Only experts can view controls
-  getExpertFrameworkByIdValidation,
-  getFrameworkControls
 );
 
 module.exports = router;

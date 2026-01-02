@@ -123,7 +123,8 @@ expertFrameworkSchema.index({ "aiProcessing.status": 1 });
 
 const ExpertFramework = mongoose.model(
   "ExpertFramework",
-  expertFrameworkSchema
+  expertFrameworkSchema,
+  "expert-frameworks" // Custom collection name
 );
 
 module.exports = ExpertFramework;

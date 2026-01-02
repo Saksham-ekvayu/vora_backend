@@ -84,6 +84,10 @@ frameworkSchema.statics.getUserFrameworks = function (userId) {
   );
 };
 
-const Framework = mongoose.model("Framework", frameworkSchema);
+const Framework = mongoose.model(
+  "Framework",
+  frameworkSchema,
+  "user-frameworks" // Custom collection name
+);
 
 module.exports = Framework;

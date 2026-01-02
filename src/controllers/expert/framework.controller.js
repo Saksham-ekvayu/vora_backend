@@ -696,7 +696,7 @@ const uploadFrameworkToAIService = async (req, res) => {
   }
 };
 
-// Get extracted controls from AI service
+// Get extracted controls from AI service via WebSocket
 const getFrameworkControls = async (req, res) => {
   try {
     const { id } = req.params;
@@ -730,10 +730,11 @@ const getFrameworkControls = async (req, res) => {
       });
     }
 
-    // If controls are already stored in database, return them
+    // If controls are already stored in database, return them directly
     if (
       framework.aiProcessing.extractedControls &&
-      framework.aiProcessing.extractedControls.length > 0
+      framework.aiProcessing.extractedControls.length > 0 &&
+      framework.aiProcessing.status === "completed"
     ) {
       return res.status(200).json({
         success: true,
@@ -757,43 +758,14 @@ const getFrameworkControls = async (req, res) => {
       });
     }
 
-    // Get controls from AI service
-    const aiResult = await getExtractedControls(framework.aiProcessing.uuid);
+    // Store framework info in request for WebSocket handler
+    req.framework = framework;
 
-    if (!aiResult.success) {
-      throw new Error("Failed to get controls from AI service");
-    }
-
-    // If still processing, return processing status
-    if (aiResult.isProcessing) {
-      return res.status(202).json({
-        success: true,
-        message: aiResult.message,
-        data: {
-          framework: {
-            id: framework._id,
-            frameworkName: framework.frameworkName,
-            frameworkType: framework.frameworkType,
-          },
-          aiProcessing: {
-            uuid: framework.aiProcessing.uuid,
-            status: aiResult.status,
-            control_extraction_status: aiResult.status,
-            isProcessing: true,
-          },
-          controls: null,
-        },
-      });
-    }
-
-    // Processing complete - store controls in database
-    if (aiResult.controls && aiResult.controls.length > 0) {
-      await framework.storeExtractedControls(aiResult.controls);
-    }
-
+    // Return acknowledgment - WebSocket stream will be initiated by WebSocket endpoint
     res.status(200).json({
       success: true,
-      message: aiResult.message,
+      message:
+        "WebSocket stream ready. Connect to /ws/framework-controls/" + id,
       data: {
         framework: {
           id: framework._id,
@@ -805,45 +777,18 @@ const getFrameworkControls = async (req, res) => {
           status: framework.aiProcessing.status,
           control_extraction_status:
             framework.aiProcessing.control_extraction_status,
-          controlsCount: framework.aiProcessing.controlsCount,
-          controlsExtractedAt: framework.aiProcessing.controlsExtractedAt,
-          isProcessing: false,
         },
-        controls: aiResult.controls || [],
+        websocketEndpoint: `/ws/framework-controls/${id}`,
+        instructions:
+          "Connect to the WebSocket endpoint to receive real-time updates",
       },
     });
   } catch (error) {
-    console.error("❌ Error getting framework controls:", error);
-
-    // Handle specific error types
-    if (error.message.includes("UUID not found")) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Framework processing not found in AI service. The framework may not have been processed yet or the processing failed.",
-        details:
-          "Please try uploading the framework to AI service again or contact support if the issue persists.",
-      });
-    }
-
-    if (error.message.includes("AI service internal error")) {
-      return res.status(503).json({
-        success: false,
-        message:
-          "AI service is currently experiencing issues. Please try again later.",
-      });
-    }
-
-    if (error.message.includes("AI service is not available")) {
-      return res.status(503).json({
-        success: false,
-        message: "AI service is currently unavailable. Please try again later.",
-      });
-    }
+    console.error("❌ Error preparing framework controls WebSocket:", error);
 
     res.status(500).json({
       success: false,
-      message: "Failed to get framework controls",
+      message: "Failed to prepare framework controls stream",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }

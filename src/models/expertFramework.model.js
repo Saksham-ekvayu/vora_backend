@@ -167,13 +167,28 @@ expertFrameworkSchema.methods.updateAIStatus = function (aiData) {
   return this.save();
 };
 
-// Method to store extracted controls
-expertFrameworkSchema.methods.storeExtractedControls = function (controls) {
-  this.aiProcessing.extractedControls = controls || [];
-  this.aiProcessing.controlsCount = controls ? controls.length : 0;
+// Method to store extracted controls from WebSocket
+expertFrameworkSchema.methods.storeExtractedControlsFromWS = function (
+  wsMessage
+) {
+  // Handle different message formats from AI WebSocket
+  let controls = [];
+
+  if (wsMessage.controls && Array.isArray(wsMessage.controls)) {
+    controls = wsMessage.controls;
+  } else if (wsMessage.data && Array.isArray(wsMessage.data)) {
+    controls = wsMessage.data;
+  }
+
+  this.aiProcessing.extractedControls = controls;
+  this.aiProcessing.controlsCount = controls.length;
   this.aiProcessing.controlsExtractedAt = new Date();
-  this.aiProcessing.status = "completed";
-  this.aiProcessing.control_extraction_status = "completed";
+
+  // Update status based on WebSocket message
+  if (wsMessage.status) {
+    this.aiProcessing.status = wsMessage.status;
+    this.aiProcessing.control_extraction_status = wsMessage.status;
+  }
 
   return this.save();
 };
@@ -184,3 +199,13 @@ const ExpertFramework = mongoose.model(
 );
 
 module.exports = ExpertFramework;
+// Method to store extracted controls (original method - keep for backward compatibility)
+expertFrameworkSchema.methods.storeExtractedControls = function (controls) {
+  this.aiProcessing.extractedControls = controls || [];
+  this.aiProcessing.controlsCount = controls ? controls.length : 0;
+  this.aiProcessing.controlsExtractedAt = new Date();
+  this.aiProcessing.status = "completed";
+  this.aiProcessing.control_extraction_status = "completed";
+
+  return this.save();
+};

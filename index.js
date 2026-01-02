@@ -1,4 +1,6 @@
 const express = require("express");
+const http = require("http");
+const WebSocket = require("ws");
 const cors = require("cors");
 const { bgRed, bgYellow, bgBlue, bgMagenta, bgGreen } = require("colorette");
 const dotenv = require("dotenv");
@@ -6,6 +8,8 @@ const path = require("path");
 const SwaggerExpressDashboard = require("./swagger");
 const { connectDB, disconnectDB } = require("./src/database/database");
 const { getLocalIPv4 } = require("./src/helpers/helper");
+const { aiFrameworkWsService } = require("./src/services/ai/aiFramework.ws");
+const ExpertFramework = require("./src/models/expertFramework.model");
 // const { initializeRedis, closeRedis } = require("./src/config/cache.config");
 // const cacheService = require("./src/services/cache.service");
 
@@ -31,6 +35,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 
 // Create Express app
 const app = express();
+const server = http.createServer(app);
 
 // Middleware
 app.use(cors());
@@ -78,13 +83,124 @@ dashboard.registerRoutes("/api/expert/frameworks", expertFrameworkRoutes);
 // Initialize dashboard (replaces your old endpoints)
 dashboard.init(app);
 
+// WebSocket Server Setup
+const wss = new WebSocket.Server({ server });
+
+// WebSocket connection handler
+wss.on("connection", (ws, req) => {
+  const url = req.url;
+  console.log(`🔌 WebSocket connection: ${url}`);
+
+  // Handle framework controls WebSocket endpoint
+  const frameworkControlsMatch = url.match(
+    /^\/ws\/framework-controls\/([a-fA-F0-9]{24})$/
+  );
+
+  if (frameworkControlsMatch) {
+    const frameworkId = frameworkControlsMatch[1];
+    handleFrameworkControlsWebSocket(ws, frameworkId);
+  } else {
+    // Unknown WebSocket endpoint
+    ws.close(1000, "Unknown endpoint");
+  }
+});
+
+// Framework Controls WebSocket Handler
+async function handleFrameworkControlsWebSocket(ws, frameworkId) {
+  try {
+    console.log(
+      `🔌 Framework controls WebSocket connected for: ${frameworkId}`
+    );
+
+    // Find framework in database
+    const framework = await ExpertFramework.findOne({
+      _id: frameworkId,
+      isActive: true,
+    }).populate("uploadedBy", "name email role");
+
+    if (!framework) {
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          message: "Framework not found",
+          frameworkId,
+        })
+      );
+      ws.close(1000, "Framework not found");
+      return;
+    }
+
+    // Check if framework has AI UUID
+    if (!framework.aiProcessing.uuid) {
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          message: "Framework has not been uploaded to AI service yet",
+          frameworkId,
+        })
+      );
+      ws.close(1000, "No AI UUID");
+      return;
+    }
+
+    // If controls are already extracted and stored, send them immediately
+    if (
+      framework.aiProcessing.extractedControls &&
+      framework.aiProcessing.extractedControls.length > 0 &&
+      framework.aiProcessing.status === "completed"
+    ) {
+      ws.send(
+        JSON.stringify({
+          type: "ai_message",
+          status: "completed",
+          frameworkId,
+          controls: framework.aiProcessing.extractedControls,
+          controlsCount: framework.aiProcessing.controlsCount,
+          message: `Found ${framework.aiProcessing.controlsCount} extracted controls`,
+        })
+      );
+      ws.close(1000, "Controls already available");
+      return;
+    }
+
+    // Connect to AI WebSocket for real-time updates
+    aiFrameworkWsService.connectToAIWebSocket(
+      framework.aiProcessing.uuid,
+      ws,
+      frameworkId
+    );
+
+    // Handle WebSocket close
+    ws.on("close", () => {
+      console.log(`🔌 Framework controls WebSocket closed for: ${frameworkId}`);
+    });
+  } catch (error) {
+    console.error(
+      `❌ Error handling framework controls WebSocket for ${frameworkId}:`,
+      error
+    );
+
+    ws.send(
+      JSON.stringify({
+        type: "error",
+        message: "Internal server error",
+        frameworkId,
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+      })
+    );
+
+    ws.close(1000, "Internal error");
+  }
+}
+
 // Global error handling middleware (must be after all routes)
 app.use(globalErrorHandler);
 
 // 404 handler for undefined routes
 app.use(notFoundHandler);
 
-let server;
+let httpServer;
 
 async function start() {
   try {
@@ -100,14 +216,24 @@ async function start() {
     //   cacheService.warmupCache();
     // }, 5000); // Wait 5 seconds after startup
 
-    server = app.listen(PORT, "0.0.0.0", () => {
+    httpServer = server.listen(PORT, "0.0.0.0", () => {
       const ipv4 = getLocalIPv4();
       // ✅ Development ke liye actual IPv4
       if (process.env.NODE_ENV !== "production") {
         console.log(bgGreen(`🌐 Network access → http://${ipv4}:${PORT}`));
+        console.log(
+          bgGreen(
+            `🔌 WebSocket access → ws://${ipv4}:${PORT}/ws/framework-controls/{id}`
+          )
+        );
       }
       console.log(
         bgBlue(`🌐 Server listening on port → http://localhost:${PORT}`)
+      );
+      console.log(
+        bgBlue(
+          `🔌 WebSocket server → ws://localhost:${PORT}/ws/framework-controls/{id}`
+        )
       );
     });
   } catch (err) {
@@ -118,11 +244,15 @@ async function start() {
 
 function gracefulShutdown() {
   console.log(bgYellow("Shutting down..."));
+
+  // Close all AI WebSocket connections
+  aiFrameworkWsService.closeAllConnections();
+
   Promise.resolve()
     // .then(() => closeRedis()) // Commented out for now
     .then(() => disconnectDB())
     .then(() => {
-      if (server) server.close(() => process.exit(0));
+      if (httpServer) httpServer.close(() => process.exit(0));
       else process.exit(0);
     })
     .catch((err) => {

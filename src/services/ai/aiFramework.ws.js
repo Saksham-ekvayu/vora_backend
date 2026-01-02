@@ -29,8 +29,6 @@ class AIFrameworkWebSocketService {
         "ws"
       )}/expert/framework/extract-controls/${uuid}`;
 
-      console.log(`🔌 Connecting to AI WebSocket: ${aiWsUrl}`);
-
       // Create WebSocket connection to AI service
       const aiWs = new WebSocket(aiWsUrl);
 
@@ -40,10 +38,6 @@ class AIFrameworkWebSocketService {
 
       // AI WebSocket event handlers
       aiWs.on("open", () => {
-        console.log(
-          `✅ Connected to AI WebSocket for framework ${frameworkId}`
-        );
-
         // Send connection confirmation to client
         this.sendToClient(clientWs, {
           type: "connection",
@@ -56,7 +50,6 @@ class AIFrameworkWebSocketService {
       aiWs.on("message", async (data) => {
         try {
           const message = JSON.parse(data.toString());
-          console.log(`📨 AI WebSocket message for ${frameworkId}:`, message);
 
           // Forward message to frontend client
           this.sendToClient(clientWs, {
@@ -74,11 +67,6 @@ class AIFrameworkWebSocketService {
               const framework = await ExpertFramework.findById(frameworkId);
               if (framework) {
                 await framework.storeExtractedControlsFromWS(message);
-                console.log(
-                  `💾 Stored ${
-                    message.controls?.length || message.data?.length || 0
-                  } controls for framework ${frameworkId}`
-                );
               }
             } catch (dbError) {
               console.error(
@@ -90,9 +78,6 @@ class AIFrameworkWebSocketService {
 
           // Handle completion or error - close AI connection
           if (message.status === "completed" || message.status === "error") {
-            console.log(
-              `🏁 AI processing ${message.status} for framework ${frameworkId}`
-            );
             setTimeout(() => {
               this.closeAIConnection(frameworkId);
             }, 1000); // Small delay to ensure message is sent
@@ -125,12 +110,6 @@ class AIFrameworkWebSocketService {
       });
 
       aiWs.on("close", (code, reason) => {
-        console.log(
-          `🔌 AI WebSocket closed for framework ${frameworkId}:`,
-          code,
-          reason.toString()
-        );
-
         this.sendToClient(clientWs, {
           type: "connection",
           status: "disconnected",
@@ -144,7 +123,6 @@ class AIFrameworkWebSocketService {
 
       // Handle client WebSocket events
       clientWs.on("close", () => {
-        console.log(`🔌 Client WebSocket closed for framework ${frameworkId}`);
         this.closeAIConnection(frameworkId);
       });
 
@@ -226,8 +204,6 @@ class AIFrameworkWebSocketService {
    * Close all connections (for graceful shutdown)
    */
   closeAllConnections() {
-    console.log("🔌 Closing all AI WebSocket connections...");
-
     for (const [frameworkId, aiWs] of this.activeConnections) {
       if (aiWs && aiWs.readyState === WebSocket.OPEN) {
         aiWs.close();
@@ -251,8 +227,6 @@ class AIFrameworkWebSocketService {
         "ws"
       )}/expert/framework/extract-controls/${uuid}`;
 
-      console.log(`🔌 Starting background monitoring: ${aiWsUrl}`);
-
       // Create WebSocket connection to AI service
       const aiWs = new WebSocket(aiWsUrl);
 
@@ -261,15 +235,12 @@ class AIFrameworkWebSocketService {
 
       // AI WebSocket event handlers
       aiWs.on("open", () => {
-        console.log(
-          `✅ Background monitoring connected for framework ${frameworkId}`
-        );
+        // Background monitoring connected
       });
 
       aiWs.on("message", async (data) => {
         try {
           const message = JSON.parse(data.toString());
-          console.log(`📨 Background AI message for ${frameworkId}:`, message);
 
           // Store controls in database when completed
           if (
@@ -277,40 +248,9 @@ class AIFrameworkWebSocketService {
             (message.controls || message.data)
           ) {
             try {
-              console.log(
-                `🔍 Storing controls from background monitoring for framework ${frameworkId}`
-              );
-              console.log(`🔍 Message data:`, {
-                status: message.status,
-                hasControls: !!message.controls,
-                hasData: !!message.data,
-                controlsLength: message.controls?.length,
-                dataLength: message.data?.length,
-              });
-
               const framework = await ExpertFramework.findById(frameworkId);
               if (framework) {
-                console.log(`🔍 Framework found, current AI status:`, {
-                  uuid: framework.aiProcessing.uuid,
-                  status: framework.aiProcessing.status,
-                  controlsCount: framework.aiProcessing.controlsCount,
-                });
-
                 await framework.storeExtractedControlsFromWS(message);
-
-                // Refresh framework data to get updated values
-                const updatedFramework = await ExpertFramework.findById(
-                  frameworkId
-                );
-
-                console.log(
-                  `💾 Successfully stored ${updatedFramework.aiProcessing.controlsCount} controls for framework ${frameworkId} (background)`
-                );
-                console.log(
-                  `💾 Updated framework status: ${updatedFramework.aiProcessing.status}`
-                );
-              } else {
-                console.error(`❌ Framework not found: ${frameworkId}`);
               }
             } catch (dbError) {
               console.error(
@@ -322,9 +262,6 @@ class AIFrameworkWebSocketService {
 
           // Handle completion or error - close AI connection
           if (message.status === "completed" || message.status === "error") {
-            console.log(
-              `🏁 Background AI processing ${message.status} for framework ${frameworkId}`
-            );
             setTimeout(() => {
               this.closeAIConnection(frameworkId);
             }, 1000); // Small delay to ensure message is processed
@@ -346,11 +283,6 @@ class AIFrameworkWebSocketService {
       });
 
       aiWs.on("close", (code, reason) => {
-        console.log(
-          `🔌 Background AI WebSocket closed for framework ${frameworkId}:`,
-          code,
-          reason.toString()
-        );
         this.cleanup(frameworkId);
       });
     } catch (error) {

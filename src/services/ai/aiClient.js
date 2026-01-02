@@ -22,9 +22,6 @@ const aiAxiosInstance = axios.create({
 // Request interceptor for logging
 aiAxiosInstance.interceptors.request.use(
   (config) => {
-    console.log(
-      `🤖 AI API Request: ${config.method?.toUpperCase()} ${config.url}`
-    );
     return config;
   },
   (error) => {
@@ -36,9 +33,6 @@ aiAxiosInstance.interceptors.request.use(
 // Response interceptor for logging and error handling
 aiAxiosInstance.interceptors.response.use(
   (response) => {
-    console.log(
-      `✅ AI API Response: ${response.status} ${response.config.url}`
-    );
     return response;
   },
   (error) => {

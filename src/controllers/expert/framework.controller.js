@@ -7,16 +7,8 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
-// const {
-//   cacheOperations,
-//   generateCacheKey,
-//   CACHE_TTL,
-// } = require("../../config/cache.config");
-// const { invalidateCache } = require("../../middlewares/cache.middleware");
-const {
-  uploadFrameworkToAI,
-  getExtractedControls,
-} = require("../../services/ai/aiUpload.service");
+
+const { uploadFrameworkToAI } = require("../../services/ai/aiUpload.service");
 const { aiFrameworkWsService } = require("../../services/ai/aiFramework.ws");
 
 // Helper function to format AI processing data
@@ -624,16 +616,12 @@ const uploadFrameworkToAIService = async (req, res) => {
     });
 
     // Automatically start WebSocket connection to monitor AI processing
-    console.log(
-      `🔌 Starting automatic WebSocket monitoring for framework ${id}`
-    );
     try {
       // Create a dummy WebSocket client to monitor AI processing
       aiFrameworkWsService.startBackgroundMonitoring(
         aiResult.aiResponse.uuid,
         id
       );
-      console.log(`✅ Background monitoring started for framework ${id}`);
     } catch (wsError) {
       console.error(
         `❌ Failed to start background monitoring for framework ${id}:`,
@@ -761,10 +749,6 @@ const getFrameworkControls = async (req, res) => {
       (framework.aiProcessing.status === "completed" ||
         framework.aiProcessing.control_extraction_status === "completed")
     ) {
-      console.log(
-        `📋 Returning ${framework.aiProcessing.controlsCount} stored controls for framework ${id}`
-      );
-
       return res.status(200).json({
         success: true,
         message: `Found ${framework.aiProcessing.controlsCount} extracted controls`,

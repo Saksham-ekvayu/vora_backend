@@ -2,7 +2,14 @@ const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
 const cors = require("cors");
-const { bgRed, bgYellow, bgBlue, bgMagenta, bgGreen, bgMagentaBright } = require("colorette");
+const {
+  bgRed,
+  bgYellow,
+  bgBlue,
+  bgMagenta,
+  bgGreen,
+  bgMagentaBright,
+} = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
 
@@ -109,10 +116,6 @@ wss.on("connection", (ws, req) => {
 // Framework Controls WebSocket Handler
 async function handleFrameworkControlsWebSocket(ws, frameworkId) {
   try {
-    console.log(
-      `🔌 Framework controls WebSocket connected for: ${frameworkId}`
-    );
-
     // Find framework in database
     const framework = await ExpertFramework.findOne({
       _id: frameworkId,
@@ -173,7 +176,7 @@ async function handleFrameworkControlsWebSocket(ws, frameworkId) {
 
     // Handle WebSocket close
     ws.on("close", () => {
-      console.log(`🔌 Framework controls WebSocket closed for: ${frameworkId}`);
+      // WebSocket closed
     });
   } catch (error) {
     console.error(
@@ -223,7 +226,9 @@ async function start() {
       if (process.env.NODE_ENV !== "production") {
         console.log(bgGreen(`🌐 Network access → http://${ipv4}:${PORT}`));
         console.log(
-          bgMagentaBright(`🤖 AI Service Base URL: ${process.env.AI_BASE_URL_API}`)
+          bgMagentaBright(
+            `🤖 AI Service Base URL: ${process.env.AI_BASE_URL_API}`
+          )
         );
       }
       console.log(

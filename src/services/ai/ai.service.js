@@ -2,7 +2,7 @@ const FormData = require("form-data");
 const fs = require("fs");
 const path = require("path");
 const WebSocket = require("ws");
-const { addRequest, AI_BASE_URL } = require("./ai/aiClient");
+const { addRequest, AI_BASE_URL } = require("./aiClient");
 
 /**
  * AI Service - Unified service for all AI operations

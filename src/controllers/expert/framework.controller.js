@@ -7,7 +7,7 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
-const aiService = require("../../services/ai.service");
+const aiService = require("../../services/ai/ai.service");
 
 // Helper functions
 const getFormattedFileSize = (bytes) => {

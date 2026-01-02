@@ -11,7 +11,7 @@ dotenv.config();
 const SwaggerExpressDashboard = require("./swagger");
 const { connectDB, disconnectDB } = require("./src/database/database");
 const { getLocalIPv4 } = require("./src/helpers/helper");
-const aiService = require("./src/services/ai.service");
+const aiService = require("./src/services/ai/ai.service");
 
 // Import routes
 const authRoutes = require("./src/routes/auth/auth.routes");

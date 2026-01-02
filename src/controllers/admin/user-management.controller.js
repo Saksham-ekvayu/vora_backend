@@ -3,6 +3,7 @@ const {
   generateTempPassword,
   paginateWithSearch,
 } = require("../../helpers/helper");
+const { sendTempPasswordEmail } = require("../../services/email.service");
 // const cacheService = require("../../services/cache.service");
 // const { invalidateCache } = require("../../middlewares/cache.middleware");
 
@@ -52,20 +53,44 @@ const createUserByAdmin = async (req, res) => {
 
     await newUser.save();
 
+    // Send temporary password via email
+    const emailSent = await sendTempPasswordEmail(email, tempPassword, name);
+
+    if (!emailSent) {
+      // If email fails, we should still inform admin but log the issue
+      console.error(`Failed to send temporary password email to ${email}`);
+      return res.status(201).json({
+        success: true,
+        message:
+          "User created successfully, but failed to send email. Please provide the temporary password manually.",
+        user: {
+          id: newUser._id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+          phone: newUser.phone,
+        },
+        warning: "Email delivery failed. Please contact the user directly.",
+      });
+    }
+
     // Cache the new user (commented out)
     // await cacheService.cacheUser(newUser);
 
     res.status(201).json({
       success: true,
-      message: "User created successfully",
+      message:
+        "User created successfully. Temporary password has been sent to their email address.",
       user: {
         id: newUser._id,
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
         phone: newUser.phone,
-        temporaryPassword: tempPassword, // return so admin can share/reset;
       },
+      emailSent: true,
+      instructions:
+        "The user will receive their temporary password via email and must update it on first login.",
     });
   } catch (error) {
     console.error("Create user by admin error:", error);

@@ -576,7 +576,7 @@ const getExpertFrameworks = async (req, res) => {
 // Upload framework to AI service for processing
 const uploadFrameworkToAIService = async (req, res) => {
   try {
-    const { frameworkId } = req.body;
+    const { frameworkId } = req.body || {};
 
     // Validate frameworkId
     if (!frameworkId) {

@@ -29,11 +29,25 @@ const uploadFrameworkToAI = async (filePath) => {
       throw new Error("File is empty");
     }
 
-    // Validate file extension (AI service expects PDF)
+    // Validate file extension (AI service expects supported document types)
     const fileExtension = path.extname(filePath).toLowerCase();
-    if (fileExtension !== ".pdf") {
-      throw new Error(`Invalid file type. Expected PDF, got: ${fileExtension}`);
+    const supportedTypes = [".pdf", ".doc", ".docx", ".xls", ".xlsx"];
+
+    if (!supportedTypes.includes(fileExtension)) {
+      throw new Error(
+        `Invalid file type. Expected one of: ${supportedTypes.join(
+          ", "
+        )}, got: ${fileExtension}`
+      );
     }
+
+    console.log(
+      `📤 Uploading framework to AI service: ${path.basename(filePath)}`
+    );
+    console.log(
+      `📊 File size: ${(fileStats.size / 1024 / 1024).toFixed(2)} MB`
+    );
+    console.log(`📄 File type: ${fileExtension}`);
 
     // Create FormData for multipart upload
     const formData = new FormData();
@@ -41,10 +55,32 @@ const uploadFrameworkToAI = async (filePath) => {
     // Create read stream for the file
     const fileStream = fs.createReadStream(filePath);
 
+    // Determine content type based on file extension
+    let contentType = "application/octet-stream";
+    switch (fileExtension) {
+      case ".pdf":
+        contentType = "application/pdf";
+        break;
+      case ".doc":
+        contentType = "application/msword";
+        break;
+      case ".docx":
+        contentType =
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        break;
+      case ".xls":
+        contentType = "application/vnd.ms-excel";
+        break;
+      case ".xlsx":
+        contentType =
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        break;
+    }
+
     // Add file to form data with field name 'file' as required by AI API
     formData.append("file", fileStream, {
       filename: path.basename(filePath),
-      contentType: "application/pdf",
+      contentType: contentType,
     });
 
     // Make request to AI upload endpoint

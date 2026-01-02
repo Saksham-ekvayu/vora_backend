@@ -143,6 +143,7 @@ router.post(
   "/upload-to-ai",
   authenticateToken,
   canExpertCreate, // Only experts can upload to AI service
+  upload.none(), // Handle form-data without files
   uploadFrameworkToAIValidation,
   uploadFrameworkToAIService
 );

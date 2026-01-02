@@ -1,4 +1,5 @@
 const ExpertFramework = require("../../models/expertFramework.model");
+const ExpertFrameworkService = require("../../services/expertFramework.service");
 const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {
@@ -10,23 +11,6 @@ const {
 
 const { uploadFrameworkToAI } = require("../../services/ai/aiUpload.service");
 const { aiFrameworkWsService } = require("../../services/ai/aiFramework.ws");
-
-// Helper function to format AI processing data
-const formatAIProcessingData = (aiProcessing) => {
-  if (!aiProcessing?.uuid) {
-    return null;
-  }
-
-  return {
-    uuid: aiProcessing.uuid,
-    status: aiProcessing.status,
-    control_extraction_status: aiProcessing.control_extraction_status,
-    processedAt: aiProcessing.processedAt,
-    controlsCount: aiProcessing.controlsCount || 0,
-    controlsExtractedAt: aiProcessing.controlsExtractedAt || null,
-    errorMessage: aiProcessing.errorMessage || null,
-  };
-};
 
 // Create upload instance with specific directory for expert frameworks
 const upload = createDocumentUpload("src/uploads/expert-frameworks");
@@ -607,7 +591,7 @@ const uploadFrameworkToAIService = async (req, res) => {
     }
 
     // Update framework with AI response data
-    await framework.updateAIStatus({
+    await ExpertFrameworkService.updateAIStatus(framework, {
       uuid: aiResult.aiResponse.uuid,
       status: aiResult.aiResponse.status,
       control_extraction_status: aiResult.aiResponse.control_extraction_status,
@@ -659,7 +643,7 @@ const uploadFrameworkToAIService = async (req, res) => {
       try {
         const framework = await ExpertFramework.findById(req.params.id);
         if (framework) {
-          await framework.updateAIStatus({
+          await ExpertFrameworkService.updateAIStatus(framework, {
             status: "failed",
             errorMessage: error.message,
             processedAt: new Date(),
@@ -743,35 +727,29 @@ const getFrameworkControls = async (req, res) => {
     }
 
     // If controls are already stored in database, return them directly
-    if (
-      framework.aiProcessing.extractedControls &&
-      framework.aiProcessing.extractedControls.length > 0 &&
-      (framework.aiProcessing.status === "completed" ||
-        framework.aiProcessing.control_extraction_status === "completed")
-    ) {
+    if (ExpertFrameworkService.hasExtractedControls(framework)) {
       return res.status(200).json({
         success: true,
         message: `Found ${framework.aiProcessing.controlsCount} extracted controls`,
         data: {
-          aiProcessing: formatAIProcessingData(framework.aiProcessing),
+          aiProcessing: ExpertFrameworkService.formatAIProcessingData(
+            framework.aiProcessing
+          ),
           controls: framework.aiProcessing.extractedControls,
         },
       });
     }
 
     // If processing is in progress, return status
-    if (
-      framework.aiProcessing.status === "processing" ||
-      framework.aiProcessing.status === "uploaded" ||
-      framework.aiProcessing.control_extraction_status === "processing" ||
-      framework.aiProcessing.control_extraction_status === "started"
-    ) {
+    if (ExpertFrameworkService.isProcessingInProgress(framework)) {
       return res.status(202).json({
         success: true,
         message:
           "Framework is being processed by AI service. Controls will be available once processing is complete.",
         data: {
-          aiProcessing: formatAIProcessingData(framework.aiProcessing),
+          aiProcessing: ExpertFrameworkService.formatAIProcessingData(
+            framework.aiProcessing
+          ),
           controls: null,
           isProcessing: true,
           instructions:
@@ -781,12 +759,14 @@ const getFrameworkControls = async (req, res) => {
     }
 
     // If processing failed
-    if (framework.aiProcessing.status === "failed") {
+    if (ExpertFrameworkService.hasProcessingFailed(framework)) {
       return res.status(400).json({
         success: false,
         message: "AI processing failed for this framework",
         data: {
-          aiProcessing: formatAIProcessingData(framework.aiProcessing),
+          aiProcessing: ExpertFrameworkService.formatAIProcessingData(
+            framework.aiProcessing
+          ),
           errorMessage: framework.aiProcessing.errorMessage,
         },
       });
@@ -798,7 +778,9 @@ const getFrameworkControls = async (req, res) => {
       message:
         "Framework processing has not started yet. Please upload the framework to AI service first.",
       data: {
-        aiProcessing: formatAIProcessingData(framework.aiProcessing),
+        aiProcessing: ExpertFrameworkService.formatAIProcessingData(
+          framework.aiProcessing
+        ),
       },
     });
   } catch (error) {

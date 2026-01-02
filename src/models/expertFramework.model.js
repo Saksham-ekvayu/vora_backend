@@ -121,91 +121,9 @@ expertFrameworkSchema.index({ createdAt: -1 });
 expertFrameworkSchema.index({ "aiProcessing.uuid": 1 });
 expertFrameworkSchema.index({ "aiProcessing.status": 1 });
 
-// Virtual for file extension
-expertFrameworkSchema.virtual("fileExtension").get(function () {
-  return this.frameworkType;
-});
-
-// Method to get formatted file size
-expertFrameworkSchema.methods.getFormattedFileSize = function () {
-  const bytes = this.fileSize;
-  if (bytes === 0) return "0 Bytes";
-
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-};
-
-// Static method to get frameworks by type
-expertFrameworkSchema.statics.getByType = function (frameworkType) {
-  return this.find({ frameworkType, isActive: true }).populate(
-    "uploadedBy",
-    "name email role"
-  );
-};
-
-// Static method to get expert frameworks
-expertFrameworkSchema.statics.getExpertFrameworks = function (expertId) {
-  return this.find({ uploadedBy: expertId, isActive: true }).populate(
-    "uploadedBy",
-    "name email role"
-  );
-};
-
-// Method to update AI processing status
-expertFrameworkSchema.methods.updateAIStatus = function (aiData) {
-  this.aiProcessing.uuid = aiData.uuid || this.aiProcessing.uuid;
-  this.aiProcessing.status = aiData.status || this.aiProcessing.status;
-  this.aiProcessing.control_extraction_status =
-    aiData.control_extraction_status ||
-    this.aiProcessing.control_extraction_status;
-  this.aiProcessing.processedAt = aiData.processedAt || new Date();
-  this.aiProcessing.errorMessage = aiData.errorMessage || null;
-
-  return this.save();
-};
-
-// Method to store extracted controls from WebSocket
-expertFrameworkSchema.methods.storeExtractedControlsFromWS = function (
-  wsMessage
-) {
-  // Handle different message formats from AI WebSocket
-  let controls = [];
-
-  if (wsMessage.controls && Array.isArray(wsMessage.controls)) {
-    controls = wsMessage.controls;
-  } else if (wsMessage.data && Array.isArray(wsMessage.data)) {
-    controls = wsMessage.data;
-  }
-
-  this.aiProcessing.extractedControls = controls;
-  this.aiProcessing.controlsCount = controls.length;
-  this.aiProcessing.controlsExtractedAt = new Date();
-
-  // Update status based on WebSocket message
-  if (wsMessage.status) {
-    this.aiProcessing.status = wsMessage.status;
-    this.aiProcessing.control_extraction_status = wsMessage.status;
-  }
-
-  return this.save();
-};
-
 const ExpertFramework = mongoose.model(
   "ExpertFramework",
   expertFrameworkSchema
 );
 
 module.exports = ExpertFramework;
-// Method to store extracted controls (original method - keep for backward compatibility)
-expertFrameworkSchema.methods.storeExtractedControls = function (controls) {
-  this.aiProcessing.extractedControls = controls || [];
-  this.aiProcessing.controlsCount = controls ? controls.length : 0;
-  this.aiProcessing.controlsExtractedAt = new Date();
-  this.aiProcessing.status = "completed";
-  this.aiProcessing.control_extraction_status = "completed";
-
-  return this.save();
-};

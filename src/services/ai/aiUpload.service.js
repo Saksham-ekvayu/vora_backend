@@ -167,74 +167,7 @@ const checkProcessingStatus = async (uuid) => {
   }
 };
 
-/**
- * Get extracted controls from AI service by UUID
- * @param {string} uuid - AI processing UUID
- * @returns {Promise<Object>} Extracted controls or processing status
- */
-const getExtractedControls = async (uuid) => {
-  try {
-    if (!uuid) {
-      throw new Error("UUID is required");
-    }
-
-    const response = await addRequest(`/expert/framework/extract-controls/${uuid}`, {
-      method: "GET",
-    });
-
-    const responseData = response.data;
-
-    // Check if response is processing status or actual results
-    if (
-      responseData &&
-      typeof responseData === "object" &&
-      responseData.status &&
-      responseData.msg
-    ) {
-      return {
-        success: true,
-        isProcessing: true,
-        status: responseData.status,
-        message: responseData.msg,
-        controls: null,
-      };
-    } else if (Array.isArray(responseData) && responseData.length > 0) {
-      // Processing complete - got controls array
-      return {
-        success: true,
-        isProcessing: false,
-        status: "completed",
-        message: `Successfully extracted ${responseData.length} controls`,
-        controls: responseData,
-      };
-    } else {
-      // Unexpected response format or empty array
-      return {
-        success: true,
-        isProcessing: false,
-        status: "completed",
-        message: "Controls extraction completed but no controls found",
-        controls: [],
-      };
-    }
-  } catch (error) {
-    console.error("❌ AI Controls Extraction Error:", error.message);
-
-    // Handle specific error types
-    if (error.response?.status === 404) {
-      throw new Error("UUID not found in AI service");
-    }
-
-    if (error.response?.status >= 500) {
-      throw new Error("AI service internal error. Please try again later.");
-    }
-
-    throw new Error(`Failed to get extracted controls: ${error.message}`);
-  }
-};
-
 module.exports = {
   uploadFrameworkToAI,
   checkProcessingStatus,
-  getExtractedControls,
 };

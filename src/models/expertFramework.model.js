@@ -40,6 +40,74 @@ const expertFrameworkSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // AI Processing Fields
+    aiProcessing: {
+      uuid: {
+        type: String,
+        trim: true,
+        default: null,
+      },
+      status: {
+        type: String,
+        enum: {
+          values: ["pending", "uploaded", "processing", "completed", "failed"],
+          message:
+            "AI status must be one of: pending, uploaded, processing, completed, failed",
+        },
+        default: "pending",
+      },
+      control_extraction_status: {
+        type: String,
+        enum: {
+          values: ["pending", "started", "processing", "completed", "failed"],
+          message:
+            "Control extraction status must be one of: pending, started, processing, completed, failed",
+        },
+        default: "pending",
+      },
+      processedAt: {
+        type: Date,
+        default: null,
+      },
+      errorMessage: {
+        type: String,
+        default: null,
+      },
+      // Store extracted controls
+      extractedControls: [
+        {
+          Control_id: {
+            type: String,
+            trim: true,
+          },
+          Control_name: {
+            type: String,
+            trim: true,
+          },
+          Control_type: {
+            type: String,
+            trim: true,
+            default: "",
+          },
+          Control_description: {
+            type: String,
+            trim: true,
+          },
+          Deployment_points: {
+            type: String,
+            trim: true,
+          },
+        },
+      ],
+      controlsCount: {
+        type: Number,
+        default: 0,
+      },
+      controlsExtractedAt: {
+        type: Date,
+        default: null,
+      },
+    },
   },
   {
     timestamps: true, // This adds createdAt and updatedAt automatically
@@ -50,6 +118,8 @@ const expertFrameworkSchema = new mongoose.Schema(
 expertFrameworkSchema.index({ uploadedBy: 1 });
 expertFrameworkSchema.index({ frameworkType: 1 });
 expertFrameworkSchema.index({ createdAt: -1 });
+expertFrameworkSchema.index({ "aiProcessing.uuid": 1 });
+expertFrameworkSchema.index({ "aiProcessing.status": 1 });
 
 // Virtual for file extension
 expertFrameworkSchema.virtual("fileExtension").get(function () {
@@ -82,6 +152,30 @@ expertFrameworkSchema.statics.getExpertFrameworks = function (expertId) {
     "uploadedBy",
     "name email role"
   );
+};
+
+// Method to update AI processing status
+expertFrameworkSchema.methods.updateAIStatus = function (aiData) {
+  this.aiProcessing.uuid = aiData.uuid || this.aiProcessing.uuid;
+  this.aiProcessing.status = aiData.status || this.aiProcessing.status;
+  this.aiProcessing.control_extraction_status =
+    aiData.control_extraction_status ||
+    this.aiProcessing.control_extraction_status;
+  this.aiProcessing.processedAt = aiData.processedAt || new Date();
+  this.aiProcessing.errorMessage = aiData.errorMessage || null;
+
+  return this.save();
+};
+
+// Method to store extracted controls
+expertFrameworkSchema.methods.storeExtractedControls = function (controls) {
+  this.aiProcessing.extractedControls = controls || [];
+  this.aiProcessing.controlsCount = controls ? controls.length : 0;
+  this.aiProcessing.controlsExtractedAt = new Date();
+  this.aiProcessing.status = "completed";
+  this.aiProcessing.control_extraction_status = "completed";
+
+  return this.save();
 };
 
 const ExpertFramework = mongoose.model(

@@ -13,6 +13,10 @@ const {
   CACHE_TTL,
 } = require("../../config/cache.config");
 const { invalidateCache } = require("../../middlewares/cache.middleware");
+const {
+  uploadFrameworkToAI,
+  getExtractedControls,
+} = require("../../services/ai/aiUpload.service");
 
 // Create upload instance with specific directory for expert frameworks
 const upload = createDocumentUpload("src/uploads/expert-frameworks");
@@ -106,6 +110,16 @@ const createFramework = async (req, res) => {
             email: framework.uploadedBy.email,
             role: framework.uploadedBy.role,
           },
+          aiProcessing: {
+            uuid: framework.aiProcessing?.uuid || null,
+            status: framework.aiProcessing?.status || "pending",
+            control_extraction_status:
+              framework.aiProcessing?.control_extraction_status || "pending",
+            processedAt: framework.aiProcessing?.processedAt || null,
+            controlsCount: framework.aiProcessing?.controlsCount || 0,
+            controlsExtractedAt:
+              framework.aiProcessing?.controlsExtractedAt || null,
+          },
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
         },
@@ -175,6 +189,13 @@ const getAllFrameworks = async (req, res) => {
           name: doc.uploadedBy.name,
           email: doc.uploadedBy.email,
           role: doc.uploadedBy.role,
+        },
+        aiProcessing: {
+          uuid: doc.aiProcessing?.uuid || null,
+          status: doc.aiProcessing?.status || "pending",
+          control_extraction_status:
+            doc.aiProcessing?.control_extraction_status || "pending",
+          processedAt: doc.aiProcessing?.processedAt || null,
         },
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
@@ -259,6 +280,14 @@ const getFrameworkById = async (req, res) => {
             name: framework.uploadedBy.name,
             email: framework.uploadedBy.email,
             role: framework.uploadedBy.role,
+          },
+          aiProcessing: {
+            uuid: framework.aiProcessing?.uuid || null,
+            status: framework.aiProcessing?.status || "pending",
+            control_extraction_status:
+              framework.aiProcessing?.control_extraction_status || "pending",
+            processedAt: framework.aiProcessing?.processedAt || null,
+            errorMessage: framework.aiProcessing?.errorMessage || null,
           },
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
@@ -507,6 +536,13 @@ const getExpertFrameworks = async (req, res) => {
           email: doc.uploadedBy.email,
           role: doc.uploadedBy.role,
         },
+        aiProcessing: {
+          uuid: doc.aiProcessing?.uuid || null,
+          status: doc.aiProcessing?.status || "pending",
+          control_extraction_status:
+            doc.aiProcessing?.control_extraction_status || "pending",
+          processedAt: doc.aiProcessing?.processedAt || null,
+        },
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       }),
@@ -537,6 +573,312 @@ const getExpertFrameworks = async (req, res) => {
   }
 };
 
+// Upload framework to AI service for processing
+const uploadFrameworkToAIService = async (req, res) => {
+  try {
+    const { frameworkId } = req.body;
+
+    // Validate frameworkId
+    if (!frameworkId) {
+      return res.status(400).json({
+        success: false,
+        message: "Framework ID is required",
+        field: "frameworkId",
+      });
+    }
+
+    // Find framework in database
+    const framework = await ExpertFramework.findOne({
+      _id: frameworkId,
+      isActive: true,
+    }).populate("uploadedBy", "name email role");
+
+    if (!framework) {
+      return res.status(404).json({
+        success: false,
+        message: "Framework not found",
+      });
+    }
+
+    // Check if framework belongs to the requesting expert
+    if (framework.uploadedBy._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only upload your own frameworks to AI service",
+      });
+    }
+
+    // Check if file exists on disk
+    if (!fs.existsSync(framework.fileUrl)) {
+      return res.status(404).json({
+        success: false,
+        message: "Framework file not found on server",
+      });
+    }
+
+    // Check if framework is already uploaded to AI
+    if (
+      framework.aiProcessing.uuid &&
+      framework.aiProcessing.status !== "failed"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `Framework is already ${framework.aiProcessing.status} in AI service`,
+        data: {
+          aiStatus: {
+            uuid: framework.aiProcessing.uuid,
+            status: framework.aiProcessing.status,
+            control_extraction_status:
+              framework.aiProcessing.control_extraction_status,
+            processedAt: framework.aiProcessing.processedAt,
+          },
+        },
+      });
+    }
+
+    // Upload to AI service
+    const aiResult = await uploadFrameworkToAI(framework.fileUrl);
+
+    if (!aiResult.success) {
+      throw new Error("AI upload failed");
+    }
+
+    // Update framework with AI response data
+    await framework.updateAIStatus({
+      uuid: aiResult.aiResponse.uuid,
+      status: aiResult.aiResponse.status,
+      control_extraction_status: aiResult.aiResponse.control_extraction_status,
+      processedAt: new Date(),
+      errorMessage: null,
+    });
+
+    // Invalidate cache for this framework
+    const cacheKey = generateCacheKey("expert_framework", framework._id);
+    await cacheOperations.del(cacheKey);
+
+    // Invalidate expert framework list caches
+    await invalidateCache.frameworks(req.user._id);
+
+    res.status(200).json({
+      success: true,
+      message: "Framework uploaded to AI service successfully",
+      data: {
+        framework: {
+          id: framework._id,
+          frameworkName: framework.frameworkName,
+          frameworkType: framework.frameworkType,
+          aiProcessing: {
+            uuid: aiResult.aiResponse.uuid,
+            status: aiResult.aiResponse.status,
+            control_extraction_status:
+              aiResult.aiResponse.control_extraction_status,
+            processedAt: framework.aiProcessing.processedAt,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error uploading framework to AI service:", error);
+
+    // Try to update framework with error status if we have frameworkId
+    if (req.body.frameworkId) {
+      try {
+        const framework = await ExpertFramework.findById(req.body.frameworkId);
+        if (framework) {
+          await framework.updateAIStatus({
+            status: "failed",
+            errorMessage: error.message,
+            processedAt: new Date(),
+          });
+        }
+      } catch (updateError) {
+        console.error("Failed to update framework error status:", updateError);
+      }
+    }
+
+    // Handle specific error types
+    if (error.message.includes("File not found")) {
+      return res.status(404).json({
+        success: false,
+        message: "Framework file not found",
+      });
+    }
+
+    if (error.message.includes("AI service is not available")) {
+      return res.status(503).json({
+        success: false,
+        message: "AI service is currently unavailable. Please try again later.",
+      });
+    }
+
+    if (error.message.includes("File too large")) {
+      return res.status(413).json({
+        success: false,
+        message: "Framework file is too large for AI processing",
+      });
+    }
+
+    if (error.message.includes("Unsupported file type")) {
+      return res.status(415).json({
+        success: false,
+        message: "Framework file type is not supported by AI service",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to upload framework to AI service",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// Get extracted controls from AI service
+const getFrameworkControls = async (req, res) => {
+  try {
+    const { frameworkId } = req.params;
+
+    // Find framework in database
+    const framework = await ExpertFramework.findOne({
+      _id: frameworkId,
+      isActive: true,
+    }).populate("uploadedBy", "name email role");
+
+    if (!framework) {
+      return res.status(404).json({
+        success: false,
+        message: "Framework not found",
+      });
+    }
+
+    // Check if framework belongs to the requesting expert
+    if (framework.uploadedBy._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only access controls for your own frameworks",
+      });
+    }
+
+    // Check if framework has been uploaded to AI
+    if (!framework.aiProcessing.uuid) {
+      return res.status(400).json({
+        success: false,
+        message: "Framework has not been uploaded to AI service yet",
+      });
+    }
+
+    // If controls are already stored in database, return them
+    if (
+      framework.aiProcessing.extractedControls &&
+      framework.aiProcessing.extractedControls.length > 0
+    ) {
+      return res.status(200).json({
+        success: true,
+        message: `Found ${framework.aiProcessing.controlsCount} cached controls`,
+        data: {
+          framework: {
+            id: framework._id,
+            frameworkName: framework.frameworkName,
+            frameworkType: framework.frameworkType,
+          },
+          aiProcessing: {
+            uuid: framework.aiProcessing.uuid,
+            status: framework.aiProcessing.status,
+            control_extraction_status:
+              framework.aiProcessing.control_extraction_status,
+            controlsCount: framework.aiProcessing.controlsCount,
+            controlsExtractedAt: framework.aiProcessing.controlsExtractedAt,
+          },
+          controls: framework.aiProcessing.extractedControls,
+        },
+      });
+    }
+
+    // Get controls from AI service
+    const aiResult = await getExtractedControls(framework.aiProcessing.uuid);
+
+    if (!aiResult.success) {
+      throw new Error("Failed to get controls from AI service");
+    }
+
+    // If still processing, return processing status
+    if (aiResult.isProcessing) {
+      return res.status(202).json({
+        success: true,
+        message: aiResult.message,
+        data: {
+          framework: {
+            id: framework._id,
+            frameworkName: framework.frameworkName,
+            frameworkType: framework.frameworkType,
+          },
+          aiProcessing: {
+            uuid: framework.aiProcessing.uuid,
+            status: aiResult.status,
+            control_extraction_status: aiResult.status,
+            isProcessing: true,
+          },
+          controls: null,
+        },
+      });
+    }
+
+    // Processing complete - store controls in database
+    if (aiResult.controls && aiResult.controls.length > 0) {
+      await framework.storeExtractedControls(aiResult.controls);
+
+      // Invalidate cache for this framework
+      const cacheKey = generateCacheKey("expert_framework", framework._id);
+      await cacheOperations.del(cacheKey);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: aiResult.message,
+      data: {
+        framework: {
+          id: framework._id,
+          frameworkName: framework.frameworkName,
+          frameworkType: framework.frameworkType,
+        },
+        aiProcessing: {
+          uuid: framework.aiProcessing.uuid,
+          status: framework.aiProcessing.status,
+          control_extraction_status:
+            framework.aiProcessing.control_extraction_status,
+          controlsCount: framework.aiProcessing.controlsCount,
+          controlsExtractedAt: framework.aiProcessing.controlsExtractedAt,
+          isProcessing: false,
+        },
+        controls: aiResult.controls || [],
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error getting framework controls:", error);
+
+    // Handle specific error types
+    if (error.message.includes("UUID not found")) {
+      return res.status(404).json({
+        success: false,
+        message: "Framework processing not found in AI service",
+      });
+    }
+
+    if (error.message.includes("AI service is not available")) {
+      return res.status(503).json({
+        success: false,
+        message: "AI service is currently unavailable. Please try again later.",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to get framework controls",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
 module.exports = {
   upload,
   createFramework,
@@ -546,4 +888,6 @@ module.exports = {
   deleteFramework,
   downloadFramework,
   getExpertFrameworks,
+  uploadFrameworkToAIService,
+  getFrameworkControls,
 };

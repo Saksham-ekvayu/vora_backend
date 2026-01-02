@@ -17,6 +17,7 @@ const {
   getExpertFrameworkByIdValidation,
   deleteExpertFrameworkValidation,
   getExpertFrameworksQueryValidation,
+  uploadFrameworkToAIValidation,
 } = require("../../validations/expertFramework.validation");
 
 // Import controller
@@ -29,6 +30,8 @@ const {
   deleteFramework,
   downloadFramework,
   getExpertFrameworks,
+  uploadFrameworkToAIService,
+  getFrameworkControls,
 } = require("../../controllers/expert/framework.controller");
 
 // Routes
@@ -128,6 +131,33 @@ router.delete(
   canExpertDelete, // Only experts can delete frameworks
   deleteExpertFrameworkValidation,
   deleteFramework
+);
+
+/**
+ * @route   POST /api/expert/frameworks/upload-to-ai
+ * @desc    Upload framework to AI service for processing
+ * @access  Private (Expert only)
+ * @body    { frameworkId: string }
+ */
+router.post(
+  "/upload-to-ai",
+  authenticateToken,
+  canExpertCreate, // Only experts can upload to AI service
+  uploadFrameworkToAIValidation,
+  uploadFrameworkToAIService
+);
+
+/**
+ * @route   GET /api/expert/frameworks/:frameworkId/controls
+ * @desc    Get extracted controls from AI service for a framework
+ * @access  Private (Expert only)
+ */
+router.get(
+  "/:frameworkId/controls",
+  authenticateToken,
+  canExpertView, // Only experts can view controls
+  getExpertFrameworkByIdValidation,
+  getFrameworkControls
 );
 
 module.exports = router;

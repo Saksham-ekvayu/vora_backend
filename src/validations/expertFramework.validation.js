@@ -157,6 +157,10 @@ const getExpertFrameworksQuerySchema = Joi.object({
     .optional(),
 });
 
+const uploadFrameworkToAISchema = Joi.object({
+  frameworkId: frameworkIdValidator(),
+});
+
 // File upload validation middleware (runs AFTER multer has parsed the form data)
 // Validation middleware functions
 const updateExpertFrameworkValidation = handleJoiValidationErrors(
@@ -198,6 +202,10 @@ const getExpertFrameworksQueryValidation = (req, res, next) => {
   next();
 };
 
+const uploadFrameworkToAIValidation = handleJoiValidationErrors(
+  uploadFrameworkToAISchema
+);
+
 module.exports = {
   // atomic validators (exported in case needed elsewhere)
   frameworkNameValidator,
@@ -220,10 +228,12 @@ module.exports = {
   getExpertFrameworkByIdValidation,
   deleteExpertFrameworkValidation,
   getExpertFrameworksQueryValidation,
+  uploadFrameworkToAIValidation,
 
   // Schemas (exported for testing or custom usage)
   updateExpertFrameworkSchema,
   getExpertFrameworkByIdSchema,
   deleteExpertFrameworkSchema,
   getExpertFrameworksQuerySchema,
+  uploadFrameworkToAISchema,
 };

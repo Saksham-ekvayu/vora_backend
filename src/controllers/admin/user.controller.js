@@ -3,6 +3,8 @@ const {
   generateTempPassword,
   paginateWithSearch,
 } = require("../../helpers/helper");
+const cacheService = require("../../services/cache.service");
+const { invalidateCache } = require("../../middlewares/cache.middleware");
 
 // Create user by admin
 const createUserByAdmin = async (req, res) => {
@@ -49,6 +51,9 @@ const createUserByAdmin = async (req, res) => {
     });
 
     await newUser.save();
+
+    // Cache the new user
+    await cacheService.cacheUser(newUser);
 
     res.status(201).json({
       success: true,
@@ -108,6 +113,9 @@ const updateUserByAdmin = async (req, res) => {
     if (role) user.role = role;
 
     await user.save();
+
+    // Update cache
+    await cacheService.cacheUser(user);
 
     res.status(200).json({
       success: true,
@@ -208,7 +216,9 @@ const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = await User.findById(id).select("-password -otp");
+    // Try to get from cache first
+    let user = await cacheService.getUserById(id);
+
     if (!user) {
       return res
         .status(404)
@@ -253,6 +263,10 @@ const deleteUser = async (req, res) => {
     }
 
     await User.findByIdAndDelete(id);
+
+    // Invalidate user cache
+    await invalidateCache.user(id);
+
     res.json({ success: true, message: "User deleted successfully" });
   } catch (error) {
     console.error("Delete user error:", error);
@@ -285,6 +299,9 @@ const editProfile = async (req, res) => {
       new: true,
       runValidators: true,
     }).select("-password -otp");
+
+    // Update cache
+    await cacheService.cacheUser(updatedUser);
 
     res.json({
       success: true,

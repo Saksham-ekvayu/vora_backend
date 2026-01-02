@@ -10,6 +10,13 @@ const {
   canView,
 } = require("../../middlewares/roleAccess.middleware");
 
+// Import cache middlewares
+const {
+  frameworkListCache,
+  userFrameworksCache,
+  frameworkByIdCache,
+} = require("../../middlewares/cache.middleware");
+
 // Import validations
 const {
   frameworkUploadValidation,
@@ -58,6 +65,7 @@ router.get(
   "/",
   authenticateToken,
   canView, // Only users can view frameworks
+  frameworkListCache, // Cache middleware
   getFrameworksQueryValidation,
   getAllFrameworks
 );
@@ -72,6 +80,7 @@ router.get(
   "/my-frameworks",
   authenticateToken,
   canView, // Only users can view their own frameworks
+  userFrameworksCache, // Cache middleware
   getUserFrameworks
 );
 
@@ -84,6 +93,7 @@ router.get(
   "/:id",
   authenticateToken,
   canView, // Only users can view frameworks
+  frameworkByIdCache, // Cache middleware
   getFrameworkByIdValidation,
   getFrameworkById
 );

@@ -8,7 +8,7 @@ const axios = require("axios");
  */
 
 // AI API Base Configuration
-const AI_BASE_URL = process.env.AI_BASE_URL_API || "http://192.168.1.30:8002";
+const AI_BASE_URL = process.env.AI_BASE_URL_API;
 
 // Create axios instance with base configuration
 const aiAxiosInstance = axios.create({

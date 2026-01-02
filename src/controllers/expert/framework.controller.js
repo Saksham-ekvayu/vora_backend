@@ -788,14 +788,7 @@ const getFrameworkControls = async (req, res) => {
 
     // Processing complete - store controls in database
     if (aiResult.controls && aiResult.controls.length > 0) {
-      console.log(
-        `💾 Storing ${aiResult.controls.length} controls in database`
-      );
       await framework.storeExtractedControls(aiResult.controls);
-
-      console.log(
-        `✅ Controls stored successfully for framework: ${framework.frameworkName}`
-      );
     }
 
     res.status(200).json({
@@ -826,7 +819,18 @@ const getFrameworkControls = async (req, res) => {
     if (error.message.includes("UUID not found")) {
       return res.status(404).json({
         success: false,
-        message: "Framework processing not found in AI service",
+        message:
+          "Framework processing not found in AI service. The framework may not have been processed yet or the processing failed.",
+        details:
+          "Please try uploading the framework to AI service again or contact support if the issue persists.",
+      });
+    }
+
+    if (error.message.includes("AI service internal error")) {
+      return res.status(503).json({
+        success: false,
+        message:
+          "AI service is currently experiencing issues. Please try again later.",
       });
     }
 

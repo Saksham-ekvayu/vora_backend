@@ -24,7 +24,7 @@ const {
   getFrameworkByIdValidation,
   deleteFrameworkValidation,
   getFrameworksQueryValidation,
-} = require("../../validations/framework.validation");
+} = require("../../validations/user-framework.validation");
 
 // Import controller
 const {
@@ -36,7 +36,7 @@ const {
   deleteFramework,
   downloadFramework,
   getUserFrameworks,
-} = require("../../controllers/user/framework.controller");
+} = require("../../controllers/user/user-framework.controller");
 
 // Routes
 

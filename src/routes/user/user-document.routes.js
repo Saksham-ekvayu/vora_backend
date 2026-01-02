@@ -24,7 +24,7 @@ const {
   getDocumentByIdValidation,
   deleteDocumentValidation,
   getDocumentsQueryValidation,
-} = require("../../validations/document.validation");
+} = require("../../validations/user-document.validation");
 
 // Import controller
 const {
@@ -36,7 +36,7 @@ const {
   deleteDocument,
   downloadDocument,
   getUserDocuments,
-} = require("../../controllers/user/document.controller");
+} = require("../../controllers/user/user-document.controller");
 
 // Routes
 

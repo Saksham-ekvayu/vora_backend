@@ -1,4 +1,4 @@
-const Document = require("../../models/document.model");
+const Document = require("../../models/user-document.model");
 const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {

@@ -1,4 +1,4 @@
-const ExpertFramework = require("../../models/expertFramework.model");
+const ExpertFramework = require("../../models/expert-framework.model");
 const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {

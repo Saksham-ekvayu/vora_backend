@@ -16,9 +16,9 @@ const aiService = require("./src/services/ai/ai.service");
 // Import routes
 const authRoutes = require("./src/routes/auth/auth.routes");
 const userRoutes = require("./src/routes/admin/user.routes");
-const documentRoutes = require("./src/routes/user/document.routes");
-const frameworkRoutes = require("./src/routes/user/framework.routes");
-const expertFrameworkRoutes = require("./src/routes/expert/framework.routes");
+const documentRoutes = require("./src/routes/user/user-document.routes");
+const frameworkRoutes = require("./src/routes/user/user-framework.routes");
+const expertFrameworkRoutes = require("./src/routes/expert/expert-framework.routes");
 
 // Import error handling middleware
 const {

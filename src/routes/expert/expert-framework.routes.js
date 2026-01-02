@@ -17,7 +17,7 @@ const {
   getExpertFrameworkByIdValidation,
   deleteExpertFrameworkValidation,
   getExpertFrameworksQueryValidation,
-} = require("../../validations/expertFramework.validation");
+} = require("../../validations/expert-framework.validation");
 
 // Import controller
 const {
@@ -31,7 +31,7 @@ const {
   getExpertFrameworks,
   uploadFrameworkToAIService,
   getFrameworkControls,
-} = require("../../controllers/expert/framework.controller");
+} = require("../../controllers/expert/expert-framework.controller");
 
 // Routes
 

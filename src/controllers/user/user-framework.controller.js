@@ -1,4 +1,4 @@
-const Framework = require("../../models/framework.model");
+const Framework = require("../../models/user-framework.model");
 const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {

@@ -753,11 +753,6 @@ const getFrameworkControls = async (req, res) => {
         success: true,
         message: `Found ${framework.aiProcessing.controlsCount} extracted controls`,
         data: {
-          framework: {
-            id: framework._id,
-            frameworkName: framework.frameworkName,
-            frameworkType: framework.frameworkType,
-          },
           aiProcessing: formatAIProcessingData(framework.aiProcessing),
           controls: framework.aiProcessing.extractedControls,
         },
@@ -776,11 +771,6 @@ const getFrameworkControls = async (req, res) => {
         message:
           "Framework is being processed by AI service. Controls will be available once processing is complete.",
         data: {
-          framework: {
-            id: framework._id,
-            frameworkName: framework.frameworkName,
-            frameworkType: framework.frameworkType,
-          },
           aiProcessing: formatAIProcessingData(framework.aiProcessing),
           controls: null,
           isProcessing: true,
@@ -796,11 +786,6 @@ const getFrameworkControls = async (req, res) => {
         success: false,
         message: "AI processing failed for this framework",
         data: {
-          framework: {
-            id: framework._id,
-            frameworkName: framework.frameworkName,
-            frameworkType: framework.frameworkType,
-          },
           aiProcessing: formatAIProcessingData(framework.aiProcessing),
           errorMessage: framework.aiProcessing.errorMessage,
         },
@@ -813,11 +798,6 @@ const getFrameworkControls = async (req, res) => {
       message:
         "Framework processing has not started yet. Please upload the framework to AI service first.",
       data: {
-        framework: {
-          id: framework._id,
-          frameworkName: framework.frameworkName,
-          frameworkType: framework.frameworkType,
-        },
         aiProcessing: formatAIProcessingData(framework.aiProcessing),
       },
     });

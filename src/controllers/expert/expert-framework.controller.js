@@ -28,98 +28,15 @@ const formatAIProcessingData = (aiProcessing, includeControls = false) => {
     processedAt: aiProcessing.processedAt,
     controlsExtractedAt: aiProcessing.controlsExtractedAt || null,
     errorMessage: aiProcessing.errorMessage || null,
+    controlsCount: aiProcessing.controlsCount || 0,
   };
 
   // Include controls data if requested
-  if (includeControls) {
-    if (hasExtractedControls({ aiProcessing })) {
-      baseData.extractedControls = aiProcessing.extractedControls;
-      baseData.controlsCount = aiProcessing.controlsCount || 0;
-    } else if (isProcessingInProgress({ aiProcessing })) {
-      baseData.controlsCount = 0;
-      baseData.processingMessage =
-        "Framework is being processed by AI service. Controls will be available once processing is complete.";
-    } else if (hasProcessingFailed({ aiProcessing })) {
-      baseData.controlsCount = 0;
-      baseData.processingMessage = "AI processing failed for this framework";
-    } else {
-      baseData.controlsCount = 0;
-      baseData.processingMessage =
-        "Framework processing has not started yet. Please upload the framework to AI service first.";
-    }
-  } else {
-    // Default behavior - just show count
-    baseData.controlsCount = aiProcessing.controlsCount || 0;
+  if (includeControls && aiProcessing.extractedControls?.length > 0) {
+    baseData.extractedControls = aiProcessing.extractedControls;
   }
 
   return baseData;
-};
-
-const updateAIStatus = async (framework, aiData) => {
-  framework.aiProcessing.uuid = aiData.uuid || framework.aiProcessing.uuid;
-  framework.aiProcessing.status =
-    aiData.status || framework.aiProcessing.status;
-  framework.aiProcessing.control_extraction_status =
-    aiData.control_extraction_status ||
-    framework.aiProcessing.control_extraction_status;
-  framework.aiProcessing.processedAt = aiData.processedAt || new Date();
-  framework.aiProcessing.errorMessage = aiData.errorMessage || null;
-  return await framework.save();
-};
-
-const storeExtractedControls = async (framework, controlsData) => {
-  let controls = [];
-
-  if (Array.isArray(controlsData)) {
-    controls = controlsData;
-  } else if (controlsData && typeof controlsData === "object") {
-    if (controlsData.controls && Array.isArray(controlsData.controls)) {
-      controls = controlsData.controls;
-    } else if (controlsData.data && Array.isArray(controlsData.data)) {
-      controls = controlsData.data;
-    }
-
-    if (controlsData.status) {
-      framework.aiProcessing.status = controlsData.status;
-      framework.aiProcessing.control_extraction_status = controlsData.status;
-    }
-  }
-
-  framework.aiProcessing.extractedControls = controls;
-  framework.aiProcessing.controlsCount = controls.length;
-  framework.aiProcessing.controlsExtractedAt = new Date();
-
-  if (
-    !framework.aiProcessing.status ||
-    framework.aiProcessing.status !== "completed"
-  ) {
-    framework.aiProcessing.status = "completed";
-    framework.aiProcessing.control_extraction_status = "completed";
-  }
-
-  return await framework.save();
-};
-
-const hasExtractedControls = (framework) => {
-  return (
-    framework.aiProcessing.extractedControls &&
-    framework.aiProcessing.extractedControls.length > 0 &&
-    (framework.aiProcessing.status === "completed" ||
-      framework.aiProcessing.control_extraction_status === "completed")
-  );
-};
-
-const isProcessingInProgress = (framework) => {
-  return (
-    framework.aiProcessing.status === "processing" ||
-    framework.aiProcessing.status === "uploaded" ||
-    framework.aiProcessing.control_extraction_status === "processing" ||
-    framework.aiProcessing.control_extraction_status === "started"
-  );
-};
-
-const hasProcessingFailed = (framework) => {
-  return framework.aiProcessing.status === "failed";
 };
 
 // Create upload instance
@@ -319,7 +236,6 @@ const getFrameworkById = async (req, res) => {
       });
     }
 
-    // Base framework data with enhanced AI processing that includes controls
     const responseData = {
       framework: {
         id: framework._id,
@@ -340,10 +256,11 @@ const getFrameworkById = async (req, res) => {
       },
     };
 
-    let message = "Framework retrieved successfully";
-    if (hasExtractedControls(framework)) {
-      message = `Framework retrieved successfully with ${framework.aiProcessing.controlsCount} extracted controls`;
-    }
+    const controlsCount = framework.aiProcessing?.controlsCount || 0;
+    const message =
+      controlsCount > 0
+        ? `Framework retrieved successfully with ${controlsCount} extracted controls`
+        : "Framework retrieved successfully";
 
     res.status(200).json({
       success: true,
@@ -612,14 +529,6 @@ const uploadFrameworkToAIService = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "Framework ID is required",
-        field: "id",
-      });
-    }
-
     const framework = await ExpertFramework.findOne({
       _id: id,
       isActive: true,
@@ -646,15 +555,6 @@ const uploadFrameworkToAIService = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `Framework is already ${framework.aiProcessing.status} in AI service`,
-        data: {
-          aiStatus: {
-            uuid: framework.aiProcessing.uuid,
-            status: framework.aiProcessing.status,
-            control_extraction_status:
-              framework.aiProcessing.control_extraction_status,
-            processedAt: framework.aiProcessing.processedAt,
-          },
-        },
       });
     }
 
@@ -664,13 +564,14 @@ const uploadFrameworkToAIService = async (req, res) => {
       throw new Error("AI upload failed");
     }
 
-    await updateAIStatus(framework, {
-      uuid: aiResult.aiResponse.uuid,
-      status: aiResult.aiResponse.status,
-      control_extraction_status: aiResult.aiResponse.control_extraction_status,
-      processedAt: new Date(),
-      errorMessage: null,
-    });
+    // Update framework with AI response
+    framework.aiProcessing.uuid = aiResult.aiResponse.uuid;
+    framework.aiProcessing.status = aiResult.aiResponse.status;
+    framework.aiProcessing.control_extraction_status =
+      aiResult.aiResponse.control_extraction_status;
+    framework.aiProcessing.processedAt = new Date();
+    framework.aiProcessing.errorMessage = null;
+    await framework.save();
 
     // Start background monitoring
     try {
@@ -684,14 +585,25 @@ const uploadFrameworkToAIService = async (req, res) => {
           ) {
             const fw = await ExpertFramework.findById(id);
             if (fw) {
-              await storeExtractedControls(fw, message);
+              const controls = Array.isArray(message.data)
+                ? message.data
+                : Array.isArray(message.controls)
+                ? message.controls
+                : [];
+
+              fw.aiProcessing.extractedControls = controls;
+              fw.aiProcessing.controlsCount = controls.length;
+              fw.aiProcessing.controlsExtractedAt = new Date();
+              fw.aiProcessing.status = "completed";
+              fw.aiProcessing.control_extraction_status = "completed";
+              await fw.save();
             }
           }
         }
       );
     } catch (wsError) {
       console.error(
-        `❌ Failed to start background monitoring for framework ${id}:`,
+        `Failed to start background monitoring for framework ${id}:`,
         wsError
       );
     }
@@ -713,53 +625,30 @@ const uploadFrameworkToAIService = async (req, res) => {
             processedAt: framework.aiProcessing.processedAt,
           },
         },
-        instructions:
-          "Controls will be automatically extracted and stored. Use GET /:id API to check status and retrieve results with controls data.",
       },
     });
   } catch (error) {
-    console.error("❌ Error uploading framework to AI service:", error);
+    console.error("Error uploading framework to AI service:", error);
 
+    // Update framework status on error
     if (req.params.id) {
       try {
         const framework = await ExpertFramework.findById(req.params.id);
         if (framework) {
-          await updateAIStatus(framework, {
-            status: "failed",
-            errorMessage: error.message,
-            processedAt: new Date(),
-          });
+          framework.aiProcessing.status = "failed";
+          framework.aiProcessing.errorMessage = error.message;
+          framework.aiProcessing.processedAt = new Date();
+          await framework.save();
         }
       } catch (updateError) {
         console.error("Failed to update framework error status:", updateError);
       }
     }
 
-    if (error.message.includes("File not found")) {
-      return res.status(404).json({
-        success: false,
-        message: "Framework file not found",
-      });
-    }
-
     if (error.message.includes("AI service is not available")) {
       return res.status(503).json({
         success: false,
         message: "AI service is currently unavailable. Please try again later.",
-      });
-    }
-
-    if (error.message.includes("File too large")) {
-      return res.status(413).json({
-        success: false,
-        message: "Framework file is too large for AI processing",
-      });
-    }
-
-    if (error.message.includes("Unsupported file type")) {
-      return res.status(415).json({
-        success: false,
-        message: "Framework file type is not supported by AI service",
       });
     }
 

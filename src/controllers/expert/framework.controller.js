@@ -17,6 +17,7 @@ const {
   uploadFrameworkToAI,
   getExtractedControls,
 } = require("../../services/ai/aiUpload.service");
+const { aiFrameworkWsService } = require("../../services/ai/aiFramework.ws");
 
 // Helper function to format AI processing data
 const formatAIProcessingData = (aiProcessing) => {
@@ -622,9 +623,29 @@ const uploadFrameworkToAIService = async (req, res) => {
       errorMessage: null,
     });
 
+    // Automatically start WebSocket connection to monitor AI processing
+    console.log(
+      `🔌 Starting automatic WebSocket monitoring for framework ${id}`
+    );
+    try {
+      // Create a dummy WebSocket client to monitor AI processing
+      aiFrameworkWsService.startBackgroundMonitoring(
+        aiResult.aiResponse.uuid,
+        id
+      );
+      console.log(`✅ Background monitoring started for framework ${id}`);
+    } catch (wsError) {
+      console.error(
+        `❌ Failed to start background monitoring for framework ${id}:`,
+        wsError
+      );
+      // Don't fail the main request if WebSocket monitoring fails
+    }
+
     res.status(200).json({
       success: true,
-      message: "Framework uploaded to AI service successfully",
+      message:
+        "Framework uploaded to AI service successfully. Processing will continue in background.",
       data: {
         framework: {
           id: framework._id,
@@ -638,6 +659,8 @@ const uploadFrameworkToAIService = async (req, res) => {
             processedAt: framework.aiProcessing.processedAt,
           },
         },
+        instructions:
+          "Controls will be automatically extracted and stored. Use GET /controls API to check status and retrieve results.",
       },
     });
   } catch (error) {
@@ -726,7 +749,8 @@ const getFrameworkControls = async (req, res) => {
     if (!framework.aiProcessing.uuid) {
       return res.status(400).json({
         success: false,
-        message: "Framework has not been uploaded to AI service yet",
+        message:
+          "Framework has not been uploaded to AI service yet. Please upload the framework to AI service first.",
       });
     }
 
@@ -734,8 +758,13 @@ const getFrameworkControls = async (req, res) => {
     if (
       framework.aiProcessing.extractedControls &&
       framework.aiProcessing.extractedControls.length > 0 &&
-      framework.aiProcessing.status === "completed"
+      (framework.aiProcessing.status === "completed" ||
+        framework.aiProcessing.control_extraction_status === "completed")
     ) {
+      console.log(
+        `📋 Returning ${framework.aiProcessing.controlsCount} stored controls for framework ${id}`
+      );
+
       return res.status(200).json({
         success: true,
         message: `Found ${framework.aiProcessing.controlsCount} extracted controls`,
@@ -745,50 +774,75 @@ const getFrameworkControls = async (req, res) => {
             frameworkName: framework.frameworkName,
             frameworkType: framework.frameworkType,
           },
-          aiProcessing: {
-            uuid: framework.aiProcessing.uuid,
-            status: framework.aiProcessing.status,
-            control_extraction_status:
-              framework.aiProcessing.control_extraction_status,
-            controlsCount: framework.aiProcessing.controlsCount,
-            controlsExtractedAt: framework.aiProcessing.controlsExtractedAt,
-          },
+          aiProcessing: formatAIProcessingData(framework.aiProcessing),
           controls: framework.aiProcessing.extractedControls,
         },
       });
     }
 
-    // Store framework info in request for WebSocket handler
-    req.framework = framework;
+    // If processing is in progress, return status
+    if (
+      framework.aiProcessing.status === "processing" ||
+      framework.aiProcessing.status === "uploaded" ||
+      framework.aiProcessing.control_extraction_status === "processing" ||
+      framework.aiProcessing.control_extraction_status === "started"
+    ) {
+      return res.status(202).json({
+        success: true,
+        message:
+          "Framework is being processed by AI service. Controls will be available once processing is complete.",
+        data: {
+          framework: {
+            id: framework._id,
+            frameworkName: framework.frameworkName,
+            frameworkType: framework.frameworkType,
+          },
+          aiProcessing: formatAIProcessingData(framework.aiProcessing),
+          controls: null,
+          isProcessing: true,
+          instructions:
+            "Please wait for processing to complete, then call this API again to get the extracted controls.",
+        },
+      });
+    }
 
-    // Return acknowledgment - WebSocket stream will be initiated by WebSocket endpoint
-    res.status(200).json({
-      success: true,
+    // If processing failed
+    if (framework.aiProcessing.status === "failed") {
+      return res.status(400).json({
+        success: false,
+        message: "AI processing failed for this framework",
+        data: {
+          framework: {
+            id: framework._id,
+            frameworkName: framework.frameworkName,
+            frameworkType: framework.frameworkType,
+          },
+          aiProcessing: formatAIProcessingData(framework.aiProcessing),
+          errorMessage: framework.aiProcessing.errorMessage,
+        },
+      });
+    }
+
+    // If no processing has started yet
+    return res.status(400).json({
+      success: false,
       message:
-        "WebSocket stream ready. Connect to /ws/framework-controls/" + id,
+        "Framework processing has not started yet. Please upload the framework to AI service first.",
       data: {
         framework: {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
         },
-        aiProcessing: {
-          uuid: framework.aiProcessing.uuid,
-          status: framework.aiProcessing.status,
-          control_extraction_status:
-            framework.aiProcessing.control_extraction_status,
-        },
-        websocketEndpoint: `/ws/framework-controls/${id}`,
-        instructions:
-          "Connect to the WebSocket endpoint to receive real-time updates",
+        aiProcessing: formatAIProcessingData(framework.aiProcessing),
       },
     });
   } catch (error) {
-    console.error("❌ Error preparing framework controls WebSocket:", error);
+    console.error("❌ Error getting framework controls:", error);
 
     res.status(500).json({
       success: false,
-      message: "Failed to prepare framework controls stream",
+      message: "Failed to get framework controls",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }

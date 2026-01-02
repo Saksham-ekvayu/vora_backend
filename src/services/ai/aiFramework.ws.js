@@ -237,6 +237,130 @@ class AIFrameworkWebSocketService {
     this.activeConnections.clear();
     this.clientConnections.clear();
   }
+
+  /**
+   * Start background monitoring for AI processing (without frontend client)
+   * @param {string} uuid - Framework UUID from AI processing
+   * @param {string} frameworkId - Framework ID for tracking
+   */
+  startBackgroundMonitoring(uuid, frameworkId) {
+    try {
+      // Build AI WebSocket URL
+      const aiWsUrl = `${AI_BASE_URL.replace(
+        "http",
+        "ws"
+      )}/expert/framework/extract-controls/${uuid}`;
+
+      console.log(`🔌 Starting background monitoring: ${aiWsUrl}`);
+
+      // Create WebSocket connection to AI service
+      const aiWs = new WebSocket(aiWsUrl);
+
+      // Store connection for cleanup
+      this.activeConnections.set(frameworkId, aiWs);
+
+      // AI WebSocket event handlers
+      aiWs.on("open", () => {
+        console.log(
+          `✅ Background monitoring connected for framework ${frameworkId}`
+        );
+      });
+
+      aiWs.on("message", async (data) => {
+        try {
+          const message = JSON.parse(data.toString());
+          console.log(`📨 Background AI message for ${frameworkId}:`, message);
+
+          // Store controls in database when completed
+          if (
+            message.status === "completed" &&
+            (message.controls || message.data)
+          ) {
+            try {
+              console.log(
+                `🔍 Storing controls from background monitoring for framework ${frameworkId}`
+              );
+              console.log(`🔍 Message data:`, {
+                status: message.status,
+                hasControls: !!message.controls,
+                hasData: !!message.data,
+                controlsLength: message.controls?.length,
+                dataLength: message.data?.length,
+              });
+
+              const framework = await ExpertFramework.findById(frameworkId);
+              if (framework) {
+                console.log(`🔍 Framework found, current AI status:`, {
+                  uuid: framework.aiProcessing.uuid,
+                  status: framework.aiProcessing.status,
+                  controlsCount: framework.aiProcessing.controlsCount,
+                });
+
+                await framework.storeExtractedControlsFromWS(message);
+
+                // Refresh framework data to get updated values
+                const updatedFramework = await ExpertFramework.findById(
+                  frameworkId
+                );
+
+                console.log(
+                  `💾 Successfully stored ${updatedFramework.aiProcessing.controlsCount} controls for framework ${frameworkId} (background)`
+                );
+                console.log(
+                  `💾 Updated framework status: ${updatedFramework.aiProcessing.status}`
+                );
+              } else {
+                console.error(`❌ Framework not found: ${frameworkId}`);
+              }
+            } catch (dbError) {
+              console.error(
+                `❌ Error storing controls in database for ${frameworkId}:`,
+                dbError
+              );
+            }
+          }
+
+          // Handle completion or error - close AI connection
+          if (message.status === "completed" || message.status === "error") {
+            console.log(
+              `🏁 Background AI processing ${message.status} for framework ${frameworkId}`
+            );
+            setTimeout(() => {
+              this.closeAIConnection(frameworkId);
+            }, 1000); // Small delay to ensure message is processed
+          }
+        } catch (parseError) {
+          console.error(
+            "❌ Error parsing background AI WebSocket message:",
+            parseError
+          );
+        }
+      });
+
+      aiWs.on("error", (error) => {
+        console.error(
+          `❌ Background AI WebSocket error for framework ${frameworkId}:`,
+          error
+        );
+        this.closeAIConnection(frameworkId);
+      });
+
+      aiWs.on("close", (code, reason) => {
+        console.log(
+          `🔌 Background AI WebSocket closed for framework ${frameworkId}:`,
+          code,
+          reason.toString()
+        );
+        this.cleanup(frameworkId);
+      });
+    } catch (error) {
+      console.error(
+        `❌ Error creating background AI WebSocket connection for framework ${frameworkId}:`,
+        error
+      );
+      throw error;
+    }
+  }
 }
 
 // Create singleton instance

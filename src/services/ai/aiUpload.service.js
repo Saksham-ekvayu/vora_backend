@@ -153,7 +153,7 @@ const checkProcessingStatus = async (uuid) => {
       throw new Error("UUID is required");
     }
 
-    const response = await addRequest(`/status/${uuid}`, {
+    const response = await addRequest(`/expert/framework/status/${uuid}`, {
       method: "GET",
     });
 
@@ -178,7 +178,7 @@ const getExtractedControls = async (uuid) => {
       throw new Error("UUID is required");
     }
 
-    const response = await addRequest(`/extract_controls/${uuid}`, {
+    const response = await addRequest(`/expert/framework/extract-controls/${uuid}`, {
       method: "GET",
     });
 

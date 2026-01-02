@@ -4,6 +4,7 @@ const {
   verifyOTP,
   resendOTP,
   login,
+  logout,
   forgotPassword,
   resetPassword,
   sendVerificationOTP,
@@ -17,6 +18,7 @@ const {
   resendOtpValidation,
   sendVerificationOTPValidation,
 } = require("../../validations/user.validation");
+const { authenticateToken } = require("../../middlewares/auth.middleware");
 
 const router = express.Router();
 
@@ -32,5 +34,8 @@ router.post(
   sendVerificationOTPValidation,
   sendVerificationOTP
 );
+
+// Protected routes - require authentication
+router.post("/logout", authenticateToken, logout);
 
 module.exports = router;

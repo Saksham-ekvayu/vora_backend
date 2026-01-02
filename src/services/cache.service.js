@@ -261,6 +261,36 @@ class CacheService {
     }
   }
 
+  // Generic cache methods for token blacklisting
+  async setCache(key, value, ttl = CACHE_TTL.MEDIUM) {
+    try {
+      await cacheOperations.set(key, value, ttl);
+      return true;
+    } catch (error) {
+      console.error(`Failed to set cache for key ${key}:`, error.message);
+      return false;
+    }
+  }
+
+  async getCache(key) {
+    try {
+      return await cacheOperations.get(key);
+    } catch (error) {
+      console.error(`Failed to get cache for key ${key}:`, error.message);
+      return null;
+    }
+  }
+
+  async deleteCache(key) {
+    try {
+      await cacheOperations.del(key);
+      return true;
+    } catch (error) {
+      console.error(`Failed to delete cache for key ${key}:`, error.message);
+      return false;
+    }
+  }
+
   // Cache health check
   async healthCheck() {
     try {

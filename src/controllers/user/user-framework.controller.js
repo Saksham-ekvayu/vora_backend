@@ -7,11 +7,42 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
+const aiService = require("../../services/ai/user-ai.service");
 // const cacheService = require("../../services/cache.service");
 // const { invalidateCache } = require("../../middlewares/cache.middleware");
 
 // Create upload instance with specific directory for user frameworks
 const upload = createDocumentUpload("src/uploads/user-frameworks");
+
+// Helper functions
+const getFormattedFileSize = (bytes) => {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+};
+
+const formatAIProcessingData = (aiProcessing, includeControls = false) => {
+  if (!aiProcessing?.uuid) return null;
+
+  const baseData = {
+    uuid: aiProcessing.uuid,
+    status: aiProcessing.status,
+    control_extraction_status: aiProcessing.control_extraction_status,
+    processedAt: aiProcessing.processedAt,
+    controlsExtractedAt: aiProcessing.controlsExtractedAt || null,
+    errorMessage: aiProcessing.errorMessage || null,
+    controlsCount: aiProcessing.controlsCount || 0,
+  };
+
+  // Include controls data if requested
+  if (includeControls && aiProcessing.extractedControls?.length > 0) {
+    baseData.extractedControls = aiProcessing.extractedControls;
+  }
+
+  return baseData;
+};
 
 // Create a new framework
 const createFramework = async (req, res) => {
@@ -79,12 +110,6 @@ const createFramework = async (req, res) => {
     // Populate uploadedBy field for response
     await framework.populate("uploadedBy", "name email role");
 
-    // Cache the framework (commented out)
-    // await cacheService.cacheFramework(framework);
-
-    // Invalidate framework list caches (commented out)
-    // await invalidateCache.frameworks(req.user._id);
-
     res.status(201).json({
       success: true,
       message: message,
@@ -93,7 +118,7 @@ const createFramework = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: framework.getFormattedFileSize(),
+          fileSize: getFormattedFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
           uploadedBy: {
             id: framework.uploadedBy._id,
@@ -101,6 +126,7 @@ const createFramework = async (req, res) => {
             email: framework.uploadedBy.email,
             role: framework.uploadedBy.role,
           },
+          aiProcessing: formatAIProcessingData(framework.aiProcessing),
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
         },
@@ -163,7 +189,7 @@ const getAllFrameworks = async (req, res) => {
         id: doc._id,
         frameworkName: doc.frameworkName,
         frameworkType: doc.frameworkType,
-        fileSize: doc.getFormattedFileSize(),
+        fileSize: getFormattedFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
         uploadedBy: {
           id: doc.uploadedBy._id,
@@ -171,6 +197,7 @@ const getAllFrameworks = async (req, res) => {
           email: doc.uploadedBy.email,
           role: doc.uploadedBy.role,
         },
+        aiProcessing: formatAIProcessingData(doc.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       }),
@@ -227,29 +254,36 @@ const getFrameworkById = async (req, res) => {
       });
     }
 
+    const responseData = {
+      framework: {
+        id: framework._id,
+        frameworkName: framework.frameworkName,
+        frameworkType: framework.frameworkType,
+        fileSize: getFormattedFileSize(framework.fileSize),
+        originalFileName: framework.originalFileName,
+        fileUrl: framework.fileUrl,
+        uploadedBy: {
+          id: framework.uploadedBy._id,
+          name: framework.uploadedBy.name,
+          email: framework.uploadedBy.email,
+          role: framework.uploadedBy.role,
+        },
+        aiProcessing: formatAIProcessingData(framework.aiProcessing, true),
+        createdAt: framework.createdAt,
+        updatedAt: framework.updatedAt,
+      },
+    };
+
+    const controlsCount = framework.aiProcessing?.controlsCount || 0;
+    const message =
+      controlsCount > 0
+        ? `Framework retrieved successfully with ${controlsCount} extracted controls`
+        : "Framework retrieved successfully";
+
     res.status(200).json({
       success: true,
-      message: "Framework retrieved successfully",
-      data: {
-        framework: {
-          id: framework._id,
-          frameworkName: framework.frameworkName,
-          frameworkType: framework.frameworkType,
-          fileSize: framework.getFormattedFileSize
-            ? framework.getFormattedFileSize()
-            : "N/A",
-          originalFileName: framework.originalFileName,
-          fileUrl: framework.fileUrl,
-          uploadedBy: {
-            id: framework.uploadedBy._id,
-            name: framework.uploadedBy.name,
-            email: framework.uploadedBy.email,
-            role: framework.uploadedBy.role,
-          },
-          createdAt: framework.createdAt,
-          updatedAt: framework.updatedAt,
-        },
-      },
+      message: message,
+      data: responseData,
     });
   } catch (error) {
     console.error("Error getting framework by ID:", error);
@@ -338,7 +372,7 @@ const updateFramework = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: framework.getFormattedFileSize(),
+          fileSize: getFormattedFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
           uploadedBy: {
             id: framework.uploadedBy._id,
@@ -489,7 +523,7 @@ const getUserFrameworks = async (req, res) => {
         id: doc._id,
         frameworkName: doc.frameworkName,
         frameworkType: doc.frameworkType,
-        fileSize: doc.getFormattedFileSize(),
+        fileSize: getFormattedFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
         uploadedBy: {
           id: doc.uploadedBy._id,
@@ -497,6 +531,7 @@ const getUserFrameworks = async (req, res) => {
           email: doc.uploadedBy.email,
           role: doc.uploadedBy.role,
         },
+        aiProcessing: formatAIProcessingData(doc.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       }),
@@ -527,6 +562,200 @@ const getUserFrameworks = async (req, res) => {
   }
 };
 
+// Upload framework to AI service
+const uploadFrameworkToAIService = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const framework = await Framework.findOne({
+      _id: id,
+      isActive: true,
+    }).populate("uploadedBy", "name email role");
+
+    if (!framework) {
+      return res.status(404).json({
+        success: false,
+        message: "Framework not found",
+      });
+    }
+
+    if (!fs.existsSync(framework.fileUrl)) {
+      return res.status(404).json({
+        success: false,
+        message: "Framework file not found on server",
+      });
+    }
+
+    if (
+      framework.aiProcessing.uuid &&
+      framework.aiProcessing.status !== "failed"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `Framework is already ${framework.aiProcessing.status} in AI service`,
+      });
+    }
+
+    const aiResult = await aiService.uploadFramework(framework.fileUrl);
+
+    if (!aiResult.success) {
+      throw new Error("AI upload failed");
+    }
+
+    // Update framework with AI response
+    framework.aiProcessing.uuid = aiResult.aiResponse.uuid;
+    framework.aiProcessing.status = aiResult.aiResponse.status;
+    framework.aiProcessing.control_extraction_status =
+      aiResult.aiResponse.control_extraction_status;
+    framework.aiProcessing.processedAt = new Date();
+    framework.aiProcessing.errorMessage = null;
+    await framework.save();
+
+    // Start background monitoring
+    try {
+      aiService.startBackgroundMonitoring(
+        aiResult.aiResponse.uuid,
+        id,
+        async (message) => {
+          if (
+            message.status === "completed" &&
+            (message.controls || message.data)
+          ) {
+            const fw = await Framework.findById(id);
+            if (fw) {
+              const controls = Array.isArray(message.data)
+                ? message.data
+                : Array.isArray(message.controls)
+                ? message.controls
+                : [];
+
+              fw.aiProcessing.extractedControls = controls;
+              fw.aiProcessing.controlsCount = controls.length;
+              fw.aiProcessing.controlsExtractedAt = new Date();
+              fw.aiProcessing.status = "completed";
+              fw.aiProcessing.control_extraction_status = "completed";
+              await fw.save();
+            }
+          }
+        }
+      );
+    } catch (wsError) {
+      console.error(
+        `Failed to start background monitoring for framework ${id}:`,
+        wsError
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      message:
+        "Framework uploaded to AI service successfully. Processing will continue in background.",
+      data: {
+        framework: {
+          id: framework._id,
+          frameworkName: framework.frameworkName,
+          frameworkType: framework.frameworkType,
+          aiProcessing: {
+            uuid: aiResult.aiResponse.uuid,
+            status: aiResult.aiResponse.status,
+            control_extraction_status:
+              aiResult.aiResponse.control_extraction_status,
+            processedAt: framework.aiProcessing.processedAt,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error uploading framework to AI service:", error);
+
+    // Update framework status on error
+    if (req.params.id) {
+      try {
+        const framework = await Framework.findById(req.params.id);
+        if (framework) {
+          framework.aiProcessing.status = "failed";
+          framework.aiProcessing.errorMessage = error.message;
+          framework.aiProcessing.processedAt = new Date();
+          await framework.save();
+        }
+      } catch (updateError) {
+        console.error("Failed to update framework error status:", updateError);
+      }
+    }
+
+    if (error.message.includes("AI service is not available")) {
+      return res.status(503).json({
+        success: false,
+        message: "AI service is currently unavailable. Please try again later.",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to upload framework to AI service",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+// Check AI processing status
+const checkAIProcessingStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const framework = await Framework.findOne({
+      _id: id,
+      isActive: true,
+    });
+
+    if (!framework) {
+      return res.status(404).json({
+        success: false,
+        message: "Framework not found",
+      });
+    }
+
+    if (!framework.aiProcessing.uuid) {
+      return res.status(400).json({
+        success: false,
+        message: "Framework has not been uploaded to AI service yet",
+      });
+    }
+
+    const statusResult = await aiService.checkProcessingStatus(
+      framework.aiProcessing.uuid
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "AI processing status retrieved successfully",
+      data: {
+        framework: {
+          id: framework._id,
+          frameworkName: framework.frameworkName,
+          aiProcessing: formatAIProcessingData(framework.aiProcessing, true),
+        },
+        aiStatus: statusResult.status,
+      },
+    });
+  } catch (error) {
+    console.error("Error checking AI processing status:", error);
+
+    if (error.message.includes("AI service is not available")) {
+      return res.status(503).json({
+        success: false,
+        message: "AI service is currently unavailable. Please try again later.",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to check AI processing status",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
 module.exports = {
   upload,
   createFramework,
@@ -536,4 +765,6 @@ module.exports = {
   deleteFramework,
   downloadFramework,
   getUserFrameworks,
+  uploadFrameworkToAIService,
+  checkAIProcessingStatus,
 };

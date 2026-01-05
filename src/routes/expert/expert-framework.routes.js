@@ -30,6 +30,7 @@ const {
   downloadFramework,
   getExpertFrameworks,
   uploadFrameworkToAIService,
+  checkAIProcessingStatus,
 } = require("../../controllers/expert/expert-framework.controller");
 
 // Routes
@@ -142,6 +143,19 @@ router.post(
   canExpertCreate, // Only experts can upload to AI service
   getExpertFrameworkByIdValidation, // Validate id in params
   uploadFrameworkToAIService
+);
+
+/**
+ * @route   GET /api/expert/frameworks/:id/ai-status
+ * @desc    Check AI processing status for framework
+ * @access  Private (All roles can check status)
+ */
+router.get(
+  "/:id/ai-status",
+  authenticateToken,
+  allRoles, // All roles can check AI status
+  getExpertFrameworkByIdValidation, // Validate id in params
+  checkAIProcessingStatus
 );
 
 module.exports = router;

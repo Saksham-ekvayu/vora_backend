@@ -40,6 +40,74 @@ const frameworkSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // AI Processing Fields
+    aiProcessing: {
+      uuid: {
+        type: String,
+        trim: true,
+        default: null,
+      },
+      status: {
+        type: String,
+        enum: {
+          values: ["pending", "uploaded", "processing", "completed", "failed"],
+          message:
+            "AI status must be one of: pending, uploaded, processing, completed, failed",
+        },
+        default: "pending",
+      },
+      control_extraction_status: {
+        type: String,
+        enum: {
+          values: ["pending", "started", "processing", "completed", "failed"],
+          message:
+            "Control extraction status must be one of: pending, started, processing, completed, failed",
+        },
+        default: "pending",
+      },
+      processedAt: {
+        type: Date,
+        default: null,
+      },
+      errorMessage: {
+        type: String,
+        default: null,
+      },
+      // Store extracted controls
+      extractedControls: [
+        {
+          Control_id: {
+            type: String,
+            trim: true,
+          },
+          Control_name: {
+            type: String,
+            trim: true,
+          },
+          Control_type: {
+            type: String,
+            trim: true,
+            default: "",
+          },
+          Control_description: {
+            type: String,
+            trim: true,
+          },
+          Deployment_points: {
+            type: String,
+            trim: true,
+          },
+        },
+      ],
+      controlsCount: {
+        type: Number,
+        default: 0,
+      },
+      controlsExtractedAt: {
+        type: Date,
+        default: null,
+      },
+    },
   },
   {
     timestamps: true, // This adds createdAt and updatedAt automatically
@@ -50,39 +118,8 @@ const frameworkSchema = new mongoose.Schema(
 frameworkSchema.index({ uploadedBy: 1 });
 frameworkSchema.index({ frameworkType: 1 });
 frameworkSchema.index({ createdAt: -1 });
-
-// Virtual for file extension
-frameworkSchema.virtual("fileExtension").get(function () {
-  return this.frameworkType;
-});
-
-// Method to get formatted file size
-frameworkSchema.methods.getFormattedFileSize = function () {
-  const bytes = this.fileSize;
-  if (bytes === 0) return "0 Bytes";
-
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-};
-
-// Static method to get frameworks by type
-frameworkSchema.statics.getByType = function (frameworkType) {
-  return this.find({ frameworkType, isActive: true }).populate(
-    "uploadedBy",
-    "name email role"
-  );
-};
-
-// Static method to get user frameworks
-frameworkSchema.statics.getUserFrameworks = function (userId) {
-  return this.find({ uploadedBy: userId, isActive: true }).populate(
-    "uploadedBy",
-    "name email role"
-  );
-};
+frameworkSchema.index({ "aiProcessing.uuid": 1 });
+frameworkSchema.index({ "aiProcessing.status": 1 });
 
 const Framework = mongoose.model(
   "Framework",

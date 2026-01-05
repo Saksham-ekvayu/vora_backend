@@ -11,7 +11,8 @@ dotenv.config();
 const SwaggerExpressDashboard = require("./swagger");
 const { connectDB, disconnectDB } = require("./src/database/database");
 const { getLocalIPv4 } = require("./src/helpers/helper");
-const aiService = require("./src/services/ai/ai.service");
+const expertAIService = require("./src/services/ai/expert-ai.service");
+const userAIService = require("./src/services/ai/user-ai.service");
 
 // Import routes
 const authRoutes = require("./src/routes/auth/auth.routes");
@@ -110,7 +111,8 @@ function gracefulShutdown() {
   console.log(bgYellow("Shutting down..."));
 
   // Close all AI WebSocket connections
-  aiService.closeAllConnections();
+  expertAIService.closeAllConnections();
+  userAIService.closeAllConnections();
 
   Promise.resolve()
     .then(() => disconnectDB())

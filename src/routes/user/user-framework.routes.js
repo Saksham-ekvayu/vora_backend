@@ -17,6 +17,7 @@ const {
   getFrameworkByIdValidation,
   deleteFrameworkValidation,
   getFrameworksQueryValidation,
+  uploadFrameworkToAIValidation,
 } = require("../../validations/user-framework.validation");
 
 // Import controller
@@ -29,6 +30,8 @@ const {
   deleteFramework,
   downloadFramework,
   getUserFrameworks,
+  uploadFrameworkToAIService,
+  checkAIProcessingStatus,
 } = require("../../controllers/user/user-framework.controller");
 
 // Routes
@@ -118,6 +121,32 @@ router.put(
   getFrameworkByIdValidation,
   updateFrameworkValidation,
   updateFramework
+);
+
+/**
+ * @route   POST /api/frameworks/:id/upload-to-ai
+ * @desc    Upload framework to AI service for processing
+ * @access  Private (User only)
+ */
+router.post(
+  "/:id/upload-to-ai",
+  authenticateToken,
+  canUpdate, // Only users can upload their frameworks to AI
+  uploadFrameworkToAIValidation,
+  uploadFrameworkToAIService
+);
+
+/**
+ * @route   GET /api/frameworks/:id/ai-status
+ * @desc    Check AI processing status for framework
+ * @access  Private (User only)
+ */
+router.get(
+  "/:id/ai-status",
+  authenticateToken,
+  canView, // Only users can check AI status
+  getFrameworkByIdValidation, // Validate id in params
+  checkAIProcessingStatus
 );
 
 /**

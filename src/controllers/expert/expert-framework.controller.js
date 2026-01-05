@@ -7,7 +7,7 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
-const aiService = require("../../services/ai/ai.service");
+const aiService = require("../../services/ai/expert-ai.service");
 
 // Helper functions
 const getFormattedFileSize = (bytes) => {
@@ -660,6 +660,64 @@ const uploadFrameworkToAIService = async (req, res) => {
   }
 };
 
+// Check AI processing status
+const checkAIProcessingStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const framework = await ExpertFramework.findOne({
+      _id: id,
+      isActive: true,
+    });
+
+    if (!framework) {
+      return res.status(404).json({
+        success: false,
+        message: "Framework not found",
+      });
+    }
+
+    if (!framework.aiProcessing.uuid) {
+      return res.status(400).json({
+        success: false,
+        message: "Framework has not been uploaded to AI service yet",
+      });
+    }
+
+    const statusResult = await aiService.checkProcessingStatus(
+      framework.aiProcessing.uuid
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "AI processing status retrieved successfully",
+      data: {
+        framework: {
+          id: framework._id,
+          frameworkName: framework.frameworkName,
+          aiProcessing: formatAIProcessingData(framework.aiProcessing, true),
+        },
+        aiStatus: statusResult.status,
+      },
+    });
+  } catch (error) {
+    console.error("Error checking AI processing status:", error);
+
+    if (error.message.includes("AI service is not available")) {
+      return res.status(503).json({
+        success: false,
+        message: "AI service is currently unavailable. Please try again later.",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to check AI processing status",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
 module.exports = {
   upload,
   createFramework,
@@ -670,4 +728,5 @@ module.exports = {
   downloadFramework,
   getExpertFrameworks,
   uploadFrameworkToAIService,
+  checkAIProcessingStatus,
 };

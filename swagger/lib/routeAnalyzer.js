@@ -353,7 +353,16 @@ class RouteAnalyzer {
     }
 
     try {
-      // Method 1: Check route layer for multer middleware
+      // Method 1: Use specific path matching for known file upload endpoints (highest priority)
+      const isKnownFileUploadEndpoint = this.isKnownFileUploadEndpoint(
+        path,
+        method
+      );
+      if (isKnownFileUploadEndpoint) {
+        return true;
+      }
+
+      // Method 2: Check route layer for multer middleware (second priority)
       if (routeLayer && routeLayer.stack) {
         for (const handler of routeLayer.stack) {
           if (handler.handle) {
@@ -367,28 +376,17 @@ class RouteAnalyzer {
               handlerString.includes("req.file") ||
               handlerString.includes("req.files")
             ) {
-              return true;
+              // Double-check it's not an excluded endpoint
+              return !this.isExcludedFromFileUpload(path);
             }
           }
         }
       }
 
-      // Method 2: Check route file for multer usage
+      // Method 3: Check route file for multer usage (third priority)
       const routeFileHasUpload = this.checkRouteFileForUpload(path);
       if (routeFileHasUpload) {
-        return true;
-      }
-
-      // Method 3: Check controller file for file handling
-      const controllerHasUpload = this.checkControllerForUpload(path, method);
-      if (controllerHasUpload) {
-        return true;
-      }
-
-      // Method 4: Check path patterns that typically involve file uploads
-      const pathIndicatesUpload = this.pathIndicatesFileUpload(path);
-      if (pathIndicatesUpload) {
-        return true;
+        return !this.isExcludedFromFileUpload(path);
       }
 
       return false;
@@ -396,6 +394,35 @@ class RouteAnalyzer {
       console.error("Error detecting file upload:", error);
       return false;
     }
+  }
+
+  /**
+   * Check if path should be excluded from file upload detection
+   * @param {string} path - Route path
+   * @returns {boolean} True if path should be excluded
+   */
+  isExcludedFromFileUpload(path) {
+    const pathLower = path.toLowerCase();
+
+    const excludedEndpoints = [
+      /\/upload-to-ai$/, // AI processing endpoints
+      /\/download$/, // Download endpoints
+      /\/my-/, // List endpoints
+      /\/all-/, // List endpoints
+      /\/create$/, // User creation endpoints
+      /\/update$/, // Profile update endpoints
+      /\/profile\//, // Profile endpoints
+      /\/auth\//, // Auth endpoints
+      /\/cache\//, // Cache endpoints
+      /\/logout/, // Logout endpoints
+      /\/verify/, // Verification endpoints
+      /\/resend/, // Resend endpoints
+      /\/forgot/, // Forgot password endpoints
+      /\/reset/, // Reset password endpoints
+      /\/change-password/, // Change password endpoints
+    ];
+
+    return excludedEndpoints.some((pattern) => pattern.test(pathLower));
   }
 
   /**
@@ -414,14 +441,30 @@ class RouteAnalyzer {
       const pathParts = routePath
         .split("/")
         .filter((part) => part && part !== "api");
-      const possibleRouteFiles = [
-        `${pathParts[0]}.routes.js`,
-        `${pathParts[0]}.route.js`,
-        `${pathParts[0]}.js`,
-      ];
 
-      for (const fileName of possibleRouteFiles) {
-        const filePath = path.join(routesDir, fileName);
+      // Build possible route file paths
+      const possibleRouteFiles = [];
+
+      if (pathParts.length >= 2) {
+        // For paths like /api/expert/framework -> expert/expert-framework.routes.js
+        const category = pathParts[0]; // expert, user, admin, auth
+        const resource = pathParts[1]; // framework, document, etc.
+
+        possibleRouteFiles.push(
+          path.join(routesDir, category, `${category}-${resource}.routes.js`),
+          path.join(routesDir, category, `${resource}.routes.js`),
+          path.join(routesDir, category, `${category}.routes.js`)
+        );
+      } else if (pathParts.length === 1) {
+        // For paths like /api/auth -> auth/auth.routes.js
+        const category = pathParts[0];
+        possibleRouteFiles.push(
+          path.join(routesDir, category, `${category}.routes.js`)
+        );
+      }
+
+      // Check each possible route file
+      for (const filePath of possibleRouteFiles) {
         if (fs.existsSync(filePath)) {
           const content = fs.readFileSync(filePath, "utf8");
 
@@ -433,7 +476,8 @@ class RouteAnalyzer {
             content.includes("multer") ||
             content.includes("multipart/form-data")
           ) {
-            return true;
+            // Additional check: make sure the upload middleware is used on the specific route
+            return this.checkSpecificRouteForUpload(content, routePath);
           }
         }
       }
@@ -443,6 +487,105 @@ class RouteAnalyzer {
       console.error("Error checking route file for upload:", error);
       return false;
     }
+  }
+
+  /**
+   * Check if specific route in file uses upload middleware
+   * @param {string} content - Route file content
+   * @param {string} routePath - Route path to check
+   * @returns {boolean} True if specific route uses upload middleware
+   */
+  checkSpecificRouteForUpload(content, routePath) {
+    try {
+      // Extract the route pattern from the path
+      const pathParts = routePath
+        .split("/")
+        .filter((part) => part && part !== "api");
+
+      // Look for route definitions that match the path and include upload middleware
+      const lines = content.split("\n");
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        // Check if this line defines a route that matches our path
+        if (line.includes("router.post") || line.includes("router.put")) {
+          // Check if the route path matches
+          const routeMatch = line.match(
+            /router\.(post|put)\s*\(\s*["']([^"']+)["']/
+          );
+          if (routeMatch) {
+            const routePattern = routeMatch[2];
+            const method = routeMatch[1].toUpperCase();
+
+            // Check if this route pattern matches our path
+            if (
+              this.doesRoutePatternMatch(routePath, routePattern, pathParts)
+            ) {
+              // Look ahead in the next few lines for upload middleware
+              for (let j = i; j < Math.min(i + 10, lines.length); j++) {
+                const nextLine = lines[j].trim();
+                if (
+                  nextLine.includes("upload.single") ||
+                  nextLine.includes("upload.array") ||
+                  nextLine.includes("upload.fields")
+                ) {
+                  return true;
+                }
+                // Stop looking if we hit another route definition
+                if (
+                  j > i &&
+                  nextLine.includes("router.") &&
+                  nextLine.includes("(")
+                ) {
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      return false;
+    } catch (error) {
+      console.error("Error checking specific route for upload:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if route pattern matches the given path
+   * @param {string} actualPath - Actual route path
+   * @param {string} routePattern - Route pattern from file
+   * @param {Array} pathParts - Path parts array
+   * @returns {boolean} True if pattern matches
+   */
+  doesRoutePatternMatch(actualPath, routePattern, pathParts) {
+    // Handle exact matches
+    if (routePattern === "/" && pathParts.length === 0) return true;
+
+    // Handle parameterized routes like "/:id"
+    if (routePattern.includes(":")) {
+      const patternParts = routePattern.split("/").filter((part) => part);
+      if (patternParts.length !== pathParts.length) return false;
+
+      for (let i = 0; i < patternParts.length; i++) {
+        if (
+          !patternParts[i].startsWith(":") &&
+          patternParts[i] !== pathParts[i]
+        ) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // Handle direct matches
+    const expectedPath = "/" + pathParts.join("/");
+    return (
+      routePattern === expectedPath ||
+      routePattern === "/" + pathParts.slice(-1)[0]
+    );
   }
 
   /**
@@ -470,17 +613,23 @@ class RouteAnalyzer {
 
       const controllerContent = fs.readFileSync(controllerFile, "utf8");
 
-      // Check for file upload patterns in controller
-      if (
+      // Check for file upload patterns in controller, but be more specific
+      const hasFileHandling =
         controllerContent.includes("req.file") ||
         controllerContent.includes("req.files") ||
         controllerContent.includes("multer") ||
         controllerContent.includes("multipart") ||
         controllerContent.includes("file.originalname") ||
         controllerContent.includes("file.path") ||
-        controllerContent.includes("file.size")
-      ) {
-        return true;
+        controllerContent.includes("file.size");
+
+      // If controller has file handling, check if it's used in functions that match our route
+      if (hasFileHandling) {
+        return this.checkControllerFunctionForFileUpload(
+          controllerContent,
+          routePath,
+          method
+        );
       }
 
       return false;
@@ -491,26 +640,150 @@ class RouteAnalyzer {
   }
 
   /**
-   * Check if path pattern indicates file upload
-   * @param {string} path - Route path
-   * @returns {boolean} True if path suggests file upload
+   * Check if specific controller function handles file uploads
+   * @param {string} controllerContent - Controller file content
+   * @param {string} routePath - Route path
+   * @param {string} method - HTTP method
+   * @returns {boolean} True if function handles file uploads
    */
-  pathIndicatesFileUpload(path) {
-    const uploadKeywords = [
-      "upload",
-      "file",
-      "document",
-      "image",
-      "photo",
-      "attachment",
-      "media",
-      "asset",
-      "import",
-      "export",
+  checkControllerFunctionForFileUpload(controllerContent, routePath, method) {
+    try {
+      // Find the function that likely handles this route
+      const functionName = this.findMatchingFunction(
+        routePath,
+        method,
+        controllerContent
+      );
+
+      if (!functionName) {
+        return false;
+      }
+
+      // Extract the function body
+      const functionBody = this.extractFunctionBody(
+        controllerContent,
+        functionName
+      );
+
+      if (!functionBody) {
+        return false;
+      }
+
+      // Check if this specific function handles files
+      return (
+        functionBody.includes("req.file") ||
+        functionBody.includes("req.files") ||
+        functionBody.includes("file.originalname") ||
+        functionBody.includes("file.path") ||
+        functionBody.includes("file.size") ||
+        functionBody.includes("upload") ||
+        functionBody.includes("multer")
+      );
+    } catch (error) {
+      console.error(
+        "Error checking controller function for file upload:",
+        error
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Extract function body from controller content
+   * @param {string} controllerContent - Controller file content
+   * @param {string} functionName - Function name
+   * @returns {string|null} Function body
+   */
+  extractFunctionBody(controllerContent, functionName) {
+    const functionPatterns = [
+      new RegExp(
+        `const\\s+${functionName}\\s*=\\s*async\\s*\\([^)]*\\)\\s*=>\\s*{([\\s\\S]*?)^};`,
+        "gm"
+      ),
+      new RegExp(
+        `const\\s+${functionName}\\s*=\\s*\\([^)]*\\)\\s*=>\\s*{([\\s\\S]*?)^};`,
+        "gm"
+      ),
+      new RegExp(
+        `async\\s+function\\s+${functionName}\\s*\\([^)]*\\)\\s*{([\\s\\S]*?)^}`,
+        "gm"
+      ),
+      new RegExp(
+        `function\\s+${functionName}\\s*\\([^)]*\\)\\s*{([\\s\\S]*?)^}`,
+        "gm"
+      ),
     ];
 
+    for (const pattern of functionPatterns) {
+      const match = pattern.exec(controllerContent);
+      if (match) {
+        return match[1];
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Check if path is a known file upload endpoint
+   * @param {string} path - Route path
+   * @param {string} method - HTTP method
+   * @returns {boolean} True if path is a known file upload endpoint
+   */
+  isKnownFileUploadEndpoint(path, method) {
+    // Only POST and PUT methods can have file uploads
+    if (method !== "POST" && method !== "PUT") {
+      return false;
+    }
+
     const pathLower = path.toLowerCase();
-    return uploadKeywords.some((keyword) => pathLower.includes(keyword));
+
+    // Specific endpoints that are known to handle file uploads
+    const fileUploadEndpoints = [
+      // Expert framework endpoints - only create and update framework
+      { pattern: /^\/api\/expert\/frameworks?\/?$/, methods: ["POST"] },
+      { pattern: /^\/api\/expert\/frameworks?\/[^\/]+\/?$/, methods: ["PUT"] },
+
+      // User document endpoints - only create and update document
+      { pattern: /^\/api\/users?\/documents?\/?$/, methods: ["POST"] },
+      { pattern: /^\/api\/users?\/documents?\/[^\/]+\/?$/, methods: ["PUT"] },
+
+      // User framework endpoints - only create and update framework
+      { pattern: /^\/api\/users?\/frameworks?\/?$/, methods: ["POST"] },
+      { pattern: /^\/api\/users?\/frameworks?\/[^\/]+\/?$/, methods: ["PUT"] },
+    ];
+
+    // Exclude specific endpoints that should NOT have file uploads
+    const excludedEndpoints = [
+      /\/upload-to-ai$/, // AI processing endpoints
+      /\/download$/, // Download endpoints
+      /\/my-/, // List endpoints
+      /\/all-/, // List endpoints
+      /\/create$/, // User creation endpoints
+      /\/update$/, // Profile update endpoints
+      /\/profile\//, // Profile endpoints
+      /\/auth\//, // Auth endpoints
+      /\/cache\//, // Cache endpoints
+    ];
+
+    // Check if path should be excluded
+    for (const excludePattern of excludedEndpoints) {
+      if (excludePattern.test(pathLower)) {
+        return false;
+      }
+    }
+
+    // Check if current path matches any known file upload endpoint
+    for (const endpoint of fileUploadEndpoints) {
+      if (
+        endpoint.pattern.test(pathLower) &&
+        endpoint.methods.includes(method)
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -731,27 +1004,71 @@ class RouteAnalyzer {
         return controllerFiles;
       }
 
-      const files = fs.readdirSync(controllersDir);
-
-      files.forEach((file) => {
-        if (file.endsWith(".controller.js") || file.endsWith(".js")) {
-          const controllerName = file.replace(/\.controller\.js$|\.js$/, "");
-          const filePath = path.join(controllersDir, file);
-
-          // Generic mapping - extract controller name and map to API path
-          // This works for any controller naming convention
-          controllerFiles[`/api/${controllerName}`] = filePath;
-
-          // Also add without /api prefix for flexibility
-          controllerFiles[`/${controllerName}`] = filePath;
-        }
-      });
+      // Recursively scan controller directories
+      this.scanControllerDirectory(controllersDir, controllerFiles, "");
 
       return controllerFiles;
     } catch (error) {
       console.error("Error discovering controller files:", error);
       return controllerFiles;
     }
+  }
+
+  /**
+   * Recursively scan controller directory
+   * @param {string} dirPath - Directory path to scan
+   * @param {Object} controllerFiles - Controller files map
+   * @param {string} basePath - Base path for mapping
+   */
+  scanControllerDirectory(dirPath, controllerFiles, basePath) {
+    const items = fs.readdirSync(dirPath);
+
+    items.forEach((item) => {
+      const itemPath = path.join(dirPath, item);
+      const stat = fs.statSync(itemPath);
+
+      if (stat.isDirectory()) {
+        // Recursively scan subdirectories
+        this.scanControllerDirectory(
+          itemPath,
+          controllerFiles,
+          basePath + "/" + item
+        );
+      } else if (item.endsWith(".controller.js") || item.endsWith(".js")) {
+        // Map controller files to API paths
+        const controllerName = item.replace(/\.controller\.js$|\.js$/, "");
+
+        // Create specific mappings based on directory structure
+        if (basePath) {
+          // For nested controllers like /admin/user-management.controller.js
+          const pathParts = basePath.split("/").filter((part) => part);
+
+          if (pathParts.length === 1) {
+            // Single level: /admin/user-management.controller.js -> /api/admin/user
+            const category = pathParts[0]; // admin, expert, user, auth
+
+            // Handle different naming patterns
+            if (controllerName.includes("-")) {
+              const nameParts = controllerName.split("-");
+              if (nameParts.length >= 2) {
+                const resource = nameParts.slice(1).join("-"); // user-management -> user
+                controllerFiles[`/api/${category}/${resource}`] = itemPath;
+                controllerFiles[`/api/${category}/${controllerName}`] =
+                  itemPath;
+              }
+            }
+
+            // Generic mappings
+            controllerFiles[`/api/${category}/${controllerName}`] = itemPath;
+            controllerFiles[`/api/${category}`] = itemPath;
+          }
+        } else {
+          // Root level controllers
+          controllerFiles[`/api/${controllerName}`] = itemPath;
+          controllerFiles[`/${controllerName}`] = itemPath;
+        }
+      }
+    });
   }
 
   /**

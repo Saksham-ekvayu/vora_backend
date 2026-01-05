@@ -19,10 +19,39 @@ const handleValidationErrors = (req, res, next) => {
 // Atomic validators (same pattern as user validation)
 const documentNameValidator = () =>
   body("documentName")
-    .optional()
+    .optional({ checkFalsy: true })
     .trim()
     .isLength({ min: 2, max: 100 })
-    .withMessage("Document name must be between 2 and 100 characters");
+    .withMessage("Document name must be between 2 and 100 characters")
+    .matches(/^[A-Za-z0-9\s\-_\.()]+$/)
+    .withMessage(
+      "Document name can only contain letters, numbers, spaces, hyphens, underscores, dots, and parentheses"
+    )
+    .custom((value) => {
+      // Check for consecutive special characters
+      if (/[-_\.]{2,}/.test(value)) {
+        throw new Error(
+          "Document name cannot contain consecutive special characters"
+        );
+      }
+      // Check if name starts or ends with special characters
+      if (/^[-_\.]|[-_\.]$/.test(value)) {
+        throw new Error(
+          "Document name cannot start or end with special characters"
+        );
+      }
+      // Check for only spaces
+      if (/^\s+$/.test(value)) {
+        throw new Error("Document name cannot contain only spaces");
+      }
+      // Check for repeated characters (more than 4 consecutive same characters)
+      if (/(.)\1{4,}/.test(value)) {
+        throw new Error(
+          "Document name cannot contain more than 4 consecutive identical characters"
+        );
+      }
+      return true;
+    });
 
 // File upload validation middleware
 const fileUploadValidation = (req, res, next) => {
@@ -124,10 +153,44 @@ const searchValidator = () =>
 
 // Composite validation schemas
 const updateDocumentSchema = Joi.object({
-  documentName: Joi.string().trim().min(2).max(100).optional().messages({
-    "string.min": "Document name must be at least 2 characters long",
-    "string.max": "Document name cannot exceed 100 characters",
-  }),
+  documentName: Joi.string()
+    .trim()
+    .min(2)
+    .max(100)
+    .pattern(/^[A-Za-z0-9\s\-_\.()]+$/)
+    .custom((value, helpers) => {
+      // Check for consecutive special characters
+      if (/[-_\.]{2,}/.test(value)) {
+        return helpers.error("string.consecutiveSpecial");
+      }
+      // Check if name starts or ends with special characters
+      if (/^[-_\.]|[-_\.]$/.test(value)) {
+        return helpers.error("string.specialBoundary");
+      }
+      // Check for only spaces
+      if (/^\s+$/.test(value)) {
+        return helpers.error("string.onlySpaces");
+      }
+      // Check for repeated characters (more than 4 consecutive same characters)
+      if (/(.)\1{4,}/.test(value)) {
+        return helpers.error("string.repeatedChars");
+      }
+      return value;
+    })
+    .optional()
+    .messages({
+      "string.min": "Document name must be at least 2 characters long",
+      "string.max": "Document name cannot exceed 100 characters",
+      "string.pattern.base":
+        "Document name can only contain letters, numbers, spaces, hyphens, underscores, dots, and parentheses",
+      "string.consecutiveSpecial":
+        "Document name cannot contain consecutive special characters",
+      "string.specialBoundary":
+        "Document name cannot start or end with special characters",
+      "string.onlySpaces": "Document name cannot contain only spaces",
+      "string.repeatedChars":
+        "Document name cannot contain more than 4 consecutive identical characters",
+    }),
   documentType: documentTypeValidator().optional(),
   isActive: isActiveValidator(),
 })

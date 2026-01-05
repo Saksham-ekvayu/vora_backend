@@ -2,196 +2,116 @@ const UserFramework = require("../../models/user-framework.model");
 const ExpertFramework = require("../../models/expert-framework.model");
 const FrameworkComparison = require("../../models/framework-comparison.model");
 const frameworkComparisonAIService = require("../../services/ai/framework-comparison-ai.service");
+const {
+  sendToUser,
+} = require("../../websocket/framework-comparison.websocket");
 
-/**
- * Start framework comparison
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
 async function startFrameworkComparison(req, res) {
   try {
     const { userFrameworkId, expertFrameworkId } = req.body;
     const userId = req.user._id;
 
-    // Validate input
-    if (!userFrameworkId || !expertFrameworkId) {
-      return res.status(400).json({
-        success: false,
-        message: "Both userFrameworkId and expertFrameworkId are required",
-      });
-    }
-
-    // Check if user framework exists and belongs to user
+    // Validate frameworks
     const userFramework = await UserFramework.findOne({
       _id: userFrameworkId,
       uploadedBy: userId,
       isActive: true,
     });
 
-    if (!userFramework) {
-      return res.status(404).json({
-        success: false,
-        message: "User framework not found or access denied",
-      });
-    }
-
-    // Check if user framework has AI processing UUID
-    if (!userFramework.aiProcessing?.uuid) {
+    if (!userFramework?.aiProcessing?.uuid) {
       return res.status(400).json({
         success: false,
-        message: "User framework must be processed by AI first",
+        message: "User framework not found or not AI processed",
       });
     }
 
-    // Check if expert framework exists
     const expertFramework = await ExpertFramework.findOne({
       _id: expertFrameworkId,
       isActive: true,
     });
 
-    if (!expertFramework) {
-      return res.status(404).json({
-        success: false,
-        message: "Expert framework not found",
-      });
-    }
-
-    // Check if expert framework has AI processing UUID
-    if (!expertFramework.aiProcessing?.uuid) {
+    if (!expertFramework?.aiProcessing?.uuid) {
       return res.status(400).json({
         success: false,
-        message: "Expert framework must be processed by AI first",
+        message: "Expert framework not found or not AI processed",
       });
     }
 
-    // Check if comparison already exists and is in progress
-    const existingComparison = await FrameworkComparison.findOne({
-      userId,
-      userFrameworkId,
-      expertFrameworkId,
-      "aiProcessing.status": { $in: ["pending", "in-process"] },
-      isActive: true,
-    });
-
-    if (existingComparison) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "Framework comparison is already in progress for these frameworks",
-        frameworkComparisonId: existingComparison._id,
-      });
-    }
-
-    // Create new framework comparison record
-    const frameworkComparison = new FrameworkComparison({
+    // Create comparison
+    const comparison = new FrameworkComparison({
       userId,
       userFrameworkId,
       userFrameworkUuid: userFramework.aiProcessing.uuid,
       expertFrameworkId,
       expertFrameworkUuid: expertFramework.aiProcessing.uuid,
-      aiProcessing: {
-        status: "pending",
+      aiProcessing: { status: "in-process" },
+    });
+
+    await comparison.save();
+
+    // Start AI process
+    await frameworkComparisonAIService.startFrameworkComparison(
+      userFramework.aiProcessing.uuid,
+      expertFramework.aiProcessing.uuid,
+      async (message) => handleAIMessage(comparison._id, message),
+      async (error) => handleAIError(comparison._id, error),
+      async (code) => handleAIClose(comparison._id, code)
+    );
+
+    // Immediate response
+    res.json({
+      success: true,
+      message: "Comparison started. Connect to WebSocket for updates.",
+      data: {
+        frameworkComparisonId: comparison._id,
+        websocketUrl: `/ws/framework-comparisons?token=<jwt_token>`,
       },
     });
 
-    await frameworkComparison.save();
-
-    // Start AI framework comparison process
-    const { connectionId } =
-      await frameworkComparisonAIService.startFrameworkComparison(
-        userFramework.aiProcessing.uuid,
-        expertFramework.aiProcessing.uuid,
-        // onMessage callback
-        async (message, aiConnectionId) => {
-          await handleAIMessage(
-            frameworkComparison._id,
-            message,
-            aiConnectionId
-          );
-        },
-        // onError callback
-        async (error, aiConnectionId) => {
-          await handleAIError(frameworkComparison._id, error, aiConnectionId);
-        },
-        // onClose callback
-        async (code, reason, aiConnectionId) => {
-          await handleAIClose(
-            frameworkComparison._id,
-            code,
-            reason,
-            aiConnectionId
-          );
-        }
-      );
-
-    // Update framework comparison with AI connection info
-    frameworkComparison.aiProcessing.status = "in-process";
-    await frameworkComparison.save();
-
-    res.status(200).json({
-      success: true,
-      message: "Framework comparison started successfully",
-      data: {
-        frameworkComparisonId: frameworkComparison._id,
-        status: "in-process",
-        userFramework: {
-          id: userFramework._id,
-          name: userFramework.frameworkName,
-        },
-        expertFramework: {
-          id: expertFramework._id,
-          name: expertFramework.frameworkName,
-        },
-      },
+    // Send WebSocket update
+    sendToUser(userId.toString(), {
+      type: "framework-comparison",
+      frameworkComparisonId: comparison._id,
+      status: "in-process",
+      message: "Comparison started",
     });
   } catch (error) {
-    console.error("❌ Error starting framework comparison:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to start framework comparison",
+      message: "Failed to start comparison",
       error: error.message,
     });
   }
 }
 
-/**
- * Handle AI WebSocket message
- * @param {string} frameworkComparisonId - Framework Comparison ID
- * @param {Object} message - AI message
- * @param {string} aiConnectionId - AI connection ID
- */
-async function handleAIMessage(frameworkComparisonId, message, aiConnectionId) {
+async function handleAIMessage(comparisonId, message) {
   try {
-    // Update framework comparison in database based on message status
-    const frameworkComparison = await FrameworkComparison.findById(
-      frameworkComparisonId
-    );
-    if (!frameworkComparison) {
-      return;
-    }
+    const comparison = await FrameworkComparison.findById(comparisonId);
+    if (!comparison) return;
 
+    const userId = comparison.userId.toString();
     let updateData = {};
+    let wsMessage = {
+      type: "framework-comparison",
+      frameworkComparisonId: comparisonId,
+    };
 
     switch (message.status) {
-      case "in-process":
-        updateData = {
-          "aiProcessing.status": "in-process",
-        };
-        break;
-
       case "completed":
       case "done":
-        if (message.data && Array.isArray(message.data)) {
+        if (message.data?.length) {
           updateData = {
             "aiProcessing.status": "completed",
             "aiProcessing.comparisonResults": message.data,
             "aiProcessing.resultsCount": message.data.length,
             "aiProcessing.processedAt": new Date(),
           };
-        } else {
-          updateData = {
-            "aiProcessing.status": "error",
-            "aiProcessing.errorMessage": "Invalid comparison data received",
+          wsMessage = {
+            ...wsMessage,
+            status: "completed",
+            message: "Comparison completed",
+            data: message.data,
+            resultsCount: message.data.length,
           };
         }
         break;
@@ -199,239 +119,72 @@ async function handleAIMessage(frameworkComparisonId, message, aiConnectionId) {
       case "error":
         updateData = {
           "aiProcessing.status": "error",
-          "aiProcessing.errorMessage": message.message || "AI processing error",
+          "aiProcessing.errorMessage": message.message || "AI error",
+        };
+        wsMessage = {
+          ...wsMessage,
+          status: "error",
+          message: message.message || "AI error",
         };
         break;
-
-      default:
-        return;
     }
 
-    // Update framework comparison in database
-    await FrameworkComparison.findByIdAndUpdate(
-      frameworkComparisonId,
-      updateData
-    );
-
-    // Clean up if framework comparison is finished
-    if (["completed", "done", "error"].includes(message.status)) {
-      // Close AI connection
-      frameworkComparisonAIService.closeConnection(aiConnectionId);
+    if (Object.keys(updateData).length) {
+      await FrameworkComparison.findByIdAndUpdate(comparisonId, updateData);
+      sendToUser(userId, wsMessage);
     }
   } catch (error) {
-    console.error(
-      `❌ Error handling AI message for framework comparison ${frameworkComparisonId}:`,
-      error
-    );
+    console.error("AI message error:", error);
   }
 }
 
-/**
- * Handle AI WebSocket error
- * @param {string} frameworkComparisonId - Framework Comparison ID
- * @param {Error} error - AI error
- * @param {string} aiConnectionId - AI connection ID
- */
-async function handleAIError(frameworkComparisonId, error, aiConnectionId) {
+async function handleAIError(comparisonId, error) {
   try {
-    // Update framework comparison status to error
-    await FrameworkComparison.findByIdAndUpdate(frameworkComparisonId, {
+    const comparison = await FrameworkComparison.findById(comparisonId);
+    if (!comparison) return;
+
+    await FrameworkComparison.findByIdAndUpdate(comparisonId, {
       "aiProcessing.status": "error",
-      "aiProcessing.errorMessage": error.message || "AI connection error",
+      "aiProcessing.errorMessage": error.message,
     });
-  } catch (dbError) {
-    console.error(
-      `❌ Error handling AI error for framework comparison ${frameworkComparisonId}:`,
-      dbError
-    );
+
+    sendToUser(comparison.userId.toString(), {
+      type: "framework-comparison",
+      frameworkComparisonId: comparisonId,
+      status: "error",
+      message: "Connection error",
+    });
+  } catch (err) {
+    console.error("AI error handler error:", err);
   }
 }
 
-/**
- * Handle AI WebSocket close
- * @param {string} frameworkComparisonId - Framework Comparison ID
- * @param {number} code - Close code
- * @param {string} reason - Close reason
- * @param {string} aiConnectionId - AI connection ID
- */
-async function handleAIClose(
-  frameworkComparisonId,
-  code,
-  reason,
-  aiConnectionId
-) {
+async function handleAIClose(comparisonId, code) {
   try {
-    // Check current framework comparison status
-    const frameworkComparison = await FrameworkComparison.findById(
-      frameworkComparisonId
-    );
-    if (frameworkComparison) {
-      // If connection closed normally (code 1000) and we have results, mark as completed
-      if (
-        code === 1000 &&
-        frameworkComparison.aiProcessing.comparisonResults &&
-        frameworkComparison.aiProcessing.comparisonResults.length > 0
-      ) {
-        await FrameworkComparison.findByIdAndUpdate(frameworkComparisonId, {
-          "aiProcessing.status": "completed",
-          "aiProcessing.processedAt": new Date(),
-        });
-      }
-      // If connection closed unexpectedly and not already completed
-      else if (
-        !["completed", "done"].includes(frameworkComparison.aiProcessing.status)
-      ) {
-        await FrameworkComparison.findByIdAndUpdate(frameworkComparisonId, {
-          "aiProcessing.status": "error",
-          "aiProcessing.errorMessage": `AI connection closed unexpectedly (Code: ${code})`,
-        });
-      }
-    }
-  } catch (error) {
-    console.error(
-      `❌ Error handling AI close for framework comparison ${frameworkComparisonId}:`,
-      error
-    );
-  }
-}
+    const comparison = await FrameworkComparison.findById(comparisonId);
+    if (!comparison) return;
 
-/**
- * Get framework comparison status
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-async function getFrameworkComparisonStatus(req, res) {
-  try {
-    const { frameworkComparisonId } = req.params;
-    const userId = req.user._id;
+    // If closed normally with results, mark completed
+    if (code === 1000 && comparison.aiProcessing.comparisonResults?.length) {
+      await FrameworkComparison.findByIdAndUpdate(comparisonId, {
+        "aiProcessing.status": "completed",
+        "aiProcessing.processedAt": new Date(),
+      });
 
-    // Find framework comparison
-    const frameworkComparison = await FrameworkComparison.findOne({
-      _id: frameworkComparisonId,
-      userId,
-      isActive: true,
-    })
-      .populate("userFrameworkId", "frameworkName originalFileName")
-      .populate("expertFrameworkId", "frameworkName originalFileName");
-
-    if (!frameworkComparison) {
-      return res.status(404).json({
-        success: false,
-        message: "Framework comparison not found",
+      sendToUser(comparison.userId.toString(), {
+        type: "framework-comparison",
+        frameworkComparisonId: comparisonId,
+        status: "completed",
+        message: "Comparison completed",
+        data: comparison.aiProcessing.comparisonResults,
+        resultsCount: comparison.aiProcessing.resultsCount,
       });
     }
-
-    res.status(200).json({
-      success: true,
-      data: {
-        frameworkComparisonId: frameworkComparison._id,
-        status: frameworkComparison.aiProcessing.status,
-        userFramework: {
-          id: frameworkComparison.userFrameworkId._id,
-          name: frameworkComparison.userFrameworkId.frameworkName,
-          originalFileName:
-            frameworkComparison.userFrameworkId.originalFileName,
-        },
-        expertFramework: {
-          id: frameworkComparison.expertFrameworkId._id,
-          name: frameworkComparison.expertFrameworkId.frameworkName,
-          originalFileName:
-            frameworkComparison.expertFrameworkId.originalFileName,
-        },
-        results: frameworkComparison.aiProcessing.comparisonResults || [],
-        resultsCount: frameworkComparison.aiProcessing.resultsCount || 0,
-        processedAt: frameworkComparison.aiProcessing.processedAt,
-        errorMessage: frameworkComparison.aiProcessing.errorMessage,
-        createdAt: frameworkComparison.createdAt,
-        updatedAt: frameworkComparison.updatedAt,
-      },
-    });
   } catch (error) {
-    console.error("❌ Error getting framework comparison status:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to get framework comparison status",
-      error: error.message,
-    });
-  }
-}
-
-/**
- * Get user's framework comparison history
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-async function getFrameworkComparisonHistory(req, res) {
-  try {
-    const userId = req.user._id;
-    const { page = 1, limit = 10, status } = req.query;
-
-    // Build query
-    const query = {
-      userId,
-      isActive: true,
-    };
-
-    if (status) {
-      query["aiProcessing.status"] = status;
-    }
-
-    // Get framework comparisons with pagination
-    const frameworkComparisons = await FrameworkComparison.find(query)
-      .populate("userFrameworkId", "frameworkName originalFileName")
-      .populate("expertFrameworkId", "frameworkName originalFileName")
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    // Get total count
-    const total = await FrameworkComparison.countDocuments(query);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        frameworkComparisons: frameworkComparisons.map(
-          (frameworkComparison) => ({
-            frameworkComparisonId: frameworkComparison._id,
-            status: frameworkComparison.aiProcessing.status,
-            userFramework: {
-              id: frameworkComparison.userFrameworkId._id,
-              name: frameworkComparison.userFrameworkId.frameworkName,
-              originalFileName:
-                frameworkComparison.userFrameworkId.originalFileName,
-            },
-            expertFramework: {
-              id: frameworkComparison.expertFrameworkId._id,
-              name: frameworkComparison.expertFrameworkId.frameworkName,
-              originalFileName:
-                frameworkComparison.expertFrameworkId.originalFileName,
-            },
-            resultsCount: frameworkComparison.aiProcessing.resultsCount || 0,
-            processedAt: frameworkComparison.aiProcessing.processedAt,
-            errorMessage: frameworkComparison.aiProcessing.errorMessage,
-            createdAt: frameworkComparison.createdAt,
-          })
-        ),
-        pagination: {
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(total / limit),
-          totalItems: total,
-          itemsPerPage: parseInt(limit),
-        },
-      },
-    });
-  } catch (error) {
-    console.error("❌ Error getting framework comparison history:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to get framework comparison history",
-      error: error.message,
-    });
+    console.error("AI close handler error:", error);
   }
 }
 
 module.exports = {
   startFrameworkComparison,
-  getFrameworkComparisonStatus,
-  getFrameworkComparisonHistory,
 };

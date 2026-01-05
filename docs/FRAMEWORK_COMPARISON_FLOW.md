@@ -1,18 +1,19 @@
-# Framework Comparison Flow
+# Framework Comparison Flow - Real-time WebSocket Implementation
 
 ## Overview
 
-User compares their framework with expert framework using AI processing and gets similarity results.
+User compares their framework with expert framework using AI processing. POST API starts the process immediately, and all updates (including final results) come via WebSocket in real-time.
 
 ## Prerequisites
 
 - User framework must be AI processed (has `aiProcessing.uuid`)
 - Expert framework must be AI processed (has `aiProcessing.uuid`)
 - Valid JWT token for authentication
+- WebSocket connection for real-time updates
 
-## API Flow
+## Real-time Flow
 
-### 1. Start Framework Comparison
+### 1. Start Framework Comparison (POST API)
 
 ```http
 POST /api/users/framework-comparisons
@@ -25,140 +26,277 @@ Content-Type: application/json
 }
 ```
 
-**Response:**
+**Immediate Response:**
 
 ```json
 {
   "success": true,
-  "message": "Framework comparison started successfully",
+  "message": "Framework comparison started successfully. Connect to WebSocket for real-time updates.",
   "data": {
     "frameworkComparisonId": "comparison_id",
-    "status": "in-process"
+    "status": "in-process",
+    "websocketUrl": "/ws/framework-comparisons?token=<your_jwt_token>",
+    "userFramework": {
+      "id": "framework_id",
+      "name": "Framework Name"
+    },
+    "expertFramework": {
+      "id": "expert_id",
+      "name": "Expert Framework Name"
+    }
   }
 }
 ```
 
-### 2. Check Status
-
-```http
-GET /api/users/framework-comparisons/:frameworkComparisonId
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "frameworkComparisonId": "comparison_id",
-    "status": "completed",
-    "results": [
-      {
-        "User_Document_Control_Name": "Control Name",
-        "User_Document_Control_Description": "Description...",
-        "Expert_Framework_Control_Id": "PO.1",
-        "Expert_Framework_Control_Name": "Expert Control",
-        "Expert_Framework_Control_Description": "Expert Description...",
-        "Deployment_Points": "Implementation points...",
-        "Comparison_Score": 0.9073
-      }
-    ],
-    "resultsCount": 7
-  }
-}
-```
-
-### 3. Get History
-
-```http
-GET /api/users/framework-comparisons?page=1&limit=10
-Authorization: Bearer <jwt_token>
-```
-
-## Technical Flow
-
-```
-1. User calls POST /api/users/framework-comparisons
-2. Backend validates frameworks and UUIDs
-3. Creates framework comparison record in database
-4. Connects to AI WebSocket: ws://192.168.1.30:8002/user/websocket/comparision
-5. AI processes comparison and sends updates
-6. Backend updates database with results
-7. User polls GET /api/users/framework-comparisons/:id for status
-8. Returns final results when completed
-```
-
-## Status Values
-
-- `pending` - Framework comparison created, waiting to start
-- `in-process` - AI is processing the framework comparison
-- `completed` - Framework comparison finished successfully
-- `error` - Framework comparison failed
-
-## AI WebSocket URL
-
-```
-ws://192.168.1.30:8002/user/websocket/comparision?user_framework_uuid={uuid}&expert_framework_uuid={uuid}
-```
-
-## AI Response Format
-
-```json
-{"status": "in-process"}
-{"status": "completed", "data": [...]}
-{"status": "error", "message": "error msg"}
-```
-
-## Database Collections
-
-- `framework-comparisons` - Stores framework comparison records and results
-- `user-frameworks` - User uploaded frameworks
-- `expert-frameworks` - Expert frameworks
-
-## Error Handling
-
-- `400` - Invalid input parameters
-- `401` - Authentication failed
-- `404` - Framework not found
-- `409` - Framework comparison already in progress
-- `500` - Internal server error
-
-## Usage Example
+### 2. WebSocket Connection (Real-time Updates)
 
 ```javascript
-// Start framework comparison
-const response = await fetch("/api/users/framework-comparisons", {
-  method: "POST",
-  headers: {
-    Authorization: "Bearer " + token,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    userFrameworkId: "user_fw_id",
-    expertFrameworkId: "expert_fw_id",
-  }),
-});
+// Connect to WebSocket
+const ws = new WebSocket(
+  "ws://localhost:3000/ws/framework-comparisons?token=<jwt_token>"
+);
 
-const result = await response.json();
-const frameworkComparisonId = result.data.frameworkComparisonId;
+// Listen for real-time updates
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data);
 
-// Check status periodically
-const checkStatus = async () => {
-  const statusResponse = await fetch(
-    `/api/users/framework-comparisons/${frameworkComparisonId}`,
-    {
-      headers: { Authorization: "Bearer " + token },
-    }
-  );
-  const statusResult = await statusResponse.json();
+  switch (message.type) {
+    case "connection":
+      console.log("Connected to WebSocket");
+      break;
 
-  if (statusResult.data.status === "completed") {
-    console.log("Results:", statusResult.data.results);
-  } else if (statusResult.data.status === "in-process") {
-    setTimeout(checkStatus, 5000); // Check again in 5 seconds
+    case "framework-comparison":
+      handleComparisonUpdate(message);
+      break;
   }
 };
-
-checkStatus();
 ```
+
+### 3. Real-time WebSocket Messages
+
+**Connection Established:**
+
+```json
+{
+  "type": "connection",
+  "status": "connected",
+  "message": "WebSocket connection established",
+  "userId": "user_id"
+}
+```
+
+**Comparison Started:**
+
+```json
+{
+  "type": "framework-comparison",
+  "frameworkComparisonId": "comparison_id",
+  "status": "in-process",
+  "message": "Framework comparison started successfully"
+}
+```
+
+**Processing Update:**
+
+```json
+{
+  "type": "framework-comparison",
+  "frameworkComparisonId": "comparison_id",
+  "status": "in-process",
+  "message": "Framework comparison is being processed by AI"
+}
+```
+
+**Final Results (Real-time):**
+
+```json
+{
+  "type": "framework-comparison",
+  "frameworkComparisonId": "comparison_id",
+  "status": "completed",
+  "message": "Framework comparison completed successfully",
+  "data": [
+    {
+      "User_Document_Control_Name": "Control Name",
+      "User_Document_Control_Description": "Description...",
+      "Expert_Framework_Control_Id": "PO.1",
+      "Expert_Framework_Control_Name": "Expert Control",
+      "Expert_Framework_Control_Description": "Expert Description...",
+      "Deployment_Points": "Implementation points...",
+      "Comparison_Score": 0.9073
+    }
+  ],
+  "resultsCount": 7
+}
+```
+
+**Error (Real-time):**
+
+```json
+{
+  "type": "framework-comparison",
+  "frameworkComparisonId": "comparison_id",
+  "status": "error",
+  "message": "AI processing failed",
+  "error": "Connection timeout"
+}
+```
+
+## Complete Frontend Implementation
+
+```javascript
+class FrameworkComparisonClient {
+  constructor(token) {
+    this.token = token;
+    this.ws = null;
+  }
+
+  // Connect to WebSocket
+  connectWebSocket() {
+    const wsUrl = `ws://localhost:3000/ws/framework-comparisons?token=${this.token}`;
+    this.ws = new WebSocket(wsUrl);
+
+    this.ws.onopen = () => {
+      console.log("✅ WebSocket connected");
+    };
+
+    this.ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      this.handleMessage(message);
+    };
+
+    this.ws.onclose = () => {
+      console.log("🔌 WebSocket disconnected");
+    };
+
+    this.ws.onerror = (error) => {
+      console.error("❌ WebSocket error:", error);
+    };
+  }
+
+  // Handle WebSocket messages
+  handleMessage(message) {
+    switch (message.type) {
+      case "connection":
+        console.log("Connected:", message.message);
+        break;
+
+      case "framework-comparison":
+        this.handleComparisonUpdate(message);
+        break;
+    }
+  }
+
+  // Handle comparison updates
+  handleComparisonUpdate(message) {
+    const { frameworkComparisonId, status, data, resultsCount } = message;
+
+    switch (status) {
+      case "in-process":
+        this.showStatus("Processing...", "loading");
+        break;
+
+      case "completed":
+        this.showStatus("Completed!", "success");
+        this.displayResults(data, resultsCount);
+        break;
+
+      case "error":
+        this.showStatus("Error occurred", "error");
+        this.showError(message.message);
+        break;
+    }
+  }
+
+  // Start comparison (POST API)
+  async startComparison(userFrameworkId, expertFrameworkId) {
+    try {
+      const response = await fetch("/api/users/framework-comparisons", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userFrameworkId,
+          expertFrameworkId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log(
+          "✅ Comparison started:",
+          result.data.frameworkComparisonId
+        );
+        // Real-time updates will come via WebSocket
+        return result.data.frameworkComparisonId;
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      console.error("❌ Error starting comparison:", error);
+      throw error;
+    }
+  }
+
+  // Display methods
+  showStatus(message, type) {
+    // Update your UI status
+    console.log(`Status: ${message} (${type})`);
+  }
+
+  displayResults(results, count) {
+    // Display comparison results in your UI
+    console.log(`Results received: ${count} matches`);
+    console.log(results);
+  }
+
+  showError(message) {
+    // Show error in your UI
+    console.error("Error:", message);
+  }
+}
+
+// Usage
+const client = new FrameworkComparisonClient("your_jwt_token");
+
+// 1. Connect to WebSocket first
+client.connectWebSocket();
+
+// 2. Start comparison (returns immediately)
+client
+  .startComparison("user_framework_id", "expert_framework_id")
+  .then((comparisonId) => {
+    console.log("Comparison started, waiting for real-time updates...");
+    // Updates will come via WebSocket automatically
+  })
+  .catch((error) => {
+    console.error("Failed to start comparison:", error);
+  });
+```
+
+## Benefits of This Approach
+
+✅ **Real-time Updates:** Immediate feedback via WebSocket  
+✅ **Chat-like Experience:** Similar to messaging applications  
+✅ **No Polling:** No need to repeatedly check status  
+✅ **Instant Results:** Final results delivered immediately via WebSocket  
+✅ **Better UX:** Users see progress in real-time  
+✅ **Efficient:** Single POST call + WebSocket connection
+
+## API Endpoints Summary
+
+- **POST** `/api/users/framework-comparisons` - Start comparison (returns immediately)
+- **WebSocket** `/ws/framework-comparisons?token=<jwt>` - Real-time updates
+- **GET** `/api/users/framework-comparisons/:id` - Optional status check
+- **GET** `/api/users/framework-comparisons` - History
+
+## WebSocket URL
+
+```
+ws://localhost:3000/ws/framework-comparisons?token=<jwt_token>
+```
+
+Now WebSocket provides real value - immediate responses with real-time updates, just like a chat application!

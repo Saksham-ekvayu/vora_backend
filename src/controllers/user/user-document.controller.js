@@ -1,4 +1,4 @@
-const Document = require("../../models/user-document.model");
+const UserDocument = require("../../models/user-document.model");
 const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {
@@ -40,7 +40,7 @@ const createDocument = async (req, res) => {
     }
 
     // Check if document with same original filename already exists
-    const existingDocument = await Document.findOne({
+    const existingDocument = await UserDocument.findOne({
       originalFileName: file.originalname,
       uploadedBy: req.user._id,
       isActive: true,
@@ -63,7 +63,7 @@ const createDocument = async (req, res) => {
       message = "Document updated successfully";
     } else {
       // Create new document record
-      document = new Document({
+      document = new UserDocument({
         documentName: documentName || removeFileExtension(file.originalname),
         fileUrl: file.path,
         documentType: documentType,
@@ -215,7 +215,7 @@ const getDocumentById = async (req, res) => {
     // let document = await cacheService.getDocumentById(id);
 
     // Fetch directly from database
-    const document = await Document.findOne({
+    const document = await UserDocument.findOne({
       _id: id,
       isActive: true,
     }).populate("uploadedBy", "name email role");
@@ -267,7 +267,7 @@ const updateDocument = async (req, res) => {
     const { id } = req.params;
     const { documentName, isActive } = req.body;
 
-    const document = await Document.findOne({
+    const document = await UserDocument.findOne({
       _id: id,
       isActive: true,
     });

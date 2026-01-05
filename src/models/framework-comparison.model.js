@@ -9,7 +9,7 @@ const frameworkComparisonSchema = new mongoose.Schema(
     },
     userFrameworkId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Framework",
+      ref: "UserFramework",
       required: [true, "User framework ID is required"],
     },
     userFrameworkUuid: {

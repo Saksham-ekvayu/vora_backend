@@ -1,4 +1,4 @@
-const Framework = require("../../models/user-framework.model");
+const UserFramework = require("../../models/user-framework.model");
 const ExpertFramework = require("../../models/expert-framework.model");
 const FrameworkComparison = require("../../models/framework-comparison.model");
 const frameworkComparisonAIService = require("../../services/ai/framework-comparison-ai.service");
@@ -22,7 +22,7 @@ async function startFrameworkComparison(req, res) {
     }
 
     // Check if user framework exists and belongs to user
-    const userFramework = await Framework.findOne({
+    const userFramework = await UserFramework.findOne({
       _id: userFrameworkId,
       uploadedBy: userId,
       isActive: true,

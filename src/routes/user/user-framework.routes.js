@@ -10,13 +10,6 @@ const {
   canView,
 } = require("../../middlewares/roleAccess.middleware");
 
-// Import cache middlewares (commented out)
-// const {
-//   frameworkListCache,
-//   userFrameworksCache,
-//   frameworkByIdCache,
-// } = require("../../middlewares/cache.middleware");
-
 // Import validations
 const {
   frameworkUploadValidation,
@@ -24,6 +17,7 @@ const {
   getFrameworkByIdValidation,
   deleteFrameworkValidation,
   getFrameworksQueryValidation,
+  uploadFrameworkToAIValidation,
 } = require("../../validations/user-framework.validation");
 
 // Import controller
@@ -36,6 +30,8 @@ const {
   deleteFramework,
   downloadFramework,
   getUserFrameworks,
+  uploadFrameworkToAIService,
+  checkAIProcessingStatus,
 } = require("../../controllers/user/user-framework.controller");
 
 // Routes
@@ -44,13 +40,13 @@ const {
  * @route   POST /api/frameworks
  * @desc    Create a new framework (upload file)
  * @access  Private (User only)
- * @body    { frameworkName?: string } (multipart/form-data with file)
+ * @body    { frameworkName?: string } (multipart/form-data with field name "file")
  */
 router.post(
   "/",
   authenticateToken,
   canUserCreate, // Only users can create frameworks
-  upload.single("framework"), // Handle file upload with field name "framework"
+  upload.single("file"), // Handle file upload with field name "file"
   frameworkUploadValidation, // Validate using the same pattern as auth/user
   createFramework
 );
@@ -115,16 +111,42 @@ router.get(
  * @route   PUT /api/frameworks/:id
  * @desc    Update framework details and optionally replace file
  * @access  Private (User only)
- * @body    { frameworkName?, isActive? } (multipart/form-data with optional file)
+ * @body    { frameworkName?, isActive? } (multipart/form-data with optional field name "file")
  */
 router.put(
   "/:id",
   authenticateToken,
   canUpdate, // Only users can update frameworks
-  upload.single("framework"), // Handle optional file upload
+  upload.single("file"), // Handle optional file upload
   getFrameworkByIdValidation,
   updateFrameworkValidation,
   updateFramework
+);
+
+/**
+ * @route   POST /api/frameworks/:id/upload-to-ai
+ * @desc    Upload framework to AI service for processing
+ * @access  Private (User only)
+ */
+router.post(
+  "/:id/upload-to-ai",
+  authenticateToken,
+  canUpdate, // Only users can upload their frameworks to AI
+  uploadFrameworkToAIValidation,
+  uploadFrameworkToAIService
+);
+
+/**
+ * @route   GET /api/frameworks/:id/ai-status
+ * @desc    Check AI processing status for framework
+ * @access  Private (User only)
+ */
+router.get(
+  "/:id/ai-status",
+  authenticateToken,
+  canView, // Only users can check AI status
+  getFrameworkByIdValidation, // Validate id in params
+  checkAIProcessingStatus
 );
 
 /**

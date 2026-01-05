@@ -60,7 +60,7 @@ const fileUploadValidation = (req, res, next) => {
     return res.status(400).json({
       success: false,
       message: "No file uploaded. Please select a file to upload.",
-      field: "framework",
+      field: "file",
     });
   }
   next();
@@ -220,6 +220,36 @@ const getFrameworksQuerySchema = Joi.object({
     .optional(),
 });
 
+const uploadFrameworkToAISchema = Joi.object({
+  frameworkId: frameworkIdValidator(),
+});
+
+// Special validation for AI upload that handles both JSON and form-data
+const uploadFrameworkToAIValidation = (req, res, next) => {
+  // Get frameworkId from params (since it's in the URL path)
+  const frameworkId = req.params.id;
+
+  if (!frameworkId) {
+    return res.status(400).json({
+      success: false,
+      message: "Framework ID is required",
+      field: "frameworkId",
+    });
+  }
+
+  const { error } = uploadFrameworkToAISchema.validate({ frameworkId });
+
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.details[0].message,
+      field: "frameworkId",
+    });
+  }
+
+  next();
+};
+
 // File upload validation middleware (runs AFTER multer has parsed the form data)
 // Validation middleware functions
 const updateFrameworkValidation = handleJoiValidationErrors(
@@ -281,10 +311,12 @@ module.exports = {
   getFrameworkByIdValidation,
   deleteFrameworkValidation,
   getFrameworksQueryValidation,
+  uploadFrameworkToAIValidation,
 
   // Schemas (exported for testing or custom usage)
   updateFrameworkSchema,
   getFrameworkByIdSchema,
   deleteFrameworkSchema,
   getFrameworksQuerySchema,
+  uploadFrameworkToAISchema,
 };

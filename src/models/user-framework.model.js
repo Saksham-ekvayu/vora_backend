@@ -121,10 +121,10 @@ frameworkSchema.index({ createdAt: -1 });
 frameworkSchema.index({ "aiProcessing.uuid": 1 });
 frameworkSchema.index({ "aiProcessing.status": 1 });
 
-const Framework = mongoose.model(
-  "Framework",
+const UserFramework = mongoose.model(
+  "UserFramework",
   frameworkSchema,
   "user-frameworks" // Custom collection name
 );
 
-module.exports = Framework;
+module.exports = UserFramework;

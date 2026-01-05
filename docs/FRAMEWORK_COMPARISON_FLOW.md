@@ -2,7 +2,7 @@
 
 ## Overview
 
-User compares their framework with expert framework using AI processing. POST API starts the process immediately, and all updates (including final results) come via WebSocket in real-time.
+User compares their framework with expert framework using AI processing. POST API starts the process immediately, and all updates (including final results) come via WebSocket in real-time - like a chat application.
 
 ## Prerequisites
 
@@ -31,19 +31,10 @@ Content-Type: application/json
 ```json
 {
   "success": true,
-  "message": "Framework comparison started successfully. Connect to WebSocket for real-time updates.",
+  "message": "Comparison started. Connect to WebSocket for updates.",
   "data": {
     "frameworkComparisonId": "comparison_id",
-    "status": "in-process",
-    "websocketUrl": "/ws/framework-comparisons?token=<your_jwt_token>",
-    "userFramework": {
-      "id": "framework_id",
-      "name": "Framework Name"
-    },
-    "expertFramework": {
-      "id": "expert_id",
-      "name": "Expert Framework Name"
-    }
+    "websocketUrl": "/ws/framework-comparisons?token=<jwt_token>"
   }
 }
 ```
@@ -59,16 +50,7 @@ const ws = new WebSocket(
 // Listen for real-time updates
 ws.onmessage = (event) => {
   const message = JSON.parse(event.data);
-
-  switch (message.type) {
-    case "connection":
-      console.log("Connected to WebSocket");
-      break;
-
-    case "framework-comparison":
-      handleComparisonUpdate(message);
-      break;
-  }
+  handleComparisonUpdate(message);
 };
 ```
 
@@ -79,9 +61,7 @@ ws.onmessage = (event) => {
 ```json
 {
   "type": "connection",
-  "status": "connected",
-  "message": "WebSocket connection established",
-  "userId": "user_id"
+  "status": "connected"
 }
 ```
 
@@ -92,18 +72,7 @@ ws.onmessage = (event) => {
   "type": "framework-comparison",
   "frameworkComparisonId": "comparison_id",
   "status": "in-process",
-  "message": "Framework comparison started successfully"
-}
-```
-
-**Processing Update:**
-
-```json
-{
-  "type": "framework-comparison",
-  "frameworkComparisonId": "comparison_id",
-  "status": "in-process",
-  "message": "Framework comparison is being processed by AI"
+  "message": "Comparison started"
 }
 ```
 
@@ -114,15 +83,15 @@ ws.onmessage = (event) => {
   "type": "framework-comparison",
   "frameworkComparisonId": "comparison_id",
   "status": "completed",
-  "message": "Framework comparison completed successfully",
+  "message": "Comparison completed",
   "data": [
     {
-      "User_Document_Control_Name": "Control Name",
-      "User_Document_Control_Description": "Description...",
+      "User_Document_Control_Name": "Define Security Requirements for Software Development",
+      "User_Document_Control_Description": "Ensure that security requirements...",
       "Expert_Framework_Control_Id": "PO.1",
-      "Expert_Framework_Control_Name": "Expert Control",
-      "Expert_Framework_Control_Description": "Expert Description...",
-      "Deployment_Points": "Implementation points...",
+      "Expert_Framework_Control_Name": "Define Security Requirements for Software Development",
+      "Expert_Framework_Control_Description": "Ensure that security requirements...",
+      "Deployment_Points": "1. Establish a centralized repository...",
       "Comparison_Score": 0.9073
     }
   ],
@@ -137,8 +106,7 @@ ws.onmessage = (event) => {
   "type": "framework-comparison",
   "frameworkComparisonId": "comparison_id",
   "status": "error",
-  "message": "AI processing failed",
-  "error": "Connection timeout"
+  "message": "Connection error or AI processing failed"
 }
 ```
 
@@ -178,7 +146,7 @@ class FrameworkComparisonClient {
   handleMessage(message) {
     switch (message.type) {
       case "connection":
-        console.log("Connected:", message.message);
+        console.log("Connected to WebSocket");
         break;
 
       case "framework-comparison":
@@ -243,23 +211,20 @@ class FrameworkComparisonClient {
 
   // Display methods
   showStatus(message, type) {
-    // Update your UI status
     console.log(`Status: ${message} (${type})`);
   }
 
   displayResults(results, count) {
-    // Display comparison results in your UI
     console.log(`Results received: ${count} matches`);
     console.log(results);
   }
 
   showError(message) {
-    // Show error in your UI
     console.error("Error:", message);
   }
 }
 
-// Usage
+// Usage Example
 const client = new FrameworkComparisonClient("your_jwt_token");
 
 // 1. Connect to WebSocket first
@@ -277,6 +242,16 @@ client
   });
 ```
 
+## AI Integration
+
+The backend connects to AI WebSocket at:
+
+```
+ws://192.168.1.30:8002/user/websocket/comparision?user_framework_uuid=<uuid>&expert_framework_uuid=<uuid>
+```
+
+And forwards all AI responses through your WebSocket in real-time.
+
 ## Benefits of This Approach
 
 ✅ **Real-time Updates:** Immediate feedback via WebSocket  
@@ -284,19 +259,49 @@ client
 ✅ **No Polling:** No need to repeatedly check status  
 ✅ **Instant Results:** Final results delivered immediately via WebSocket  
 ✅ **Better UX:** Users see progress in real-time  
-✅ **Efficient:** Single POST call + WebSocket connection
+✅ **Minimal APIs:** Only one POST endpoint needed
 
 ## API Endpoints Summary
 
 - **POST** `/api/users/framework-comparisons` - Start comparison (returns immediately)
 - **WebSocket** `/ws/framework-comparisons?token=<jwt>` - Real-time updates
-- **GET** `/api/users/framework-comparisons/:id` - Optional status check
-- **GET** `/api/users/framework-comparisons` - History
 
-## WebSocket URL
+## WebSocket URLs
+
+**Your Backend:**
 
 ```
 ws://localhost:3000/ws/framework-comparisons?token=<jwt_token>
+```
+
+**AI Service (Internal):**
+
+```
+ws://192.168.1.30:8002/user/websocket/comparision?user_framework_uuid=<uuid>&expert_framework_uuid=<uuid>
+```
+
+## Database Schema
+
+**Collection:** `framework-comparisons`
+
+```javascript
+{
+  _id: ObjectId,
+  userId: ObjectId,
+  userFrameworkId: ObjectId,
+  userFrameworkUuid: String, // For AI service
+  expertFrameworkId: ObjectId,
+  expertFrameworkUuid: String, // For AI service
+  aiProcessing: {
+    status: String, // "in-process", "completed", "error"
+    comparisonResults: Array, // AI response data
+    resultsCount: Number,
+    errorMessage: String,
+    processedAt: Date
+  },
+  createdAt: Date,
+  updatedAt: Date
+}
 ```
 
 Now WebSocket provides real value - immediate responses with real-time updates, just like a chat application!

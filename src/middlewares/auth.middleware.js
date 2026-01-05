@@ -42,7 +42,6 @@ const authenticateToken = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: "Token has expired. Please login again.",
-        error: "TOKEN_EXPIRED",
         expiredAt: error.expiredAt,
       });
     }

@@ -6,6 +6,7 @@ const {
   login,
   logout,
   logoutAllDevices,
+  changePassword,
   forgotPassword,
   resetPassword,
   sendVerificationOTP,
@@ -18,6 +19,7 @@ const {
   resetPasswordValidation,
   resendOtpValidation,
   sendVerificationOTPValidation,
+  changePasswordValidation,
 } = require("../../validations/user.validation");
 const { authenticateToken } = require("../../middlewares/auth.middleware");
 
@@ -39,5 +41,11 @@ router.post(
 // Protected routes - require authentication
 router.post("/logout", authenticateToken, logout);
 router.post("/logout-all-devices", authenticateToken, logoutAllDevices);
+router.post(
+  "/change-password",
+  authenticateToken,
+  changePasswordValidation,
+  changePassword
+);
 
 module.exports = router;

@@ -173,6 +173,27 @@ const resetPasswordValidation = [
 // Validation for resend OTP (only needs email)
 const resendOtpValidation = [emailValidator(), handleValidationErrors];
 
+// Change password validation
+const changePasswordValidation = [
+  body("currentPassword")
+    .trim()
+    .notEmpty()
+    .withMessage("Current password is required"),
+  body("newPassword")
+    .trim()
+    .notEmpty()
+    .withMessage("New password is required")
+    .isLength({ min: 8 })
+    .withMessage("New password must be at least 8 characters long")
+    .matches(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/
+    )
+    .withMessage(
+      "New password must be at least 8 characters long and include uppercase, lowercase, number, and special character"
+    ),
+  handleValidationErrors,
+];
+
 module.exports = {
   // atomic validators (exported in case needed elsewhere)
   nameValidator,
@@ -193,4 +214,5 @@ module.exports = {
   forgotPasswordValidation,
   resetPasswordValidation,
   resendOtpValidation,
+  changePasswordValidation,
 };

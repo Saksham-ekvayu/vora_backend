@@ -404,6 +404,62 @@ const logoutAllDevices = async (req, res) => {
   }
 };
 
+// Change password for logged-in user
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user._id;
+
+    // Get user from database
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Current password is incorrect",
+      });
+    }
+
+    // Check if new password is different from current password
+    const isSamePassword = await user.comparePassword(newPassword);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be different from current password",
+      });
+    }
+
+    // Update password (will be hashed by pre-save middleware)
+    user.password = newPassword;
+
+    // Increment token version to invalidate all existing tokens
+    user.tokenVersion += 1;
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message:
+        "Password changed successfully. Please login again with your new password.",
+    });
+  } catch (error) {
+    console.error("Change password error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
 module.exports = {
   register,
   verifyOTP,
@@ -411,6 +467,7 @@ module.exports = {
   login,
   logout,
   logoutAllDevices,
+  changePassword,
   forgotPassword,
   resetPassword,
   sendVerificationOTP,

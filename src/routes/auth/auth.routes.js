@@ -5,6 +5,7 @@ const {
   resendOTP,
   login,
   logout,
+  logoutAllDevices,
   forgotPassword,
   resetPassword,
   sendVerificationOTP,
@@ -37,5 +38,6 @@ router.post(
 
 // Protected routes - require authentication
 router.post("/logout", authenticateToken, logout);
+router.post("/logout-all-devices", authenticateToken, logoutAllDevices);
 
 module.exports = router;

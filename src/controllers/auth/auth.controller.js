@@ -180,10 +180,21 @@ const login = async (req, res) => {
         .json({ success: false, message: "Invalid email or password" });
     }
 
-    // Generate JWT token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "24h",
-    });
+    // Increment token version to invalidate all previous tokens
+    user.tokenVersion += 1;
+    await user.save();
+
+    // Generate JWT token with tokenVersion
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        tokenVersion: user.tokenVersion,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "24h",
+      }
+    );
 
     res.json({
       success: true,
@@ -364,24 +375,31 @@ const logout = async (req, res) => {
       });
     }
 
-    // Decode token to get expiry time
-    const decoded = jwt.decode(token);
-    const tokenExpiry = decoded.exp * 1000; // Convert to milliseconds
-
-    // Add token to blacklist in Redis with TTL until token expires (commented out)
-    // const cacheService = require("../../services/cache.service");
-    // const ttl = Math.floor((tokenExpiry - Date.now()) / 1000); // TTL in seconds
-
-    // if (ttl > 0) {
-    //   await cacheService.setCache(`blacklist_${token}`, "revoked", ttl);
-    // }
-
     res.json({
       success: true,
-      message: "Logout successful. Token has been revoked.",
+      message: "Logout successful.",
     });
   } catch (error) {
     console.error("Logout error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Logout from all devices
+const logoutAllDevices = async (req, res) => {
+  try {
+    const user = req.user;
+
+    // Increment token version to invalidate all tokens
+    user.tokenVersion += 1;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Logged out from all devices successfully.",
+    });
+  } catch (error) {
+    console.error("Logout all devices error:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -392,6 +410,7 @@ module.exports = {
   resendOTP,
   login,
   logout,
+  logoutAllDevices,
   forgotPassword,
   resetPassword,
   sendVerificationOTP,

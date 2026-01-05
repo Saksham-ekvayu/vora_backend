@@ -15,22 +15,21 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    // Check if token is blacklisted (commented out - cache disabled)
-    // const isBlacklisted = await cacheService.getCache(`blacklist_${token}`);
-    // if (isBlacklisted) {
-    //   return res.status(401).json({
-    //     success: false,
-    //     message: "Token has been revoked. Please login again.",
-    //   });
-    // }
-
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.userId);
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "Invalid token",
+        message: "Invalid token - user not found",
+      });
+    }
+
+    // Check if token version matches current user's token version
+    if (decoded.tokenVersion !== user.tokenVersion) {
+      return res.status(401).json({
+        success: false,
+        message: "Token has been invalidated. Please login again.",
       });
     }
 
@@ -38,9 +37,34 @@ const authenticateToken = async (req, res, next) => {
     next();
   } catch (error) {
     console.error("Authentication error:", error);
+
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({
+        success: false,
+        message: "Token has expired. Please login again.",
+        error: "TOKEN_EXPIRED",
+        expiredAt: error.expiredAt,
+      });
+    }
+
+    if (error.name === "JsonWebTokenError") {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token format.",
+      });
+    }
+
+    if (error.name === "NotBeforeError") {
+      return res.status(401).json({
+        success: false,
+        message: "Token not active yet.",
+      });
+    }
+
     return res.status(401).json({
       success: false,
       message: "Invalid token",
+      error: "AUTHENTICATION_FAILED",
     });
   }
 };

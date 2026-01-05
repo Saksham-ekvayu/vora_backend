@@ -150,7 +150,7 @@ const getAllDocuments = async (req, res) => {
     }
 
     // Use pagination helper with search
-    const result = await paginateWithSearch(Document, {
+    const result = await paginateWithSearch(UserDocument, {
       page: req.query.page,
       limit: req.query.limit || 10,
       search: search,

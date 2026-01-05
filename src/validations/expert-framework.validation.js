@@ -19,10 +19,39 @@ const handleValidationErrors = (req, res, next) => {
 // Atomic validators (same pattern as user validation)
 const frameworkNameValidator = () =>
   body("frameworkName")
-    .optional()
+    .optional({ checkFalsy: true })
     .trim()
     .isLength({ min: 2, max: 100 })
-    .withMessage("Framework name must be between 2 and 100 characters");
+    .withMessage("Framework name must be between 2 and 100 characters")
+    .matches(/^[A-Za-z0-9\s\-_\.()]+$/)
+    .withMessage(
+      "Framework name can only contain letters, numbers, spaces, hyphens, underscores, dots, and parentheses"
+    )
+    .custom((value) => {
+      // Check for consecutive special characters
+      if (/[-_\.]{2,}/.test(value)) {
+        throw new Error(
+          "Framework name cannot contain consecutive special characters"
+        );
+      }
+      // Check if name starts or ends with special characters
+      if (/^[-_\.]|[-_\.]$/.test(value)) {
+        throw new Error(
+          "Framework name cannot start or end with special characters"
+        );
+      }
+      // Check for only spaces
+      if (/^\s+$/.test(value)) {
+        throw new Error("Framework name cannot contain only spaces");
+      }
+      // Check for repeated characters (more than 4 consecutive same characters)
+      if (/(.)\1{4,}/.test(value)) {
+        throw new Error(
+          "Framework name cannot contain more than 4 consecutive identical characters"
+        );
+      }
+      return true;
+    });
 
 // File upload validation middleware
 const fileUploadValidation = (req, res, next) => {
@@ -124,10 +153,44 @@ const searchValidator = () =>
 
 // Composite validation schemas
 const updateExpertFrameworkSchema = Joi.object({
-  frameworkName: Joi.string().trim().min(2).max(100).optional().messages({
-    "string.min": "Framework name must be at least 2 characters long",
-    "string.max": "Framework name cannot exceed 100 characters",
-  }),
+  frameworkName: Joi.string()
+    .trim()
+    .min(2)
+    .max(100)
+    .pattern(/^[A-Za-z0-9\s\-_\.()]+$/)
+    .custom((value, helpers) => {
+      // Check for consecutive special characters
+      if (/[-_\.]{2,}/.test(value)) {
+        return helpers.error("string.consecutiveSpecial");
+      }
+      // Check if name starts or ends with special characters
+      if (/^[-_\.]|[-_\.]$/.test(value)) {
+        return helpers.error("string.specialBoundary");
+      }
+      // Check for only spaces
+      if (/^\s+$/.test(value)) {
+        return helpers.error("string.onlySpaces");
+      }
+      // Check for repeated characters (more than 4 consecutive same characters)
+      if (/(.)\1{4,}/.test(value)) {
+        return helpers.error("string.repeatedChars");
+      }
+      return value;
+    })
+    .optional()
+    .messages({
+      "string.min": "Framework name must be at least 2 characters long",
+      "string.max": "Framework name cannot exceed 100 characters",
+      "string.pattern.base":
+        "Framework name can only contain letters, numbers, spaces, hyphens, underscores, dots, and parentheses",
+      "string.consecutiveSpecial":
+        "Framework name cannot contain consecutive special characters",
+      "string.specialBoundary":
+        "Framework name cannot start or end with special characters",
+      "string.onlySpaces": "Framework name cannot contain only spaces",
+      "string.repeatedChars":
+        "Framework name cannot contain more than 4 consecutive identical characters",
+    }),
   frameworkType: frameworkTypeValidator().optional(),
   isActive: isActiveValidator(),
 })

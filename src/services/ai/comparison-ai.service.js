@@ -38,8 +38,6 @@ class ComparisonAIService {
       // Create WebSocket URL
       const wsUrl = `${this.AI_WS_BASE_URL}/user/websocket/comparision?user_framework_uuid=${userFrameworkUuid}&expert_framework_uuid=${expertFrameworkUuid}`;
 
-      console.log(`🔗 Connecting to AI WebSocket: ${wsUrl}`);
-
       // Create WebSocket connection
       const ws = new WebSocket(wsUrl);
 
@@ -64,7 +62,6 @@ class ComparisonAIService {
       ws.on("message", (data) => {
         try {
           const message = JSON.parse(data.toString());
-          console.log(`📨 AI WebSocket message received:`, message);
 
           // Call the provided message handler
           if (onMessage) {
@@ -90,11 +87,6 @@ class ComparisonAIService {
       });
 
       ws.on("close", (code, reason) => {
-        console.log(`🔌 AI WebSocket closed for ${connectionId}:`, {
-          code,
-          reason: reason.toString(),
-        });
-
         // Remove connection on close
         this.connections.delete(connectionId);
 
@@ -120,7 +112,6 @@ class ComparisonAIService {
       try {
         connection.ws.close();
         this.connections.delete(connectionId);
-        console.log(`🔌 Closed AI WebSocket connection: ${connectionId}`);
       } catch (error) {
         console.error(`❌ Error closing connection ${connectionId}:`, error);
       }
@@ -131,10 +122,6 @@ class ComparisonAIService {
    * Close all active WebSocket connections
    */
   closeAllConnections() {
-    console.log(
-      `🔌 Closing ${this.connections.size} AI WebSocket connections...`
-    );
-
     for (const [connectionId, connection] of this.connections) {
       try {
         if (connection.ws) {
@@ -146,7 +133,6 @@ class ComparisonAIService {
     }
 
     this.connections.clear();
-    console.log("✅ All AI WebSocket connections closed");
   }
 
   /**

@@ -151,12 +151,9 @@ async function startComparison(req, res) {
  */
 async function handleAIMessage(comparisonId, message, aiConnectionId) {
   try {
-    console.log(`📨 AI message for comparison ${comparisonId}:`, message);
-
     // Update comparison in database based on message status
     const comparison = await Comparison.findById(comparisonId);
     if (!comparison) {
-      console.error(`❌ Comparison not found in database: ${comparisonId}`);
       return;
     }
 
@@ -194,7 +191,6 @@ async function handleAIMessage(comparisonId, message, aiConnectionId) {
         break;
 
       default:
-        console.warn(`⚠️ Unknown AI message status: ${message.status}`);
         return;
     }
 
@@ -205,10 +201,6 @@ async function handleAIMessage(comparisonId, message, aiConnectionId) {
     if (["completed", "done", "error"].includes(message.status)) {
       // Close AI connection
       comparisonAIService.closeConnection(aiConnectionId);
-
-      console.log(
-        `✅ Comparison ${comparisonId} finished with status: ${message.status}`
-      );
     }
   } catch (error) {
     console.error(
@@ -231,8 +223,6 @@ async function handleAIError(comparisonId, error, aiConnectionId) {
       "aiProcessing.status": "error",
       "aiProcessing.errorMessage": error.message || "AI connection error",
     });
-
-    console.error(`❌ AI error for comparison ${comparisonId}:`, error);
   } catch (dbError) {
     console.error(
       `❌ Error handling AI error for comparison ${comparisonId}:`,
@@ -252,20 +242,28 @@ async function handleAIClose(comparisonId, code, reason, aiConnectionId) {
   try {
     // Check current comparison status
     const comparison = await Comparison.findById(comparisonId);
-    if (
-      comparison &&
-      !["completed", "done", "error"].includes(comparison.aiProcessing.status)
-    ) {
-      // Connection closed unexpectedly
-      await Comparison.findByIdAndUpdate(comparisonId, {
-        "aiProcessing.status": "error",
-        "aiProcessing.errorMessage": `AI connection closed unexpectedly (Code: ${code})`,
-      });
+    if (comparison) {
+      // If connection closed normally (code 1000) and we have results, mark as completed
+      if (
+        code === 1000 &&
+        comparison.aiProcessing.comparisonResults &&
+        comparison.aiProcessing.comparisonResults.length > 0
+      ) {
+        await Comparison.findByIdAndUpdate(comparisonId, {
+          "aiProcessing.status": "completed",
+          "aiProcessing.processedAt": new Date(),
+        });
+      }
+      // If connection closed unexpectedly and not already completed
+      else if (
+        !["completed", "done"].includes(comparison.aiProcessing.status)
+      ) {
+        await Comparison.findByIdAndUpdate(comparisonId, {
+          "aiProcessing.status": "error",
+          "aiProcessing.errorMessage": `AI connection closed unexpectedly (Code: ${code})`,
+        });
+      }
     }
-
-    console.log(
-      `🔌 AI connection closed for comparison ${comparisonId}: Code ${code}, Reason: ${reason}`
-    );
   } catch (error) {
     console.error(
       `❌ Error handling AI close for comparison ${comparisonId}:`,

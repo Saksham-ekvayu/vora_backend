@@ -108,6 +108,44 @@ const frameworkSchema = new mongoose.Schema(
         default: null,
       },
     },
+    // Comparison Results Storage
+    comparisonResults: [
+      {
+        expertFrameworkId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "ExpertFramework",
+          required: true,
+        },
+        expertFrameworkName: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        comparisonData: {
+          type: Array,
+          default: [],
+        },
+        comparisonScore: {
+          type: Number,
+          min: 0,
+          max: 1,
+          default: 0,
+        },
+        resultsCount: {
+          type: Number,
+          default: 0,
+        },
+        comparedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        comparisonId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "FrameworkComparison",
+          required: true,
+        },
+      },
+    ],
   },
   {
     timestamps: true, // This adds createdAt and updatedAt automatically
@@ -120,6 +158,8 @@ frameworkSchema.index({ frameworkType: 1 });
 frameworkSchema.index({ createdAt: -1 });
 frameworkSchema.index({ "aiProcessing.uuid": 1 });
 frameworkSchema.index({ "aiProcessing.status": 1 });
+frameworkSchema.index({ "comparisonResults.expertFrameworkId": 1 });
+frameworkSchema.index({ "comparisonResults.comparedAt": -1 });
 
 const UserFramework = mongoose.model(
   "UserFramework",

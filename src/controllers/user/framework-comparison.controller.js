@@ -86,7 +86,9 @@ async function startFrameworkComparison(req, res) {
 
 async function handleAIMessage(comparisonId, message) {
   try {
-    const comparison = await FrameworkComparison.findById(comparisonId);
+    const comparison = await FrameworkComparison.findById(
+      comparisonId
+    ).populate("expertFrameworkId", "frameworkName");
     if (!comparison) return;
 
     const userId = comparison.userId.toString();
@@ -100,18 +102,42 @@ async function handleAIMessage(comparisonId, message) {
       case "completed":
       case "done":
         if (message.data?.length) {
+          // Calculate average comparison score
+          const avgScore =
+            message.data.reduce(
+              (sum, item) => sum + (item.Comparison_Score || 0),
+              0
+            ) / message.data.length;
+
           updateData = {
             "aiProcessing.status": "completed",
             "aiProcessing.comparisonResults": message.data,
             "aiProcessing.resultsCount": message.data.length,
             "aiProcessing.processedAt": new Date(),
           };
+
+          // Store comparison results in user framework
+          await UserFramework.findByIdAndUpdate(comparison.userFrameworkId, {
+            $push: {
+              comparisonResults: {
+                expertFrameworkId: comparison.expertFrameworkId,
+                expertFrameworkName: comparison.expertFrameworkId.frameworkName,
+                comparisonData: message.data,
+                comparisonScore: avgScore,
+                resultsCount: message.data.length,
+                comparedAt: new Date(),
+                comparisonId: comparisonId,
+              },
+            },
+          });
+
           wsMessage = {
             ...wsMessage,
             status: "completed",
-            message: "Comparison completed",
+            message: "Comparison completed and stored in user framework",
             data: message.data,
             resultsCount: message.data.length,
+            averageScore: avgScore,
           };
         }
         break;

@@ -83,7 +83,7 @@ ws.onmessage = (event) => {
   "type": "framework-comparison",
   "frameworkComparisonId": "comparison_id",
   "status": "completed",
-  "message": "Comparison completed",
+  "message": "Comparison completed and stored in user framework",
   "data": [
     {
       "User_Document_Control_Name": "Define Security Requirements for Software Development",
@@ -95,7 +95,8 @@ ws.onmessage = (event) => {
       "Comparison_Score": 0.9073
     }
   ],
-  "resultsCount": 7
+  "resultsCount": 7,
+  "averageScore": 0.8756
 }
 ```
 
@@ -157,7 +158,8 @@ class FrameworkComparisonClient {
 
   // Handle comparison updates
   handleComparisonUpdate(message) {
-    const { frameworkComparisonId, status, data, resultsCount } = message;
+    const { frameworkComparisonId, status, data, resultsCount, averageScore } =
+      message;
 
     switch (status) {
       case "in-process":
@@ -165,8 +167,10 @@ class FrameworkComparisonClient {
         break;
 
       case "completed":
-        this.showStatus("Completed!", "success");
-        this.displayResults(data, resultsCount);
+        this.showStatus("Completed and stored!", "success");
+        this.displayResults(data, resultsCount, averageScore);
+        // Optionally refresh user framework data to show updated comparison results
+        this.refreshUserFramework();
         break;
 
       case "error":
@@ -214,13 +218,35 @@ class FrameworkComparisonClient {
     console.log(`Status: ${message} (${type})`);
   }
 
-  displayResults(results, count) {
+  displayResults(results, count, averageScore) {
     console.log(`Results received: ${count} matches`);
+    console.log(`Average comparison score: ${averageScore}`);
     console.log(results);
   }
 
   showError(message) {
     console.error("Error:", message);
+  }
+
+  // Refresh user framework to get updated comparison results
+  async refreshUserFramework(frameworkId) {
+    try {
+      const response = await fetch(`/api/users/frameworks/${frameworkId}`, {
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+        },
+      });
+      const result = await response.json();
+      if (result.success) {
+        console.log(
+          "Updated framework with comparison results:",
+          result.data.framework
+        );
+        return result.data.framework;
+      }
+    } catch (error) {
+      console.error("Error refreshing framework:", error);
+    }
   }
 }
 
@@ -258,6 +284,8 @@ And forwards all AI responses through your WebSocket in real-time.
 ✅ **Chat-like Experience:** Similar to messaging applications  
 ✅ **No Polling:** No need to repeatedly check status  
 ✅ **Instant Results:** Final results delivered immediately via WebSocket  
+✅ **Auto Storage:** Results automatically stored in user framework  
+✅ **Multiple Comparisons:** Single framework can be compared with multiple expert frameworks  
 ✅ **Better UX:** Users see progress in real-time  
 ✅ **Minimal APIs:** Only one POST endpoint needed
 
@@ -265,6 +293,7 @@ And forwards all AI responses through your WebSocket in real-time.
 
 - **POST** `/api/users/framework-comparisons` - Start comparison (returns immediately)
 - **WebSocket** `/ws/framework-comparisons?token=<jwt>` - Real-time updates
+- **GET** `/api/users/frameworks/:id` - Get framework with all comparison results
 
 ## WebSocket URLs
 
@@ -301,6 +330,78 @@ ws://192.168.1.30:8002/user/websocket/comparision?user_framework_uuid=<uuid>&exp
   },
   createdAt: Date,
   updatedAt: Date
+}
+```
+
+**Collection:** `user-frameworks` (Updated with comparison results)
+
+```javascript
+{
+  _id: ObjectId,
+  frameworkName: String,
+  fileUrl: String,
+  // ... other framework fields
+  comparisonResults: [
+    {
+      expertFrameworkId: ObjectId,
+      expertFrameworkName: String,
+      comparisonData: Array, // Full AI comparison results
+      comparisonScore: Number, // Average score (0-1)
+      resultsCount: Number,
+      comparedAt: Date,
+      comparisonId: ObjectId // Reference to FrameworkComparison
+    }
+  ]
+}
+```
+
+## Automatic Storage Feature
+
+When a comparison completes via WebSocket:
+
+1. **Results stored in `framework-comparisons`** - Complete comparison record
+2. **Results also stored in `user-frameworks`** - For easy frontend access
+3. **Multiple comparisons supported** - Single framework can have multiple comparison results
+4. **GET framework API** - Returns framework with all comparison history
+
+### Example: Get Framework with Comparison Results
+
+```http
+GET /api/users/frameworks/framework_id
+Authorization: Bearer <jwt_token>
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Framework retrieved successfully with 5 extracted controls and 3 comparison results",
+  "data": {
+    "framework": {
+      "id": "framework_id",
+      "frameworkName": "My Security Framework",
+      "comparisonResults": [
+        {
+          "expertFrameworkId": "expert_id_1",
+          "expertFrameworkName": "NIST Cybersecurity Framework",
+          "comparisonScore": 0.8756,
+          "resultsCount": 7,
+          "comparedAt": "2024-01-05T10:30:00Z",
+          "comparisonData": [...] // Full comparison details
+        },
+        {
+          "expertFrameworkId": "expert_id_2",
+          "expertFrameworkName": "ISO 27001",
+          "comparisonScore": 0.9234,
+          "resultsCount": 12,
+          "comparedAt": "2024-01-05T11:15:00Z",
+          "comparisonData": [...] // Full comparison details
+        }
+      ],
+      "comparisonCount": 2
+    }
+  }
 }
 ```
 

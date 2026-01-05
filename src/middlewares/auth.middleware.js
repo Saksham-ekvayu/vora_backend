@@ -21,7 +21,15 @@ const authenticateToken = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "Invalid token",
+        message: "Invalid token - user not found",
+      });
+    }
+
+    // Check if token version matches current user's token version
+    if (decoded.tokenVersion !== user.tokenVersion) {
+      return res.status(401).json({
+        success: false,
+        message: "Token has been invalidated. Please login again.",
       });
     }
 

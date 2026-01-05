@@ -39,6 +39,10 @@ const userSchema = new mongoose.Schema({
     code: String,
     expiresAt: Date,
   },
+  tokenVersion: {
+    type: Number,
+    default: 0,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

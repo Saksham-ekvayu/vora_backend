@@ -269,16 +269,24 @@ const getFrameworkById = async (req, res) => {
           role: framework.uploadedBy.role,
         },
         aiProcessing: formatAIProcessingData(framework.aiProcessing, true),
+        comparisonResults: framework.comparisonResults || [],
+        comparisonCount: framework.comparisonResults?.length || 0,
         createdAt: framework.createdAt,
         updatedAt: framework.updatedAt,
       },
     };
 
     const controlsCount = framework.aiProcessing?.controlsCount || 0;
-    const message =
-      controlsCount > 0
-        ? `Framework retrieved successfully with ${controlsCount} extracted controls`
-        : "Framework retrieved successfully";
+    const comparisonCount = framework.comparisonResults?.length || 0;
+
+    let message = "Framework retrieved successfully";
+    if (controlsCount > 0 && comparisonCount > 0) {
+      message = `Framework retrieved successfully with ${controlsCount} extracted controls and ${comparisonCount} comparison results`;
+    } else if (controlsCount > 0) {
+      message = `Framework retrieved successfully with ${controlsCount} extracted controls`;
+    } else if (comparisonCount > 0) {
+      message = `Framework retrieved successfully with ${comparisonCount} comparison results`;
+    }
 
     res.status(200).json({
       success: true,

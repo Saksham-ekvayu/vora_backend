@@ -386,6 +386,11 @@ const deleteFramework = async (req, res) => {
       });
     }
 
+    // Delete physical file from filesystem
+    if (framework.fileUrl) {
+      deleteFile(framework.fileUrl);
+    }
+
     framework.isActive = false;
     await framework.save();
 

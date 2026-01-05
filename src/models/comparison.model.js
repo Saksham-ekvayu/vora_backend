@@ -114,7 +114,7 @@ comparisonSchema.index({ userId: 1, createdAt: -1 });
 const Comparison = mongoose.model(
   "Comparison",
   comparisonSchema,
-  "comparisons"
+  "framework-comparisons"
 );
 
 module.exports = Comparison;

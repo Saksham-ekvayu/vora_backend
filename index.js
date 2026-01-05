@@ -14,6 +14,9 @@ const { getLocalIPv4 } = require("./src/helpers/helper");
 const expertAIService = require("./src/services/ai/expert-ai.service");
 const userAIService = require("./src/services/ai/user-ai.service");
 const frameworkComparisonAIService = require("./src/services/ai/framework-comparison-ai.service");
+const {
+  initializeWebSocketServer,
+} = require("./src/websocket/framework-comparison.websocket");
 
 // Import routes
 const authRoutes = require("./src/routes/auth/auth.routes");
@@ -101,12 +104,25 @@ async function start() {
     httpServer = server.listen(PORT, "0.0.0.0", () => {
       const ipv4 = getLocalIPv4();
 
+      // Initialize WebSocket server for framework comparisons
+      initializeWebSocketServer(httpServer);
+
       // ✅ Development ke liye actual IPv4
       if (process.env.NODE_ENV !== "production") {
         console.log(bgGreen(`🌐 Network access → http://${ipv4}:${PORT}`));
+        console.log(
+          bgGreen(
+            `🔗 WebSocket URL → ws://${ipv4}:${PORT}/ws/framework-comparisons`
+          )
+        );
       }
       console.log(
         bgBlue(`🌐 Server listening on port → http://localhost:${PORT}`)
+      );
+      console.log(
+        bgBlue(
+          `🔗 WebSocket endpoint → ws://localhost:${PORT}/ws/framework-comparisons`
+        )
       );
     });
   } catch (err) {

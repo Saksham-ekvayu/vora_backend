@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const comparisonSchema = new mongoose.Schema(
+const frameworkComparisonSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -101,20 +101,20 @@ const comparisonSchema = new mongoose.Schema(
 );
 
 // Indexes for better query performance
-comparisonSchema.index({ userId: 1 });
-comparisonSchema.index({ userFrameworkId: 1 });
-comparisonSchema.index({ expertFrameworkId: 1 });
-comparisonSchema.index({ "aiProcessing.uuid": 1 });
-comparisonSchema.index({ "aiProcessing.status": 1 });
-comparisonSchema.index({ createdAt: -1 });
+frameworkComparisonSchema.index({ userId: 1 });
+frameworkComparisonSchema.index({ userFrameworkId: 1 });
+frameworkComparisonSchema.index({ expertFrameworkId: 1 });
+frameworkComparisonSchema.index({ "aiProcessing.uuid": 1 });
+frameworkComparisonSchema.index({ "aiProcessing.status": 1 });
+frameworkComparisonSchema.index({ createdAt: -1 });
 
 // Compound index for user's comparisons
-comparisonSchema.index({ userId: 1, createdAt: -1 });
+frameworkComparisonSchema.index({ userId: 1, createdAt: -1 });
 
-const Comparison = mongoose.model(
-  "Comparison",
-  comparisonSchema,
+const FrameworkComparison = mongoose.model(
+  "FrameworkComparison",
+  frameworkComparisonSchema,
   "framework-comparisons"
 );
 
-module.exports = Comparison;
+module.exports = FrameworkComparison;

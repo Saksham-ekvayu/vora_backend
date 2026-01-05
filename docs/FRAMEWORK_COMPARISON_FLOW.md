@@ -12,10 +12,10 @@ User compares their framework with expert framework using AI processing and gets
 
 ## API Flow
 
-### 1. Start Comparison
+### 1. Start Framework Comparison
 
 ```http
-POST /api/users/comparisons
+POST /api/users/framework-comparisons
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
 
@@ -30,9 +30,9 @@ Content-Type: application/json
 ```json
 {
   "success": true,
-  "message": "Comparison started successfully",
+  "message": "Framework comparison started successfully",
   "data": {
-    "comparisonId": "comparison_id",
+    "frameworkComparisonId": "comparison_id",
     "status": "in-process"
   }
 }
@@ -41,7 +41,7 @@ Content-Type: application/json
 ### 2. Check Status
 
 ```http
-GET /api/users/comparisons/:comparisonId
+GET /api/users/framework-comparisons/:frameworkComparisonId
 Authorization: Bearer <jwt_token>
 ```
 
@@ -51,7 +51,7 @@ Authorization: Bearer <jwt_token>
 {
   "success": true,
   "data": {
-    "comparisonId": "comparison_id",
+    "frameworkComparisonId": "comparison_id",
     "status": "completed",
     "results": [
       {
@@ -72,29 +72,29 @@ Authorization: Bearer <jwt_token>
 ### 3. Get History
 
 ```http
-GET /api/users/comparisons?page=1&limit=10
+GET /api/users/framework-comparisons?page=1&limit=10
 Authorization: Bearer <jwt_token>
 ```
 
 ## Technical Flow
 
 ```
-1. User calls POST /api/users/comparisons
+1. User calls POST /api/users/framework-comparisons
 2. Backend validates frameworks and UUIDs
-3. Creates comparison record in database
+3. Creates framework comparison record in database
 4. Connects to AI WebSocket: ws://192.168.1.30:8002/user/websocket/comparision
 5. AI processes comparison and sends updates
 6. Backend updates database with results
-7. User polls GET /api/users/comparisons/:id for status
+7. User polls GET /api/users/framework-comparisons/:id for status
 8. Returns final results when completed
 ```
 
 ## Status Values
 
-- `pending` - Comparison created, waiting to start
-- `in-process` - AI is processing the comparison
-- `completed` - Comparison finished successfully
-- `error` - Comparison failed
+- `pending` - Framework comparison created, waiting to start
+- `in-process` - AI is processing the framework comparison
+- `completed` - Framework comparison finished successfully
+- `error` - Framework comparison failed
 
 ## AI WebSocket URL
 
@@ -112,7 +112,7 @@ ws://192.168.1.30:8002/user/websocket/comparision?user_framework_uuid={uuid}&exp
 
 ## Database Collections
 
-- `comparisons` - Stores comparison records and results
+- `framework-comparisons` - Stores framework comparison records and results
 - `user-frameworks` - User uploaded frameworks
 - `expert-frameworks` - Expert frameworks
 
@@ -121,14 +121,14 @@ ws://192.168.1.30:8002/user/websocket/comparision?user_framework_uuid={uuid}&exp
 - `400` - Invalid input parameters
 - `401` - Authentication failed
 - `404` - Framework not found
-- `409` - Comparison already in progress
+- `409` - Framework comparison already in progress
 - `500` - Internal server error
 
 ## Usage Example
 
 ```javascript
-// Start comparison
-const response = await fetch("/api/users/comparisons", {
+// Start framework comparison
+const response = await fetch("/api/users/framework-comparisons", {
   method: "POST",
   headers: {
     Authorization: "Bearer " + token,
@@ -141,13 +141,16 @@ const response = await fetch("/api/users/comparisons", {
 });
 
 const result = await response.json();
-const comparisonId = result.data.comparisonId;
+const frameworkComparisonId = result.data.frameworkComparisonId;
 
 // Check status periodically
 const checkStatus = async () => {
-  const statusResponse = await fetch(`/api/users/comparisons/${comparisonId}`, {
-    headers: { Authorization: "Bearer " + token },
-  });
+  const statusResponse = await fetch(
+    `/api/users/framework-comparisons/${frameworkComparisonId}`,
+    {
+      headers: { Authorization: "Bearer " + token },
+    }
+  );
   const statusResult = await statusResponse.json();
 
   if (statusResult.data.status === "completed") {

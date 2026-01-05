@@ -2,9 +2,9 @@ const { body, param, query } = require("express-validator");
 const mongoose = require("mongoose");
 
 /**
- * Validation for starting comparison
+ * Validation for starting framework comparison
  */
-const startComparisonValidation = [
+const startFrameworkComparisonValidation = [
   body("userFrameworkId")
     .notEmpty()
     .withMessage("User framework ID is required")
@@ -27,24 +27,24 @@ const startComparisonValidation = [
 ];
 
 /**
- * Validation for getting comparison by ID
+ * Validation for getting framework comparison by ID
  */
-const getComparisonByIdValidation = [
-  param("comparisonId")
+const getFrameworkComparisonByIdValidation = [
+  param("frameworkComparisonId")
     .notEmpty()
-    .withMessage("Comparison ID is required")
+    .withMessage("Framework comparison ID is required")
     .custom((value) => {
       if (!mongoose.Types.ObjectId.isValid(value)) {
-        throw new Error("Invalid comparison ID format");
+        throw new Error("Invalid framework comparison ID format");
       }
       return true;
     }),
 ];
 
 /**
- * Validation for comparison history query parameters
+ * Validation for framework comparison history query parameters
  */
-const getComparisonHistoryValidation = [
+const getFrameworkComparisonHistoryValidation = [
   query("page")
     .optional()
     .isInt({ min: 1 })
@@ -64,7 +64,7 @@ const getComparisonHistoryValidation = [
 ];
 
 module.exports = {
-  startComparisonValidation,
-  getComparisonByIdValidation,
-  getComparisonHistoryValidation,
+  startFrameworkComparisonValidation,
+  getFrameworkComparisonByIdValidation,
+  getFrameworkComparisonHistoryValidation,
 };

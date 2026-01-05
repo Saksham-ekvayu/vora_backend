@@ -1,14 +1,14 @@
 const Framework = require("../../models/user-framework.model");
 const ExpertFramework = require("../../models/expert-framework.model");
-const Comparison = require("../../models/comparison.model");
-const comparisonAIService = require("../../services/ai/comparison-ai.service");
+const FrameworkComparison = require("../../models/framework-comparison.model");
+const frameworkComparisonAIService = require("../../services/ai/framework-comparison-ai.service");
 
 /**
  * Start framework comparison
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-async function startComparison(req, res) {
+async function startFrameworkComparison(req, res) {
   try {
     const { userFrameworkId, expertFrameworkId } = req.body;
     const userId = req.user._id;
@@ -65,7 +65,7 @@ async function startComparison(req, res) {
     }
 
     // Check if comparison already exists and is in progress
-    const existingComparison = await Comparison.findOne({
+    const existingComparison = await FrameworkComparison.findOne({
       userId,
       userFrameworkId,
       expertFrameworkId,
@@ -76,13 +76,14 @@ async function startComparison(req, res) {
     if (existingComparison) {
       return res.status(409).json({
         success: false,
-        message: "Comparison is already in progress for these frameworks",
-        comparisonId: existingComparison._id,
+        message:
+          "Framework comparison is already in progress for these frameworks",
+        frameworkComparisonId: existingComparison._id,
       });
     }
 
-    // Create new comparison record
-    const comparison = new Comparison({
+    // Create new framework comparison record
+    const frameworkComparison = new FrameworkComparison({
       userId,
       userFrameworkId,
       userFrameworkUuid: userFramework.aiProcessing.uuid,
@@ -93,35 +94,45 @@ async function startComparison(req, res) {
       },
     });
 
-    await comparison.save();
+    await frameworkComparison.save();
 
-    // Start AI comparison process
-    const { connectionId } = await comparisonAIService.startComparison(
-      userFramework.aiProcessing.uuid,
-      expertFramework.aiProcessing.uuid,
-      // onMessage callback
-      async (message, aiConnectionId) => {
-        await handleAIMessage(comparison._id, message, aiConnectionId);
-      },
-      // onError callback
-      async (error, aiConnectionId) => {
-        await handleAIError(comparison._id, error, aiConnectionId);
-      },
-      // onClose callback
-      async (code, reason, aiConnectionId) => {
-        await handleAIClose(comparison._id, code, reason, aiConnectionId);
-      }
-    );
+    // Start AI framework comparison process
+    const { connectionId } =
+      await frameworkComparisonAIService.startFrameworkComparison(
+        userFramework.aiProcessing.uuid,
+        expertFramework.aiProcessing.uuid,
+        // onMessage callback
+        async (message, aiConnectionId) => {
+          await handleAIMessage(
+            frameworkComparison._id,
+            message,
+            aiConnectionId
+          );
+        },
+        // onError callback
+        async (error, aiConnectionId) => {
+          await handleAIError(frameworkComparison._id, error, aiConnectionId);
+        },
+        // onClose callback
+        async (code, reason, aiConnectionId) => {
+          await handleAIClose(
+            frameworkComparison._id,
+            code,
+            reason,
+            aiConnectionId
+          );
+        }
+      );
 
-    // Update comparison with AI connection info
-    comparison.aiProcessing.status = "in-process";
-    await comparison.save();
+    // Update framework comparison with AI connection info
+    frameworkComparison.aiProcessing.status = "in-process";
+    await frameworkComparison.save();
 
     res.status(200).json({
       success: true,
-      message: "Comparison started successfully",
+      message: "Framework comparison started successfully",
       data: {
-        comparisonId: comparison._id,
+        frameworkComparisonId: frameworkComparison._id,
         status: "in-process",
         userFramework: {
           id: userFramework._id,
@@ -134,10 +145,10 @@ async function startComparison(req, res) {
       },
     });
   } catch (error) {
-    console.error("❌ Error starting comparison:", error);
+    console.error("❌ Error starting framework comparison:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to start comparison",
+      message: "Failed to start framework comparison",
       error: error.message,
     });
   }
@@ -145,15 +156,17 @@ async function startComparison(req, res) {
 
 /**
  * Handle AI WebSocket message
- * @param {string} comparisonId - Comparison ID
+ * @param {string} frameworkComparisonId - Framework Comparison ID
  * @param {Object} message - AI message
  * @param {string} aiConnectionId - AI connection ID
  */
-async function handleAIMessage(comparisonId, message, aiConnectionId) {
+async function handleAIMessage(frameworkComparisonId, message, aiConnectionId) {
   try {
-    // Update comparison in database based on message status
-    const comparison = await Comparison.findById(comparisonId);
-    if (!comparison) {
+    // Update framework comparison in database based on message status
+    const frameworkComparison = await FrameworkComparison.findById(
+      frameworkComparisonId
+    );
+    if (!frameworkComparison) {
       return;
     }
 
@@ -194,17 +207,20 @@ async function handleAIMessage(comparisonId, message, aiConnectionId) {
         return;
     }
 
-    // Update comparison in database
-    await Comparison.findByIdAndUpdate(comparisonId, updateData);
+    // Update framework comparison in database
+    await FrameworkComparison.findByIdAndUpdate(
+      frameworkComparisonId,
+      updateData
+    );
 
-    // Clean up if comparison is finished
+    // Clean up if framework comparison is finished
     if (["completed", "done", "error"].includes(message.status)) {
       // Close AI connection
-      comparisonAIService.closeConnection(aiConnectionId);
+      frameworkComparisonAIService.closeConnection(aiConnectionId);
     }
   } catch (error) {
     console.error(
-      `❌ Error handling AI message for comparison ${comparisonId}:`,
+      `❌ Error handling AI message for framework comparison ${frameworkComparisonId}:`,
       error
     );
   }
@@ -212,20 +228,20 @@ async function handleAIMessage(comparisonId, message, aiConnectionId) {
 
 /**
  * Handle AI WebSocket error
- * @param {string} comparisonId - Comparison ID
+ * @param {string} frameworkComparisonId - Framework Comparison ID
  * @param {Error} error - AI error
  * @param {string} aiConnectionId - AI connection ID
  */
-async function handleAIError(comparisonId, error, aiConnectionId) {
+async function handleAIError(frameworkComparisonId, error, aiConnectionId) {
   try {
-    // Update comparison status to error
-    await Comparison.findByIdAndUpdate(comparisonId, {
+    // Update framework comparison status to error
+    await FrameworkComparison.findByIdAndUpdate(frameworkComparisonId, {
       "aiProcessing.status": "error",
       "aiProcessing.errorMessage": error.message || "AI connection error",
     });
   } catch (dbError) {
     console.error(
-      `❌ Error handling AI error for comparison ${comparisonId}:`,
+      `❌ Error handling AI error for framework comparison ${frameworkComparisonId}:`,
       dbError
     );
   }
@@ -233,32 +249,39 @@ async function handleAIError(comparisonId, error, aiConnectionId) {
 
 /**
  * Handle AI WebSocket close
- * @param {string} comparisonId - Comparison ID
+ * @param {string} frameworkComparisonId - Framework Comparison ID
  * @param {number} code - Close code
  * @param {string} reason - Close reason
  * @param {string} aiConnectionId - AI connection ID
  */
-async function handleAIClose(comparisonId, code, reason, aiConnectionId) {
+async function handleAIClose(
+  frameworkComparisonId,
+  code,
+  reason,
+  aiConnectionId
+) {
   try {
-    // Check current comparison status
-    const comparison = await Comparison.findById(comparisonId);
-    if (comparison) {
+    // Check current framework comparison status
+    const frameworkComparison = await FrameworkComparison.findById(
+      frameworkComparisonId
+    );
+    if (frameworkComparison) {
       // If connection closed normally (code 1000) and we have results, mark as completed
       if (
         code === 1000 &&
-        comparison.aiProcessing.comparisonResults &&
-        comparison.aiProcessing.comparisonResults.length > 0
+        frameworkComparison.aiProcessing.comparisonResults &&
+        frameworkComparison.aiProcessing.comparisonResults.length > 0
       ) {
-        await Comparison.findByIdAndUpdate(comparisonId, {
+        await FrameworkComparison.findByIdAndUpdate(frameworkComparisonId, {
           "aiProcessing.status": "completed",
           "aiProcessing.processedAt": new Date(),
         });
       }
       // If connection closed unexpectedly and not already completed
       else if (
-        !["completed", "done"].includes(comparison.aiProcessing.status)
+        !["completed", "done"].includes(frameworkComparison.aiProcessing.status)
       ) {
-        await Comparison.findByIdAndUpdate(comparisonId, {
+        await FrameworkComparison.findByIdAndUpdate(frameworkComparisonId, {
           "aiProcessing.status": "error",
           "aiProcessing.errorMessage": `AI connection closed unexpectedly (Code: ${code})`,
         });
@@ -266,77 +289,79 @@ async function handleAIClose(comparisonId, code, reason, aiConnectionId) {
     }
   } catch (error) {
     console.error(
-      `❌ Error handling AI close for comparison ${comparisonId}:`,
+      `❌ Error handling AI close for framework comparison ${frameworkComparisonId}:`,
       error
     );
   }
 }
 
 /**
- * Get comparison status
+ * Get framework comparison status
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-async function getComparisonStatus(req, res) {
+async function getFrameworkComparisonStatus(req, res) {
   try {
-    const { comparisonId } = req.params;
+    const { frameworkComparisonId } = req.params;
     const userId = req.user._id;
 
-    // Find comparison
-    const comparison = await Comparison.findOne({
-      _id: comparisonId,
+    // Find framework comparison
+    const frameworkComparison = await FrameworkComparison.findOne({
+      _id: frameworkComparisonId,
       userId,
       isActive: true,
     })
       .populate("userFrameworkId", "frameworkName originalFileName")
       .populate("expertFrameworkId", "frameworkName originalFileName");
 
-    if (!comparison) {
+    if (!frameworkComparison) {
       return res.status(404).json({
         success: false,
-        message: "Comparison not found",
+        message: "Framework comparison not found",
       });
     }
 
     res.status(200).json({
       success: true,
       data: {
-        comparisonId: comparison._id,
-        status: comparison.aiProcessing.status,
+        frameworkComparisonId: frameworkComparison._id,
+        status: frameworkComparison.aiProcessing.status,
         userFramework: {
-          id: comparison.userFrameworkId._id,
-          name: comparison.userFrameworkId.frameworkName,
-          originalFileName: comparison.userFrameworkId.originalFileName,
+          id: frameworkComparison.userFrameworkId._id,
+          name: frameworkComparison.userFrameworkId.frameworkName,
+          originalFileName:
+            frameworkComparison.userFrameworkId.originalFileName,
         },
         expertFramework: {
-          id: comparison.expertFrameworkId._id,
-          name: comparison.expertFrameworkId.frameworkName,
-          originalFileName: comparison.expertFrameworkId.originalFileName,
+          id: frameworkComparison.expertFrameworkId._id,
+          name: frameworkComparison.expertFrameworkId.frameworkName,
+          originalFileName:
+            frameworkComparison.expertFrameworkId.originalFileName,
         },
-        results: comparison.aiProcessing.comparisonResults || [],
-        resultsCount: comparison.aiProcessing.resultsCount || 0,
-        processedAt: comparison.aiProcessing.processedAt,
-        errorMessage: comparison.aiProcessing.errorMessage,
-        createdAt: comparison.createdAt,
-        updatedAt: comparison.updatedAt,
+        results: frameworkComparison.aiProcessing.comparisonResults || [],
+        resultsCount: frameworkComparison.aiProcessing.resultsCount || 0,
+        processedAt: frameworkComparison.aiProcessing.processedAt,
+        errorMessage: frameworkComparison.aiProcessing.errorMessage,
+        createdAt: frameworkComparison.createdAt,
+        updatedAt: frameworkComparison.updatedAt,
       },
     });
   } catch (error) {
-    console.error("❌ Error getting comparison status:", error);
+    console.error("❌ Error getting framework comparison status:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to get comparison status",
+      message: "Failed to get framework comparison status",
       error: error.message,
     });
   }
 }
 
 /**
- * Get user's comparison history
+ * Get user's framework comparison history
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-async function getComparisonHistory(req, res) {
+async function getFrameworkComparisonHistory(req, res) {
   try {
     const userId = req.user._id;
     const { page = 1, limit = 10, status } = req.query;
@@ -351,8 +376,8 @@ async function getComparisonHistory(req, res) {
       query["aiProcessing.status"] = status;
     }
 
-    // Get comparisons with pagination
-    const comparisons = await Comparison.find(query)
+    // Get framework comparisons with pagination
+    const frameworkComparisons = await FrameworkComparison.find(query)
       .populate("userFrameworkId", "frameworkName originalFileName")
       .populate("expertFrameworkId", "frameworkName originalFileName")
       .sort({ createdAt: -1 })
@@ -360,29 +385,33 @@ async function getComparisonHistory(req, res) {
       .skip((page - 1) * limit);
 
     // Get total count
-    const total = await Comparison.countDocuments(query);
+    const total = await FrameworkComparison.countDocuments(query);
 
     res.status(200).json({
       success: true,
       data: {
-        comparisons: comparisons.map((comparison) => ({
-          comparisonId: comparison._id,
-          status: comparison.aiProcessing.status,
-          userFramework: {
-            id: comparison.userFrameworkId._id,
-            name: comparison.userFrameworkId.frameworkName,
-            originalFileName: comparison.userFrameworkId.originalFileName,
-          },
-          expertFramework: {
-            id: comparison.expertFrameworkId._id,
-            name: comparison.expertFrameworkId.frameworkName,
-            originalFileName: comparison.expertFrameworkId.originalFileName,
-          },
-          resultsCount: comparison.aiProcessing.resultsCount || 0,
-          processedAt: comparison.aiProcessing.processedAt,
-          errorMessage: comparison.aiProcessing.errorMessage,
-          createdAt: comparison.createdAt,
-        })),
+        frameworkComparisons: frameworkComparisons.map(
+          (frameworkComparison) => ({
+            frameworkComparisonId: frameworkComparison._id,
+            status: frameworkComparison.aiProcessing.status,
+            userFramework: {
+              id: frameworkComparison.userFrameworkId._id,
+              name: frameworkComparison.userFrameworkId.frameworkName,
+              originalFileName:
+                frameworkComparison.userFrameworkId.originalFileName,
+            },
+            expertFramework: {
+              id: frameworkComparison.expertFrameworkId._id,
+              name: frameworkComparison.expertFrameworkId.frameworkName,
+              originalFileName:
+                frameworkComparison.expertFrameworkId.originalFileName,
+            },
+            resultsCount: frameworkComparison.aiProcessing.resultsCount || 0,
+            processedAt: frameworkComparison.aiProcessing.processedAt,
+            errorMessage: frameworkComparison.aiProcessing.errorMessage,
+            createdAt: frameworkComparison.createdAt,
+          })
+        ),
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(total / limit),
@@ -392,17 +421,17 @@ async function getComparisonHistory(req, res) {
       },
     });
   } catch (error) {
-    console.error("❌ Error getting comparison history:", error);
+    console.error("❌ Error getting framework comparison history:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to get comparison history",
+      message: "Failed to get framework comparison history",
       error: error.message,
     });
   }
 }
 
 module.exports = {
-  startComparison,
-  getComparisonStatus,
-  getComparisonHistory,
+  startFrameworkComparison,
+  getFrameworkComparisonStatus,
+  getFrameworkComparisonHistory,
 };

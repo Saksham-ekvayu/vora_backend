@@ -1,4 +1,4 @@
-const Framework = require("../../models/user-framework.model");
+const UserFramework = require("../../models/user-framework.model");
 const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {
@@ -71,7 +71,7 @@ const createFramework = async (req, res) => {
     }
 
     // Check if framework with same original filename already exists
-    const existingFramework = await Framework.findOne({
+    const existingFramework = await UserFramework.findOne({
       originalFileName: file.originalname,
       uploadedBy: req.user._id,
       isActive: true,
@@ -94,7 +94,7 @@ const createFramework = async (req, res) => {
       message = "Framework updated successfully";
     } else {
       // Create new framework record
-      framework = new Framework({
+      framework = new UserFramework({
         frameworkName: frameworkName || removeFileExtension(file.originalname),
         fileUrl: file.path,
         frameworkType: frameworkType,
@@ -242,7 +242,7 @@ const getFrameworkById = async (req, res) => {
     // let framework = await cacheService.getFrameworkById(id);
 
     // Fetch directly from database
-    const framework = await Framework.findOne({
+    const framework = await UserFramework.findOne({
       _id: id,
       isActive: true,
     }).populate("uploadedBy", "name email role");
@@ -301,7 +301,7 @@ const updateFramework = async (req, res) => {
     const { id } = req.params;
     const { frameworkName, isActive } = req.body;
 
-    const framework = await Framework.findOne({
+    const framework = await UserFramework.findOne({
       _id: id,
       isActive: true,
     });
@@ -406,7 +406,7 @@ const deleteFramework = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await Framework.findOne({ _id: id, isActive: true });
+    const framework = await UserFramework.findOne({ _id: id, isActive: true });
 
     if (!framework) {
       return res.status(404).json({
@@ -442,7 +442,7 @@ const downloadFramework = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await Framework.findOne({ _id: id, isActive: true });
+    const framework = await UserFramework.findOne({ _id: id, isActive: true });
 
     if (!framework) {
       return res.status(404).json({
@@ -567,7 +567,7 @@ const uploadFrameworkToAIService = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await Framework.findOne({
+    const framework = await UserFramework.findOne({
       _id: id,
       isActive: true,
     }).populate("uploadedBy", "name email role");
@@ -621,7 +621,7 @@ const uploadFrameworkToAIService = async (req, res) => {
             message.status === "completed" &&
             (message.controls || message.data)
           ) {
-            const fw = await Framework.findById(id);
+            const fw = await UserFramework.findById(id);
             if (fw) {
               const controls = Array.isArray(message.data)
                 ? message.data
@@ -671,7 +671,7 @@ const uploadFrameworkToAIService = async (req, res) => {
     // Update framework status on error
     if (req.params.id) {
       try {
-        const framework = await Framework.findById(req.params.id);
+        const framework = await UserFramework.findById(req.params.id);
         if (framework) {
           framework.aiProcessing.status = "failed";
           framework.aiProcessing.errorMessage = error.message;
@@ -703,7 +703,7 @@ const checkAIProcessingStatus = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await Framework.findOne({
+    const framework = await UserFramework.findOne({
       _id: id,
       isActive: true,
     });

@@ -84,10 +84,10 @@ documentSchema.statics.getUserDocuments = function (userId) {
   );
 };
 
-const Document = mongoose.model(
-  "Document",
+const UserDocument = mongoose.model(
+  "UserDocument",
   documentSchema,
   "user-documents" // Custom collection name
 );
 
-module.exports = Document;
+module.exports = UserDocument;

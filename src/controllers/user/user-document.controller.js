@@ -413,7 +413,7 @@ const downloadDocument = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const document = await Document.findOne({ _id: id, isActive: true });
+    const document = await UserDocument.findOne({ _id: id, isActive: true });
 
     if (!document) {
       return res.status(404).json({

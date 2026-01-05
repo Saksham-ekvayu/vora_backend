@@ -5,8 +5,8 @@ const {
   CACHE_TTL,
 } = require("../config/cache.config");
 const User = require("../models/user.model");
-const Framework = require("../models/framework.model");
-const Document = require("../models/document.model");
+const UserFramework = require("../models/user-framework.model");
+const UserDocument = require("../models/user-document.model");
 
 class CacheService {
   // User caching methods
@@ -65,7 +65,7 @@ class CacheService {
     }
 
     // Fetch from database
-    const framework = await Framework.findOne({
+    const framework = await UserFramework.findOne({
       _id: frameworkId,
       isActive: true,
     })
@@ -115,7 +115,10 @@ class CacheService {
     }
 
     // Fetch from database
-    const document = await Document.findOne({ _id: documentId, isActive: true })
+    const document = await UserDocument.findOne({
+      _id: documentId,
+      isActive: true,
+    })
       .populate("uploadedBy", "name email role")
       .lean();
 
@@ -155,9 +158,9 @@ class CacheService {
     // Calculate stats from database
     const [totalFrameworks, activeFrameworks, frameworksByType] =
       await Promise.all([
-        Framework.countDocuments(),
-        Framework.countDocuments({ isActive: true }),
-        Framework.aggregate([
+        UserFramework.countDocuments(),
+        UserFramework.countDocuments({ isActive: true }),
+        UserFramework.aggregate([
           { $match: { isActive: true } },
           { $group: { _id: "$frameworkType", count: { $sum: 1 } } },
         ]),
@@ -197,9 +200,9 @@ class CacheService {
     // Calculate stats from database
     const [totalDocuments, activeDocuments, documentsByType] =
       await Promise.all([
-        Document.countDocuments(),
-        Document.countDocuments({ isActive: true }),
-        Document.aggregate([
+        UserDocument.countDocuments(),
+        UserDocument.countDocuments({ isActive: true }),
+        UserDocument.aggregate([
           { $match: { isActive: true } },
           { $group: { _id: "$documentType", count: { $sum: 1 } } },
         ]),
@@ -230,7 +233,7 @@ class CacheService {
       console.log("🔥 Starting Redis cache warmup...");
 
       // Cache recent frameworks
-      const recentFrameworks = await Framework.find({ isActive: true })
+      const recentFrameworks = await UserFramework.find({ isActive: true })
         .populate("uploadedBy", "name email role")
         .sort({ createdAt: -1 })
         .limit(50)
@@ -241,7 +244,7 @@ class CacheService {
       }
 
       // Cache recent documents
-      const recentDocuments = await Document.find({ isActive: true })
+      const recentDocuments = await UserDocument.find({ isActive: true })
         .populate("uploadedBy", "name email role")
         .sort({ createdAt: -1 })
         .limit(50)
@@ -338,7 +341,7 @@ class CacheService {
       await this.getUserById(userId);
 
       // Cache user's recent frameworks
-      const userFrameworks = await Framework.find({
+      const userFrameworks = await UserFramework.find({
         uploadedBy: userId,
         isActive: true,
       })
@@ -352,7 +355,7 @@ class CacheService {
       }
 
       // Cache user's recent documents
-      const userDocuments = await Document.find({
+      const userDocuments = await UserDocument.find({
         uploadedBy: userId,
         isActive: true,
       })

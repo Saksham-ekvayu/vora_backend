@@ -10,13 +10,6 @@ const {
   canView,
 } = require("../../middlewares/roleAccess.middleware");
 
-// Import cache middlewares (commented out)
-// const {
-//   frameworkListCache,
-//   userFrameworksCache,
-//   frameworkByIdCache,
-// } = require("../../middlewares/cache.middleware");
-
 // Import validations
 const {
   frameworkUploadValidation,

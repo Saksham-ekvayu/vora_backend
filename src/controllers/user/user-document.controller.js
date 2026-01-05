@@ -372,13 +372,18 @@ const deleteDocument = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const document = await Document.findOne({ _id: id, isActive: true });
+    const document = await UserDocument.findOne({ _id: id, isActive: true });
 
     if (!document) {
       return res.status(404).json({
         success: false,
         message: "Document not found",
       });
+    }
+
+    // Delete physical file from filesystem
+    if (document.fileUrl) {
+      deleteFile(document.fileUrl);
     }
 
     // Soft delete - set isActive to false
@@ -408,7 +413,7 @@ const downloadDocument = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const document = await Document.findOne({ _id: id, isActive: true });
+    const document = await UserDocument.findOne({ _id: id, isActive: true });
 
     if (!document) {
       return res.status(404).json({

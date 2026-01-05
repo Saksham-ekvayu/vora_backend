@@ -4,8 +4,9 @@ const {
   paginateWithSearch,
 } = require("../../helpers/helper");
 const { sendTempPasswordEmail } = require("../../services/email.service");
-// const cacheService = require("../../services/cache.service");
-// const { invalidateCache } = require("../../middlewares/cache.middleware");
+const UserDocument = require("../../models/user-document.model");
+const UserFramework = require("../../models/user-framework.model");
+const { deleteFile } = require("../../config/multer.config");
 
 // Create user by admin
 const createUserByAdmin = async (req, res) => {
@@ -290,12 +291,38 @@ const deleteUser = async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
+    // Delete all user's documents and their files
+    const userDocuments = await UserDocument.find({ uploadedBy: id });
+    const userFrameworks = await UserFramework.find({ uploadedBy: id });
+
+    // Delete document files
+    for (const doc of userDocuments) {
+      if (doc.fileUrl) {
+        deleteFile(doc.fileUrl);
+      }
+    }
+
+    // Delete framework files
+    for (const framework of userFrameworks) {
+      if (framework.fileUrl) {
+        deleteFile(framework.fileUrl);
+      }
+    }
+
+    // Delete documents and frameworks from database
+    await UserDocument.deleteMany({ uploadedBy: id });
+    await UserFramework.deleteMany({ uploadedBy: id });
+
+    // Delete user
     await User.findByIdAndDelete(id);
 
     // Invalidate user cache (commented out)
     // await invalidateCache.user(id);
 
-    res.json({ success: true, message: "User deleted successfully" });
+    res.json({
+      success: true,
+      message: "User and all associated data deleted successfully",
+    });
   } catch (error) {
     console.error("Delete user error:", error);
     res.status(500).json({ success: false, message: "Server error" });

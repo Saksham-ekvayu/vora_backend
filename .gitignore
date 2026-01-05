@@ -29,7 +29,7 @@ coverage/
 Thumbs.db
 
 # uploaded files
-uploads
+# uploads
 
 # IDE / editor
 .vscode/

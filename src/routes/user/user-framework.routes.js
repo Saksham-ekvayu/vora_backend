@@ -40,13 +40,13 @@ const {
  * @route   POST /api/frameworks
  * @desc    Create a new framework (upload file)
  * @access  Private (User only)
- * @body    { frameworkName?: string } (multipart/form-data with file)
+ * @body    { frameworkName?: string } (multipart/form-data with field name "file")
  */
 router.post(
   "/",
   authenticateToken,
   canUserCreate, // Only users can create frameworks
-  upload.single("framework"), // Handle file upload with field name "framework"
+  upload.single("file"), // Handle file upload with field name "file"
   frameworkUploadValidation, // Validate using the same pattern as auth/user
   createFramework
 );
@@ -111,13 +111,13 @@ router.get(
  * @route   PUT /api/frameworks/:id
  * @desc    Update framework details and optionally replace file
  * @access  Private (User only)
- * @body    { frameworkName?, isActive? } (multipart/form-data with optional file)
+ * @body    { frameworkName?, isActive? } (multipart/form-data with optional field name "file")
  */
 router.put(
   "/:id",
   authenticateToken,
   canUpdate, // Only users can update frameworks
-  upload.single("framework"), // Handle optional file upload
+  upload.single("file"), // Handle optional file upload
   getFrameworkByIdValidation,
   updateFrameworkValidation,
   updateFramework

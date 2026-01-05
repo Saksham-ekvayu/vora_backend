@@ -39,7 +39,7 @@ const {
  * @route   POST /api/expert/frameworks
  * @desc    Create a new framework (upload file)
  * @access  Private (Expert only)
- * @body    { frameworkName?: string } (multipart/form-data with file)
+ * @body    { frameworkName?: string } (multipart/form-data with field name "file")
  */
 router.post(
   "/",
@@ -107,13 +107,13 @@ router.get(
  * @route   PUT /api/expert/frameworks/:id
  * @desc    Update framework details and optionally replace file
  * @access  Private (Expert only)
- * @body    { frameworkName?, isActive? } (multipart/form-data with optional file)
+ * @body    { frameworkName?, isActive? } (multipart/form-data with optional field name "file")
  */
 router.put(
   "/:id",
   authenticateToken,
   canExpertUpdate, // Only experts can update frameworks
-  upload.single("framework"), // Handle optional file upload
+  upload.single("file"), // Handle optional file upload
   getExpertFrameworkByIdValidation,
   updateExpertFrameworkValidation,
   updateFramework

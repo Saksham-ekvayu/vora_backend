@@ -49,7 +49,7 @@ const createFramework = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "No file uploaded. Please select a file to upload.",
-        field: "framework",
+        field: "file",
       });
     }
 

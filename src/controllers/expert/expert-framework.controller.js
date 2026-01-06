@@ -554,11 +554,12 @@ const getExpertFrameworks = async (req, res) => {
 const uploadFrameworkToAIService = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user._id.toString();
 
     const framework = await ExpertFramework.findOne({
       _id: id,
       isActive: true,
-    }).populate("uploadedBy", "name email role");
+    });
 
     if (!framework) {
       return res.status(404).json({
@@ -584,6 +585,7 @@ const uploadFrameworkToAIService = async (req, res) => {
       });
     }
 
+    // Upload to AI service
     const aiResult = await aiService.uploadFramework(framework.fileUrl);
 
     if (!aiResult.success) {
@@ -599,64 +601,76 @@ const uploadFrameworkToAIService = async (req, res) => {
     framework.aiProcessing.errorMessage = null;
     await framework.save();
 
-    // Start background monitoring
-    try {
-      aiService.startBackgroundMonitoring(
-        aiResult.aiResponse.uuid,
-        id,
-        async (message) => {
-          if (
-            message.status === "completed" &&
-            (message.controls || message.data)
-          ) {
-            const fw = await ExpertFramework.findById(id);
-            if (fw) {
-              const controls = Array.isArray(message.data)
-                ? message.data
-                : Array.isArray(message.controls)
-                ? message.controls
-                : [];
+    // Start background monitoring - simplified
+    aiService.startBackgroundMonitoring(
+      aiResult.aiResponse.uuid,
+      id,
+      async (message) => {
+        const fw = await ExpertFramework.findById(id);
+        if (!fw) return;
 
-              fw.aiProcessing.extractedControls = controls;
-              fw.aiProcessing.controlsCount = controls.length;
-              fw.aiProcessing.controlsExtractedAt = new Date();
-              fw.aiProcessing.status = "completed";
-              fw.aiProcessing.control_extraction_status = "completed";
-              await fw.save();
+        // Handle completion
+        if (message.status === "completed" || message.status === "done") {
+          // Extract controls from message
+          let controls =
+            message.data ||
+            message.controls ||
+            message.extracted_controls ||
+            message.results ||
+            [];
+          if (!Array.isArray(controls)) controls = [];
 
-              // Send framework details update message
-              sendToUser(req.user._id.toString(), {
-                type: "framework-details-update",
-                frameworkId: id,
-                framework: {
-                  id: fw._id,
-                  frameworkName: fw.frameworkName,
-                  frameworkType: fw.frameworkType,
-                  aiProcessing: {
-                    status: "completed",
-                    control_extraction_status: "completed",
-                    controlsCount: controls.length,
-                    extractedControls: controls,
-                    controlsExtractedAt: fw.aiProcessing.controlsExtractedAt,
-                    processedAt: fw.aiProcessing.processedAt,
-                  },
-                },
-              });
-            }
-          }
+          // Update framework
+          fw.aiProcessing.extractedControls = controls;
+          fw.aiProcessing.controlsCount = controls.length;
+          fw.aiProcessing.controlsExtractedAt = new Date();
+          fw.aiProcessing.status = "completed";
+          fw.aiProcessing.control_extraction_status = "completed";
+          await fw.save();
+
+          // Send WebSocket update for framework details page
+          sendToUser(userId, {
+            type: "framework-details-update",
+            frameworkId: id,
+            framework: {
+              aiProcessing: {
+                status: "completed",
+                control_extraction_status: "completed",
+                controlsCount: controls.length,
+                extractedControls: controls,
+                controlsExtractedAt: fw.aiProcessing.controlsExtractedAt,
+                processedAt: fw.aiProcessing.processedAt,
+              },
+            },
+          });
+        } else if (message.status === "error" || message.status === "failed") {
+          // Handle failure
+          fw.aiProcessing.status = "failed";
+          fw.aiProcessing.control_extraction_status = "failed";
+          fw.aiProcessing.errorMessage =
+            message.message || message.error || "AI processing failed";
+          await fw.save();
+
+          // Send WebSocket update for failure
+          sendToUser(userId, {
+            type: "framework-details-update",
+            frameworkId: id,
+            framework: {
+              aiProcessing: {
+                status: "failed",
+                control_extraction_status: "failed",
+                errorMessage: fw.aiProcessing.errorMessage,
+              },
+            },
+          });
         }
-      );
-    } catch (wsError) {
-      console.error(
-        `Failed to start background monitoring for framework ${id}:`,
-        wsError
-      );
-    }
+      }
+    );
 
     res.status(200).json({
       success: true,
       message:
-        "Framework uploaded to AI service successfully. Processing will continue in background.",
+        "Framework uploaded to AI service successfully. You will receive real-time updates.",
       data: {
         framework: {
           id: framework._id,

@@ -14,7 +14,6 @@ const { getLocalIPv4 } = require("./src/helpers/helper");
 const expertAIService = require("./src/services/ai/expert-ai.service");
 const userAIService = require("./src/services/ai/user-ai.service");
 const frameworkComparisonAIService = require("./src/services/ai/framework-comparison-ai.service");
-const statusCheckerService = require("./src/services/ai/status-checker.service");
 const {
   initializeWebSocketServer,
 } = require("./src/websocket/framework-comparison.websocket");
@@ -108,9 +107,6 @@ async function start() {
       // Initialize WebSocket server for framework comparisons
       initializeWebSocketServer(httpServer);
 
-      // Start AI status checker service
-      statusCheckerService.start();
-
       // ✅ Development ke liye actual IPv4
       if (process.env.NODE_ENV !== "production") {
         console.log(bgGreen(`🌐 Network access → http://${ipv4}:${PORT}`));
@@ -142,9 +138,6 @@ function gracefulShutdown() {
   expertAIService.closeAllConnections();
   userAIService.closeAllConnections();
   frameworkComparisonAIService.closeAllConnections();
-
-  // Stop status checker service
-  statusCheckerService.stop();
 
   Promise.resolve()
     .then(() => disconnectDB())

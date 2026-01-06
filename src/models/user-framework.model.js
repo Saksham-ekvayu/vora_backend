@@ -142,7 +142,7 @@ const frameworkSchema = new mongoose.Schema(
         comparisonId: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "FrameworkComparison",
-          required: true,
+          required: false, // Made optional since we're not using FrameworkComparison model
         },
       },
     ],

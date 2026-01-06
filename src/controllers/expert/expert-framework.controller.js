@@ -1,4 +1,5 @@
 const ExpertFramework = require("../../models/expert-framework.model");
+const UserFramework = require("../../models/user-framework.model"); // Added for cleanup
 const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {
@@ -8,6 +9,9 @@ const {
   removeFileExtension,
 } = require("../../config/multer.config");
 const aiService = require("../../services/ai/expert-ai.service");
+const {
+  sendToUser,
+} = require("../../websocket/framework-comparison.websocket");
 
 // Helper functions
 const getFormattedFileSize = (bytes) => {
@@ -122,6 +126,12 @@ const createFramework = async (req, res) => {
           updatedAt: framework.updatedAt,
         },
       },
+    });
+
+    // Send WebSocket update for framework list refresh
+    sendToUser(req.user._id.toString(), {
+      type: "framework-list-refresh",
+      message: "Framework list updated",
     });
   } catch (error) {
     if (req.file) {
@@ -355,6 +365,12 @@ const updateFramework = async (req, res) => {
         },
       },
     });
+
+    // Send WebSocket update for framework list refresh
+    sendToUser(req.user._id.toString(), {
+      type: "framework-list-refresh",
+      message: "Framework list updated",
+    });
   } catch (error) {
     if (req.file) {
       deleteFile(req.file.path);
@@ -369,7 +385,7 @@ const updateFramework = async (req, res) => {
   }
 };
 
-// Delete framework
+// Delete framework (permanent delete)
 const deleteFramework = async (req, res) => {
   try {
     const { id } = req.params;
@@ -391,12 +407,24 @@ const deleteFramework = async (req, res) => {
       deleteFile(framework.fileUrl);
     }
 
-    framework.isActive = false;
-    await framework.save();
+    // Clean up related data - remove comparison results that reference this expert framework
+    await UserFramework.updateMany(
+      { "comparisonResults.expertFrameworkId": id },
+      { $pull: { comparisonResults: { expertFrameworkId: id } } }
+    );
+
+    // Permanent delete from database
+    await ExpertFramework.findByIdAndDelete(id);
 
     res.status(200).json({
       success: true,
-      message: "Framework deleted successfully",
+      message: "Framework permanently deleted successfully",
+    });
+
+    // Send WebSocket update for framework list refresh
+    sendToUser(req.user._id.toString(), {
+      type: "framework-list-refresh",
+      message: "Framework list updated",
     });
   } catch (error) {
     console.error("Error deleting expert framework:", error);
@@ -533,11 +561,12 @@ const getExpertFrameworks = async (req, res) => {
 const uploadFrameworkToAIService = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user._id.toString();
 
     const framework = await ExpertFramework.findOne({
       _id: id,
       isActive: true,
-    }).populate("uploadedBy", "name email role");
+    });
 
     if (!framework) {
       return res.status(404).json({
@@ -563,6 +592,7 @@ const uploadFrameworkToAIService = async (req, res) => {
       });
     }
 
+    // Upload to AI service
     const aiResult = await aiService.uploadFramework(framework.fileUrl);
 
     if (!aiResult.success) {
@@ -578,45 +608,44 @@ const uploadFrameworkToAIService = async (req, res) => {
     framework.aiProcessing.errorMessage = null;
     await framework.save();
 
-    // Start background monitoring
-    try {
-      aiService.startBackgroundMonitoring(
-        aiResult.aiResponse.uuid,
-        id,
-        async (message) => {
-          if (
-            message.status === "completed" &&
-            (message.controls || message.data)
-          ) {
-            const fw = await ExpertFramework.findById(id);
-            if (fw) {
-              const controls = Array.isArray(message.data)
-                ? message.data
-                : Array.isArray(message.controls)
-                ? message.controls
-                : [];
+    // Start background monitoring - connects to AI service WebSocket
+    aiService.startBackgroundMonitoring(
+      aiResult.aiResponse.uuid,
+      id,
+      async (message) => {
+        const fw = await ExpertFramework.findById(id);
+        if (!fw) return;
 
-              fw.aiProcessing.extractedControls = controls;
-              fw.aiProcessing.controlsCount = controls.length;
-              fw.aiProcessing.controlsExtractedAt = new Date();
-              fw.aiProcessing.status = "completed";
-              fw.aiProcessing.control_extraction_status = "completed";
-              await fw.save();
-            }
-          }
+        // Update framework based on AI message
+        if (message.status === "completed") {
+          const controls = Array.isArray(message.data) ? message.data : [];
+          fw.aiProcessing.extractedControls = controls;
+          fw.aiProcessing.controlsCount = controls.length;
+          fw.aiProcessing.controlsExtractedAt = new Date();
+          fw.aiProcessing.status = "completed";
+          fw.aiProcessing.control_extraction_status = "completed";
+          await fw.save();
+        } else if (message.status === "error" || message.status === "failed") {
+          fw.aiProcessing.status = "failed";
+          fw.aiProcessing.control_extraction_status = "failed";
+          fw.aiProcessing.errorMessage =
+            message.message || "AI processing failed";
+          await fw.save();
         }
-      );
-    } catch (wsError) {
-      console.error(
-        `Failed to start background monitoring for framework ${id}:`,
-        wsError
-      );
-    }
+
+        // Send AI message directly to frontend via WebSocket
+        sendToUser(userId, {
+          type: "ai-processing-update",
+          frameworkId: id,
+          aiMessage: message,
+        });
+      }
+    );
 
     res.status(200).json({
       success: true,
       message:
-        "Framework uploaded to AI service successfully. Processing will continue in background.",
+        "Framework uploaded to AI service successfully. You will receive real-time updates.",
       data: {
         framework: {
           id: framework._id,
@@ -633,9 +662,6 @@ const uploadFrameworkToAIService = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error uploading framework to AI service:", error);
-
-    // Update framework status on error
     if (req.params.id) {
       try {
         const framework = await ExpertFramework.findById(req.params.id);

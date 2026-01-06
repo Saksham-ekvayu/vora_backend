@@ -35,7 +35,7 @@ const initializeRedis = async () => {
     });
 
     redisClient.on("connect", () => {
-      console.log("✅ Connected to Redis");
+      // Connected to Redis
     });
 
     redisClient.on("ready", () => {
@@ -43,7 +43,7 @@ const initializeRedis = async () => {
     });
 
     redisClient.on("end", () => {
-      console.log("⚠️ Redis connection ended");
+      // Redis connection ended
     });
 
     await redisClient.connect();
@@ -233,9 +233,7 @@ const CACHE_TTL = {
 const closeRedis = async () => {
   try {
     if (redisClient && redisClient.isOpen) {
-      console.log("🔌 Closing Redis connection...");
       await redisClient.quit();
-      console.log("✅ Redis connection closed gracefully");
     }
   } catch (error) {
     console.error("❌ Error closing Redis connection:", error);

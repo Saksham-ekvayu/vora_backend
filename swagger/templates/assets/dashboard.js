@@ -1231,8 +1231,6 @@ function saveGlobalToken() {
 
   // Clear the input
   tokenInput.value = "";
-
-  console.log("✅ Token saved globally");
 }
 
 function clearGlobalToken() {

@@ -8,6 +8,9 @@ const {
   removeFileExtension,
 } = require("../../config/multer.config");
 const aiService = require("../../services/ai/user-ai.service");
+const {
+  sendToUser,
+} = require("../../websocket/framework-comparison.websocket");
 // const cacheService = require("../../services/cache.service");
 // const { invalidateCache } = require("../../middlewares/cache.middleware");
 
@@ -131,6 +134,12 @@ const createFramework = async (req, res) => {
           updatedAt: framework.updatedAt,
         },
       },
+    });
+
+    // Send WebSocket update for framework list refresh
+    sendToUser(req.user._id.toString(), {
+      type: "framework-list-refresh",
+      message: "Framework list updated",
     });
   } catch (error) {
     // Delete uploaded file if framework creation fails
@@ -394,6 +403,12 @@ const updateFramework = async (req, res) => {
         },
       },
     });
+
+    // Send WebSocket update for framework list refresh
+    sendToUser(req.user._id.toString(), {
+      type: "framework-list-refresh",
+      message: "Framework list updated",
+    });
   } catch (error) {
     // Delete uploaded file if update fails
     if (req.file) {
@@ -409,7 +424,7 @@ const updateFramework = async (req, res) => {
   }
 };
 
-// Delete framework (soft delete)
+// Delete framework (permanent delete)
 const deleteFramework = async (req, res) => {
   try {
     const { id } = req.params;
@@ -428,17 +443,24 @@ const deleteFramework = async (req, res) => {
       deleteFile(framework.fileUrl);
     }
 
-    // Soft delete - set isActive to false
-    framework.isActive = false;
-    await framework.save();
+    // Clean up related data - remove comparison results that reference this framework
+    await UserFramework.updateMany(
+      { "comparisonResults.expertFrameworkId": id },
+      { $pull: { comparisonResults: { expertFrameworkId: id } } }
+    );
 
-    // Invalidate caches (commented out)
-    // await invalidateCache.framework(id);
-    // await invalidateCache.frameworks(framework.uploadedBy);
+    // Permanent delete from database
+    await UserFramework.findByIdAndDelete(id);
 
     res.status(200).json({
       success: true,
-      message: "Framework deleted successfully",
+      message: "Framework permanently deleted successfully",
+    });
+
+    // Send WebSocket update for framework list refresh
+    sendToUser(req.user._id.toString(), {
+      type: "framework-list-refresh",
+      message: "Framework list updated",
     });
   } catch (error) {
     console.error("Error deleting framework:", error);
@@ -579,11 +601,12 @@ const getUserFrameworks = async (req, res) => {
 const uploadFrameworkToAIService = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user._id.toString();
 
     const framework = await UserFramework.findOne({
       _id: id,
       isActive: true,
-    }).populate("uploadedBy", "name email role");
+    });
 
     if (!framework) {
       return res.status(404).json({
@@ -609,6 +632,7 @@ const uploadFrameworkToAIService = async (req, res) => {
       });
     }
 
+    // Upload to AI service
     const aiResult = await aiService.uploadFramework(framework.fileUrl);
 
     if (!aiResult.success) {
@@ -624,45 +648,44 @@ const uploadFrameworkToAIService = async (req, res) => {
     framework.aiProcessing.errorMessage = null;
     await framework.save();
 
-    // Start background monitoring
-    try {
-      aiService.startBackgroundMonitoring(
-        aiResult.aiResponse.uuid,
-        id,
-        async (message) => {
-          if (
-            message.status === "completed" &&
-            (message.controls || message.data)
-          ) {
-            const fw = await UserFramework.findById(id);
-            if (fw) {
-              const controls = Array.isArray(message.data)
-                ? message.data
-                : Array.isArray(message.controls)
-                ? message.controls
-                : [];
+    // Start background monitoring - connects to AI service WebSocket
+    aiService.startBackgroundMonitoring(
+      aiResult.aiResponse.uuid,
+      id,
+      async (message) => {
+        const fw = await UserFramework.findById(id);
+        if (!fw) return;
 
-              fw.aiProcessing.extractedControls = controls;
-              fw.aiProcessing.controlsCount = controls.length;
-              fw.aiProcessing.controlsExtractedAt = new Date();
-              fw.aiProcessing.status = "completed";
-              fw.aiProcessing.control_extraction_status = "completed";
-              await fw.save();
-            }
-          }
+        // Update framework based on AI message
+        if (message.status === "completed") {
+          const controls = Array.isArray(message.data) ? message.data : [];
+          fw.aiProcessing.extractedControls = controls;
+          fw.aiProcessing.controlsCount = controls.length;
+          fw.aiProcessing.controlsExtractedAt = new Date();
+          fw.aiProcessing.status = "completed";
+          fw.aiProcessing.control_extraction_status = "completed";
+          await fw.save();
+        } else if (message.status === "error" || message.status === "failed") {
+          fw.aiProcessing.status = "failed";
+          fw.aiProcessing.control_extraction_status = "failed";
+          fw.aiProcessing.errorMessage =
+            message.message || "AI processing failed";
+          await fw.save();
         }
-      );
-    } catch (wsError) {
-      console.error(
-        `Failed to start background monitoring for framework ${id}:`,
-        wsError
-      );
-    }
+
+        // Send AI message directly to frontend via WebSocket
+        sendToUser(userId, {
+          type: "ai-processing-update",
+          frameworkId: id,
+          aiMessage: message,
+        });
+      }
+    );
 
     res.status(200).json({
       success: true,
       message:
-        "Framework uploaded to AI service successfully. Processing will continue in background.",
+        "Framework uploaded to AI service successfully. You will receive real-time updates.",
       data: {
         framework: {
           id: framework._id,
@@ -679,14 +702,12 @@ const uploadFrameworkToAIService = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error uploading framework to AI service:", error);
-
-    // Update framework status on error
     if (req.params.id) {
       try {
         const framework = await UserFramework.findById(req.params.id);
         if (framework) {
           framework.aiProcessing.status = "failed";
+          framework.aiProcessing.control_extraction_status = "failed";
           framework.aiProcessing.errorMessage = error.message;
           framework.aiProcessing.processedAt = new Date();
           await framework.save();

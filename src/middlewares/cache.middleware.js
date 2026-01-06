@@ -172,7 +172,6 @@ const invalidateCache = {
       for (const pattern of patterns) {
         await cacheOperations.clearPattern(pattern);
       }
-      console.log("✅ Framework caches invalidated");
     } catch (error) {
       console.error("❌ Failed to invalidate framework caches:", error.message);
     }
@@ -192,7 +191,6 @@ const invalidateCache = {
       for (const pattern of patterns) {
         await cacheOperations.clearPattern(pattern);
       }
-      console.log("✅ Document caches invalidated");
     } catch (error) {
       console.error("❌ Failed to invalidate document caches:", error.message);
     }
@@ -204,7 +202,6 @@ const invalidateCache = {
       await cacheOperations.del(generateCacheKey("framework", frameworkId));
       // Also invalidate list caches as they might contain this framework
       await this.frameworks();
-      console.log(`✅ Framework ${frameworkId} cache invalidated`);
     } catch (error) {
       console.error(
         `❌ Failed to invalidate framework ${frameworkId} cache:`,
@@ -219,7 +216,6 @@ const invalidateCache = {
       await cacheOperations.del(generateCacheKey("document", documentId));
       // Also invalidate list caches as they might contain this document
       await this.documents();
-      console.log(`✅ Document ${documentId} cache invalidated`);
     } catch (error) {
       console.error(
         `❌ Failed to invalidate document ${documentId} cache:`,
@@ -234,7 +230,6 @@ const invalidateCache = {
       await cacheOperations.del(generateCacheKey("user", userId));
       await cacheOperations.clearPattern(`vora:user_frameworks:${userId}:*`);
       await cacheOperations.clearPattern(`vora:user_documents:${userId}:*`);
-      console.log(`✅ User ${userId} caches invalidated`);
     } catch (error) {
       console.error(
         `❌ Failed to invalidate user ${userId} caches:`,
@@ -247,7 +242,6 @@ const invalidateCache = {
   async all() {
     try {
       await cacheOperations.flushAll();
-      console.log("✅ All caches cleared");
     } catch (error) {
       console.error("❌ Failed to clear all caches:", error.message);
     }

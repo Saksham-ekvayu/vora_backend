@@ -30,6 +30,11 @@ async function handleWebSocketConnection(ws, req) {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const token = url.searchParams.get("token");
 
+    if (!token) {
+      ws.close(1008, "No token provided");
+      return;
+    }
+
     const user = await authenticateWebSocket(token);
     const userId = user._id.toString();
 
@@ -58,6 +63,23 @@ function initializeWebSocketServer(server) {
   const wss = new WebSocket.Server({
     server,
     path: "/ws/framework-comparisons",
+    verifyClient: (info) => {
+      // Allow connections from localhost and the network IP
+      const allowedOrigins = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://192.168.1.21:5173",
+        "http://192.168.1.21:5174",
+      ];
+
+      const origin = info.origin;
+
+      if (!origin || allowedOrigins.includes(origin)) {
+        return true;
+      }
+
+      return false;
+    },
   });
 
   wss.on("connection", handleWebSocketConnection);

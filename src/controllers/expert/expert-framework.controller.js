@@ -8,6 +8,9 @@ const {
   removeFileExtension,
 } = require("../../config/multer.config");
 const aiService = require("../../services/ai/expert-ai.service");
+const {
+  sendToUser,
+} = require("../../websocket/framework-comparison.websocket");
 
 // Helper functions
 const getFormattedFileSize = (bytes) => {
@@ -122,6 +125,12 @@ const createFramework = async (req, res) => {
           updatedAt: framework.updatedAt,
         },
       },
+    });
+
+    // Send WebSocket update for framework list refresh
+    sendToUser(req.user._id.toString(), {
+      type: "framework-list-refresh",
+      message: "Framework list updated",
     });
   } catch (error) {
     if (req.file) {
@@ -355,6 +364,12 @@ const updateFramework = async (req, res) => {
         },
       },
     });
+
+    // Send WebSocket update for framework list refresh
+    sendToUser(req.user._id.toString(), {
+      type: "framework-list-refresh",
+      message: "Framework list updated",
+    });
   } catch (error) {
     if (req.file) {
       deleteFile(req.file.path);
@@ -397,6 +412,12 @@ const deleteFramework = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Framework deleted successfully",
+    });
+
+    // Send WebSocket update for framework list refresh
+    sendToUser(req.user._id.toString(), {
+      type: "framework-list-refresh",
+      message: "Framework list updated",
     });
   } catch (error) {
     console.error("Error deleting expert framework:", error);

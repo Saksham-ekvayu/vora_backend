@@ -135,6 +135,12 @@ const createFramework = async (req, res) => {
         },
       },
     });
+
+    // Send WebSocket update for framework list refresh
+    sendToUser(req.user._id.toString(), {
+      type: "framework-list-refresh",
+      message: "Framework list updated",
+    });
   } catch (error) {
     // Delete uploaded file if framework creation fails
     if (req.file) {
@@ -397,6 +403,12 @@ const updateFramework = async (req, res) => {
         },
       },
     });
+
+    // Send WebSocket update for framework list refresh
+    sendToUser(req.user._id.toString(), {
+      type: "framework-list-refresh",
+      message: "Framework list updated",
+    });
   } catch (error) {
     // Delete uploaded file if update fails
     if (req.file) {
@@ -442,6 +454,12 @@ const deleteFramework = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Framework deleted successfully",
+    });
+
+    // Send WebSocket update for framework list refresh
+    sendToUser(req.user._id.toString(), {
+      type: "framework-list-refresh",
+      message: "Framework list updated",
     });
   } catch (error) {
     console.error("Error deleting framework:", error);
@@ -654,11 +672,6 @@ const uploadFrameworkToAIService = async (req, res) => {
         aiResult.aiResponse.uuid,
         id,
         async (message) => {
-          console.log(
-            "🔍 AI WebSocket message received:",
-            JSON.stringify(message, null, 2)
-          );
-
           const fw = await UserFramework.findById(id);
           if (!fw) return;
 
@@ -670,8 +683,6 @@ const uploadFrameworkToAIService = async (req, res) => {
 
           // Handle completion - check for various completion indicators
           if (message.status === "completed" || message.status === "done") {
-            console.log("✅ AI processing completed for framework:", id);
-
             // Extract controls from various possible message formats
             let controls = [];
             if (message.data && Array.isArray(message.data)) {
@@ -689,9 +700,6 @@ const uploadFrameworkToAIService = async (req, res) => {
 
             // If no controls in the message, try to fetch them from AI service
             if (controls.length === 0) {
-              console.log(
-                "⚠️ No controls in completion message, checking AI service status..."
-              );
               try {
                 const statusResult = await aiService.checkProcessingStatus(
                   fw.aiProcessing.uuid
@@ -700,10 +708,6 @@ const uploadFrameworkToAIService = async (req, res) => {
                   controls = Array.isArray(statusResult.status.data)
                     ? statusResult.status.data
                     : [];
-                  console.log(
-                    "✅ Retrieved controls from AI service status:",
-                    controls.length
-                  );
                 }
               } catch (statusError) {
                 console.error(
@@ -735,14 +739,10 @@ const uploadFrameworkToAIService = async (req, res) => {
               type: "framework-list-refresh",
               message: "Framework processing completed, refreshing list",
             });
-
-            console.log("📤 Sending completion WebSocket message:", wsMessage);
           } else if (
             message.status === "error" ||
             message.status === "failed"
           ) {
-            console.log("❌ AI processing failed for framework:", id, message);
-
             fw.aiProcessing.status = "failed";
             fw.aiProcessing.control_extraction_status = "failed";
             fw.aiProcessing.errorMessage =
@@ -762,8 +762,6 @@ const uploadFrameworkToAIService = async (req, res) => {
             message.status === "in-progress" ||
             message.status === "started"
           ) {
-            console.log("🔄 AI processing in progress for framework:", id);
-
             fw.aiProcessing.control_extraction_status = "started";
             await fw.save();
 
@@ -774,12 +772,7 @@ const uploadFrameworkToAIService = async (req, res) => {
               message: "AI is extracting controls from your framework...",
             };
           } else {
-            console.log(
-              "ℹ️ Unknown AI message status:",
-              message.status,
-              "for framework:",
-              id
-            );
+            // Handle other message statuses if needed
           }
 
           // Send real-time update to user

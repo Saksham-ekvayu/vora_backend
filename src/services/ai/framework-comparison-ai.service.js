@@ -28,7 +28,7 @@ class FrameworkComparisonAIService {
         throw new Error("Both user and expert framework UUIDs are required");
       }
 
-      const wsUrl = `${this.AI_WS_BASE_URL}/user/websocket/comparision?user_framework_uuid=${userFrameworkUuid}&expert_framework_uuid=${expertFrameworkUuid}`;
+      const wsUrl = `${this.AI_WS_BASE_URL}/user/websocket/comparison?user_framework_uuid=${userFrameworkUuid}&expert_framework_uuid=${expertFrameworkUuid}`;
       const ws = new WebSocket(wsUrl);
       const connectionId = `${userFrameworkUuid}_${expertFrameworkUuid}_${Date.now()}`;
 

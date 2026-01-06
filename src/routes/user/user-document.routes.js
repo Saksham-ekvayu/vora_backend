@@ -115,7 +115,7 @@ router.get(
  * @route   PUT /api/documents/:id
  * @desc    Update document details and optionally replace file
  * @access  Private (User only)
- * @body    { documentName?, isActive? } (multipart/form-data with optional file)
+ * @body    { documentName? } (multipart/form-data with optional file)
  */
 router.put(
   "/:id",

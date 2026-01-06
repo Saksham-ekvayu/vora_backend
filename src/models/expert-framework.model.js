@@ -36,10 +36,6 @@ const expertFrameworkSchema = new mongoose.Schema(
       required: [true, "Original file name is required"],
       trim: true,
     },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
     // AI Processing Fields
     aiProcessing: {
       uuid: {

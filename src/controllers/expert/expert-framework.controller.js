@@ -12,6 +12,7 @@ const aiService = require("../../services/ai/expert-ai.service");
 const {
   sendToUser,
 } = require("../../websocket/framework-comparison.websocket");
+const FrameworkComparison = require("../../models/framework-comparison.model");
 
 // Helper functions
 const getFormattedFileSize = (bytes) => {
@@ -72,7 +73,6 @@ const createFramework = async (req, res) => {
     const existingFramework = await ExpertFramework.findOne({
       originalFileName: file.originalname,
       uploadedBy: req.user._id,
-      isActive: true,
     });
 
     let framework;
@@ -152,7 +152,7 @@ const getAllFrameworks = async (req, res) => {
   try {
     const { search, frameworkType, uploadedBy } = req.query;
 
-    const additionalFilters = { isActive: true };
+    const additionalFilters = {};
 
     if (frameworkType) {
       additionalFilters.frameworkType = frameworkType;
@@ -234,10 +234,10 @@ const getFrameworkById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await ExpertFramework.findOne({
-      _id: id,
-      isActive: true,
-    }).populate("uploadedBy", "name email role");
+    const framework = await ExpertFramework.findById(id).populate(
+      "uploadedBy",
+      "name email role"
+    );
 
     if (!framework) {
       return res.status(404).json({
@@ -291,12 +291,9 @@ const getFrameworkById = async (req, res) => {
 const updateFramework = async (req, res) => {
   try {
     const { id } = req.params;
-    const { frameworkName, isActive } = req.body;
+    const { frameworkName } = req.body;
 
-    const framework = await ExpertFramework.findOne({
-      _id: id,
-      isActive: true,
-    });
+    const framework = await ExpertFramework.findById(id);
 
     if (!framework) {
       return res.status(404).json({
@@ -334,9 +331,6 @@ const updateFramework = async (req, res) => {
     if (frameworkName !== undefined) {
       framework.frameworkName = frameworkName;
     }
-    if (isActive !== undefined) {
-      framework.isActive = isActive;
-    }
 
     await framework.save();
     await framework.populate("uploadedBy", "name email role");
@@ -359,7 +353,6 @@ const updateFramework = async (req, res) => {
             email: framework.uploadedBy.email,
             role: framework.uploadedBy.role,
           },
-          isActive: framework.isActive,
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
         },
@@ -390,10 +383,7 @@ const deleteFramework = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await ExpertFramework.findOne({
-      _id: id,
-      isActive: true,
-    });
+    const framework = await ExpertFramework.findById(id);
 
     if (!framework) {
       return res.status(404).json({
@@ -412,6 +402,11 @@ const deleteFramework = async (req, res) => {
       { "comparisonResults.expertFrameworkId": id },
       { $pull: { comparisonResults: { expertFrameworkId: id } } }
     );
+
+    // Delete related framework comparisons
+    await FrameworkComparison.deleteMany({
+      $or: [{ userFrameworkId: id }, { expertFrameworkId: id }],
+    });
 
     // Permanent delete from database
     await ExpertFramework.findByIdAndDelete(id);
@@ -441,10 +436,7 @@ const downloadFramework = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await ExpertFramework.findOne({
-      _id: id,
-      isActive: true,
-    });
+    const framework = await ExpertFramework.findById(id);
 
     if (!framework) {
       return res.status(404).json({
@@ -494,7 +486,6 @@ const getExpertFrameworks = async (req, res) => {
 
     const filter = {
       uploadedBy: expertId,
-      isActive: true,
     };
 
     let sortObj = { createdAt: -1 };
@@ -563,10 +554,7 @@ const uploadFrameworkToAIService = async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id.toString();
 
-    const framework = await ExpertFramework.findOne({
-      _id: id,
-      isActive: true,
-    });
+    const framework = await ExpertFramework.findById(id);
 
     if (!framework) {
       return res.status(404).json({
@@ -696,10 +684,7 @@ const checkAIProcessingStatus = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await ExpertFramework.findOne({
-      _id: id,
-      isActive: true,
-    });
+    const framework = await ExpertFramework.findById(id);
 
     if (!framework) {
       return res.status(404).json({

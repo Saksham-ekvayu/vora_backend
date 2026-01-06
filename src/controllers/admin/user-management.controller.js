@@ -113,12 +113,33 @@ const updateUserByAdmin = async (req, res) => {
     const { id } = req.params;
     const { name, role, phone } = req.body;
 
+    // Prevent admin from changing their own role
+    if (req.user._id.toString() === id && role && role !== req.user.role) {
+      return res.status(400).json({
+        success: false,
+        message: "Admin cannot change their own role",
+      });
+    }
+
     // find user
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,
         message: "User not found",
+      });
+    }
+
+    // Additional protection: Prevent changing other admin's role (optional security measure)
+    if (
+      user.role === "admin" &&
+      role &&
+      role !== "admin" &&
+      req.user._id.toString() !== id
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot change role of other admin users",
       });
     }
 
@@ -284,11 +305,28 @@ const deleteUser = async (req, res) => {
     }
 
     const { id } = req.params;
+
+    // Prevent admin from deleting themselves
+    if (req.user._id.toString() === id) {
+      return res.status(400).json({
+        success: false,
+        message: "Admin cannot delete their own account",
+      });
+    }
+
     const user = await User.findById(id);
     if (!user) {
       return res
         .status(404)
         .json({ success: false, message: "User not found" });
+    }
+
+    // Additional check: Prevent deletion of other admin users (optional security measure)
+    if (user.role === "admin") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete admin users",
+      });
     }
 
     // Delete all user's documents and their files

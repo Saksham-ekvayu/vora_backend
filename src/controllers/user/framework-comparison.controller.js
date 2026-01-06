@@ -16,7 +16,6 @@ const startFrameworkComparison = async (req, res) => {
     const userFramework = await UserFramework.findOne({
       _id: userFrameworkId,
       uploadedBy: req.user._id,
-      isActive: true,
     });
 
     if (!userFramework?.aiProcessing?.uuid) {
@@ -26,10 +25,7 @@ const startFrameworkComparison = async (req, res) => {
       });
     }
 
-    const expertFramework = await ExpertFramework.findOne({
-      _id: expertFrameworkId,
-      isActive: true,
-    });
+    const expertFramework = await ExpertFramework.findById(expertFrameworkId);
 
     if (!expertFramework?.aiProcessing?.uuid) {
       return res.status(400).json({

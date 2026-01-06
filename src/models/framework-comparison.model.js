@@ -90,10 +90,6 @@ const frameworkComparisonSchema = new mongoose.Schema(
         default: 0,
       },
     },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
   },
   {
     timestamps: true,

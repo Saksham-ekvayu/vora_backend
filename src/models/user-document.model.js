@@ -36,10 +36,6 @@ const documentSchema = new mongoose.Schema(
       required: [true, "Original file name is required"],
       trim: true,
     },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
   },
   {
     timestamps: true, // This adds createdAt and updatedAt automatically
@@ -70,15 +66,12 @@ documentSchema.methods.getFormattedFileSize = function () {
 
 // Static method to get documents by type
 documentSchema.statics.getByType = function (documentType) {
-  return this.find({ documentType, isActive: true }).populate(
-    "uploadedBy",
-    "name email role"
-  );
+  return this.find({ documentType }).populate("uploadedBy", "name email role");
 };
 
 // Static method to get user documents
 documentSchema.statics.getUserDocuments = function (userId) {
-  return this.find({ uploadedBy: userId, isActive: true }).populate(
+  return this.find({ uploadedBy: userId }).populate(
     "uploadedBy",
     "name email role"
   );

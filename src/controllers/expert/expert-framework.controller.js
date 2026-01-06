@@ -188,12 +188,19 @@ const getAllFrameworks = async (req, res) => {
         frameworkType: doc.frameworkType,
         fileSize: getFormattedFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
-        uploadedBy: {
-          id: doc.uploadedBy._id,
-          name: doc.uploadedBy.name,
-          email: doc.uploadedBy.email,
-          role: doc.uploadedBy.role,
-        },
+        uploadedBy: doc.uploadedBy
+          ? {
+              id: doc.uploadedBy._id,
+              name: doc.uploadedBy.name,
+              email: doc.uploadedBy.email,
+              role: doc.uploadedBy.role,
+            }
+          : {
+              id: null,
+              name: "Deleted User",
+              email: "N/A",
+              role: "N/A",
+            },
         aiProcessing: formatAIProcessingData(doc.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,

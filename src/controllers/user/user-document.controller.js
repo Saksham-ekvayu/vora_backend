@@ -164,12 +164,19 @@ const getAllDocuments = async (req, res) => {
         documentType: doc.documentType,
         fileSize: doc.getFormattedFileSize(),
         originalFileName: doc.originalFileName,
-        uploadedBy: {
-          id: doc.uploadedBy._id,
-          name: doc.uploadedBy.name,
-          email: doc.uploadedBy.email,
-          role: doc.uploadedBy.role,
-        },
+        uploadedBy: doc.uploadedBy
+          ? {
+              id: doc.uploadedBy._id,
+              name: doc.uploadedBy.name,
+              email: doc.uploadedBy.email,
+              role: doc.uploadedBy.role,
+            }
+          : {
+              id: null,
+              name: "Deleted User",
+              email: "N/A",
+              role: "N/A",
+            },
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       }),

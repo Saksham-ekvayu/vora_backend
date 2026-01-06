@@ -393,8 +393,6 @@ const editProfile = async (req, res) => {
       runValidators: true,
     }).select("-password -otp");
 
-    // Update cache (commented out)
-    // await cacheService.cacheUser(updatedUser);
 
     res.json({
       success: true,

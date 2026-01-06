@@ -123,12 +123,19 @@ const createFramework = async (req, res) => {
           frameworkType: framework.frameworkType,
           fileSize: getFormattedFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
-          uploadedBy: {
-            id: framework.uploadedBy._id,
-            name: framework.uploadedBy.name,
-            email: framework.uploadedBy.email,
-            role: framework.uploadedBy.role,
-          },
+          uploadedBy: framework.uploadedBy
+            ? {
+                id: framework.uploadedBy._id,
+                name: framework.uploadedBy.name,
+                email: framework.uploadedBy.email,
+                role: framework.uploadedBy.role,
+              }
+            : {
+                id: null,
+                name: "Deleted User",
+                email: "N/A",
+                role: "N/A",
+              },
           aiProcessing: formatAIProcessingData(framework.aiProcessing),
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
@@ -200,12 +207,19 @@ const getAllFrameworks = async (req, res) => {
         frameworkType: doc.frameworkType,
         fileSize: getFormattedFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
-        uploadedBy: {
-          id: doc.uploadedBy._id,
-          name: doc.uploadedBy.name,
-          email: doc.uploadedBy.email,
-          role: doc.uploadedBy.role,
-        },
+        uploadedBy: doc.uploadedBy
+          ? {
+              id: doc.uploadedBy._id,
+              name: doc.uploadedBy.name,
+              email: doc.uploadedBy.email,
+              role: doc.uploadedBy.role,
+            }
+          : {
+              id: null,
+              name: "Deleted User",
+              email: "N/A",
+              role: "N/A",
+            },
         aiProcessing: formatAIProcessingData(doc.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
@@ -271,12 +285,19 @@ const getFrameworkById = async (req, res) => {
         fileSize: getFormattedFileSize(framework.fileSize),
         originalFileName: framework.originalFileName,
         fileUrl: framework.fileUrl,
-        uploadedBy: {
-          id: framework.uploadedBy._id,
-          name: framework.uploadedBy.name,
-          email: framework.uploadedBy.email,
-          role: framework.uploadedBy.role,
-        },
+        uploadedBy: framework.uploadedBy
+          ? {
+              id: framework.uploadedBy._id,
+              name: framework.uploadedBy.name,
+              email: framework.uploadedBy.email,
+              role: framework.uploadedBy.role,
+            }
+          : {
+              id: null,
+              name: "Deleted User",
+              email: "N/A",
+              role: "N/A",
+            },
         aiProcessing: formatAIProcessingData(framework.aiProcessing, true),
         comparisonResults: framework.comparisonResults || [],
         comparisonCount: framework.comparisonResults?.length || 0,
@@ -379,12 +400,19 @@ const updateFramework = async (req, res) => {
           frameworkType: framework.frameworkType,
           fileSize: getFormattedFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
-          uploadedBy: {
-            id: framework.uploadedBy._id,
-            name: framework.uploadedBy.name,
-            email: framework.uploadedBy.email,
-            role: framework.uploadedBy.role,
-          },
+          uploadedBy: framework.uploadedBy
+            ? {
+                id: framework.uploadedBy._id,
+                name: framework.uploadedBy.name,
+                email: framework.uploadedBy.email,
+                role: framework.uploadedBy.role,
+              }
+            : {
+                id: null,
+                name: "Deleted User",
+                email: "N/A",
+                role: "N/A",
+              },
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
         },

@@ -734,6 +734,25 @@ const uploadFrameworkToAIService = async (req, res) => {
               controlsExtractedAt: fw.aiProcessing.controlsExtractedAt,
             };
 
+            // Also send framework details update message
+            sendToUser(userId, {
+              type: "framework-details-update",
+              frameworkId: id,
+              framework: {
+                id: fw._id,
+                frameworkName: fw.frameworkName,
+                frameworkType: fw.frameworkType,
+                aiProcessing: {
+                  status: "completed",
+                  control_extraction_status: "completed",
+                  controlsCount: controls.length,
+                  extractedControls: controls,
+                  controlsExtractedAt: fw.aiProcessing.controlsExtractedAt,
+                  processedAt: fw.aiProcessing.processedAt,
+                },
+              },
+            });
+
             // Also send a framework list refresh message
             sendToUser(userId, {
               type: "framework-list-refresh",

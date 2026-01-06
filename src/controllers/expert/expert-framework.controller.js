@@ -623,6 +623,25 @@ const uploadFrameworkToAIService = async (req, res) => {
               fw.aiProcessing.status = "completed";
               fw.aiProcessing.control_extraction_status = "completed";
               await fw.save();
+
+              // Send framework details update message
+              sendToUser(req.user._id.toString(), {
+                type: "framework-details-update",
+                frameworkId: id,
+                framework: {
+                  id: fw._id,
+                  frameworkName: fw.frameworkName,
+                  frameworkType: fw.frameworkType,
+                  aiProcessing: {
+                    status: "completed",
+                    control_extraction_status: "completed",
+                    controlsCount: controls.length,
+                    extractedControls: controls,
+                    controlsExtractedAt: fw.aiProcessing.controlsExtractedAt,
+                    processedAt: fw.aiProcessing.processedAt,
+                  },
+                },
+              });
             }
           }
         }

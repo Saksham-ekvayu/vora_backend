@@ -1,4 +1,5 @@
 const ExpertFramework = require("../../models/expert-framework.model");
+const UserFramework = require("../../models/user-framework.model"); // Added for cleanup
 const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {
@@ -384,7 +385,7 @@ const updateFramework = async (req, res) => {
   }
 };
 
-// Delete framework
+// Delete framework (permanent delete)
 const deleteFramework = async (req, res) => {
   try {
     const { id } = req.params;
@@ -406,12 +407,18 @@ const deleteFramework = async (req, res) => {
       deleteFile(framework.fileUrl);
     }
 
-    framework.isActive = false;
-    await framework.save();
+    // Clean up related data - remove comparison results that reference this expert framework
+    await UserFramework.updateMany(
+      { "comparisonResults.expertFrameworkId": id },
+      { $pull: { comparisonResults: { expertFrameworkId: id } } }
+    );
+
+    // Permanent delete from database
+    await ExpertFramework.findByIdAndDelete(id);
 
     res.status(200).json({
       success: true,
-      message: "Framework deleted successfully",
+      message: "Framework permanently deleted successfully",
     });
 
     // Send WebSocket update for framework list refresh

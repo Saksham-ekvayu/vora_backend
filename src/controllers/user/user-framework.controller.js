@@ -424,7 +424,7 @@ const updateFramework = async (req, res) => {
   }
 };
 
-// Delete framework (soft delete)
+// Delete framework (permanent delete)
 const deleteFramework = async (req, res) => {
   try {
     const { id } = req.params;
@@ -443,17 +443,18 @@ const deleteFramework = async (req, res) => {
       deleteFile(framework.fileUrl);
     }
 
-    // Soft delete - set isActive to false
-    framework.isActive = false;
-    await framework.save();
+    // Clean up related data - remove comparison results that reference this framework
+    await UserFramework.updateMany(
+      { "comparisonResults.expertFrameworkId": id },
+      { $pull: { comparisonResults: { expertFrameworkId: id } } }
+    );
 
-    // Invalidate caches (commented out)
-    // await invalidateCache.framework(id);
-    // await invalidateCache.frameworks(framework.uploadedBy);
+    // Permanent delete from database
+    await UserFramework.findByIdAndDelete(id);
 
     res.status(200).json({
       success: true,
-      message: "Framework deleted successfully",
+      message: "Framework permanently deleted successfully",
     });
 
     // Send WebSocket update for framework list refresh

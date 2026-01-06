@@ -321,7 +321,9 @@ function restoreExpandedSections() {
                 ?.id?.split("-")
                 .pop();
               if (uniqueId) {
-                setTimeout(() => restoreFormFields(uniqueId), 100);
+                setTimeout(() => {
+                  restoreFormFields(uniqueId);
+                }, 100);
               }
             }
           }
@@ -1060,6 +1062,47 @@ async function testAPI(path, method, uniqueId) {
   }
 }
 
+// JSON Syntax Highlighting Function
+function highlightJSON(jsonString) {
+  if (!jsonString) return "";
+
+  try {
+    // Parse and re-stringify to ensure valid JSON formatting
+    const parsed = JSON.parse(jsonString);
+    const formatted = JSON.stringify(parsed, null, 2);
+
+    // Apply syntax highlighting
+    return formatted
+      .replace(
+        /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")\s*:/g,
+        '<span class="json-key">$1</span>:'
+      )
+      .replace(
+        /:\s*("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")/g,
+        ': <span class="json-string">$1</span>'
+      )
+      .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="json-number">$1</span>')
+      .replace(/:\s*(true|false)/g, ': <span class="json-boolean">$1</span>')
+      .replace(/:\s*(null)/g, ': <span class="json-null">$1</span>')
+      .replace(/([{}[\],])/g, '<span class="json-punctuation">$1</span>');
+  } catch (e) {
+    // If not valid JSON, return as-is with basic highlighting
+    return jsonString
+      .replace(
+        /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")\s*:/g,
+        '<span class="json-key">$1</span>:'
+      )
+      .replace(
+        /:\s*("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")/g,
+        ': <span class="json-string">$1</span>'
+      )
+      .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="json-number">$1</span>')
+      .replace(/:\s*(true|false)/g, ': <span class="json-boolean">$1</span>')
+      .replace(/:\s*(null)/g, ': <span class="json-null">$1</span>')
+      .replace(/([{}[\],])/g, '<span class="json-punctuation">$1</span>');
+  }
+}
+
 // Show API response in the container
 function showResponse(container, response, responseTime, type) {
   if (type === "loading") {
@@ -1075,6 +1118,9 @@ function showResponse(container, response, responseTime, type) {
   const statusClass = `status-${type}`;
   const statusIcon = type === "success" ? "✅" : type === "error" ? "❌" : "ℹ️";
   const responseText = JSON.stringify(response.body || response, null, 2);
+
+  // Apply JSON syntax highlighting
+  const highlightedResponse = highlightJSON(responseText);
 
   // Generate unique ID for this response
   const responseId = `response_${Date.now()}_${Math.random()
@@ -1092,7 +1138,7 @@ function showResponse(container, response, responseTime, type) {
             </button>
         </div>
         <div class="response-content">
-            <div class="response-body" id="${responseId}">${responseText}</div>
+            <div class="response-body" id="${responseId}">${highlightedResponse}</div>
         </div>
     `;
 

@@ -992,6 +992,64 @@ body {
     }
 }
 
+/* JSON Syntax Highlighting */
+.json-key {
+    color: var(--neon-blue) !important;
+    font-weight: bold;
+}
+
+.json-string {
+    color: var(--neon-green) !important;
+}
+
+.json-number {
+    color: var(--neon-yellow) !important;
+}
+
+.json-boolean {
+    color: var(--neon-purple) !important;
+    font-weight: bold;
+}
+
+.json-null {
+    color: var(--neon-red) !important;
+    font-style: italic;
+}
+
+.json-punctuation {
+    color: var(--text-muted) !important;
+}
+
+/* Enhanced JSON formatting for better readability */
+.response-body {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+.request-editor {
+    width: 100%;
+    min-height: 120px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 15px;
+    border-radius: 5px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    resize: vertical;
+    line-height: 1.4;
+}
+
+.request-editor:focus {
+    outline: none;
+    border-color: var(--neon-green);
+    box-shadow: 0 0 10px var(--neon-green);
+}
+
 /* Response Container */
 .response-container {
     min-height: 100px;

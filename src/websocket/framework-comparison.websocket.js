@@ -61,7 +61,6 @@ function initializeWebSocketServer(server) {
   });
 
   wss.on("connection", handleWebSocketConnection);
-  console.log("✅ WebSocket server initialized");
   return wss;
 }
 

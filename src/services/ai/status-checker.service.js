@@ -20,7 +20,6 @@ class StatusCheckerService {
   start() {
     if (this.isRunning) return;
 
-    console.log("🔄 Starting AI status checker service...");
     this.isRunning = true;
 
     // Check every 30 seconds
@@ -38,7 +37,6 @@ class StatusCheckerService {
       this.checkInterval = null;
     }
     this.isRunning = false;
-    console.log("⏹️ Stopped AI status checker service");
   }
 
   /**
@@ -59,10 +57,6 @@ class StatusCheckerService {
         isActive: true,
       }).populate("uploadedBy", "_id");
 
-      console.log(
-        `🔍 Found ${pendingFrameworks.length} frameworks to check status`
-      );
-
       for (const framework of pendingFrameworks) {
         await this.checkFrameworkStatus(framework);
       }
@@ -76,17 +70,12 @@ class StatusCheckerService {
    */
   async checkFrameworkStatus(framework) {
     try {
-      console.log(
-        `🔍 Checking status for framework ${framework._id} (UUID: ${framework.aiProcessing.uuid})`
-      );
-
       const statusResult = await aiService.checkProcessingStatus(
         framework.aiProcessing.uuid
       );
 
       if (statusResult.status) {
         const aiStatus = statusResult.status;
-        console.log(`📊 AI service status for ${framework._id}:`, aiStatus);
 
         // Check if processing is actually completed
         if (
@@ -95,10 +84,6 @@ class StatusCheckerService {
             Array.isArray(aiStatus.data) &&
             aiStatus.data.length > 0)
         ) {
-          console.log(
-            `✅ Framework ${framework._id} is actually completed, updating...`
-          );
-
           const controls = Array.isArray(aiStatus.data) ? aiStatus.data : [];
 
           // Update framework
@@ -121,14 +106,14 @@ class StatusCheckerService {
             extractedControls: controls,
             controlsExtractedAt: framework.aiProcessing.controlsExtractedAt,
           };
-
-          console.log(
-            `📤 Sending delayed completion WebSocket message for ${framework._id}`
-          );
           sendToUser(framework.uploadedBy._id.toString(), wsMessage);
-        } else if (aiStatus.status === "failed" || aiStatus.error) {
-          console.log(`❌ Framework ${framework._id} failed, updating...`);
 
+          // Also send framework list refresh message
+          sendToUser(framework.uploadedBy._id.toString(), {
+            type: "framework-list-refresh",
+            message: "Framework processing completed, refreshing list",
+          });
+        } else if (aiStatus.status === "failed" || aiStatus.error) {
           framework.aiProcessing.status = "failed";
           framework.aiProcessing.control_extraction_status = "failed";
           framework.aiProcessing.errorMessage =

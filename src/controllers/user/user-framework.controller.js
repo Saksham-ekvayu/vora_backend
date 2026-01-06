@@ -730,6 +730,12 @@ const uploadFrameworkToAIService = async (req, res) => {
               controlsExtractedAt: fw.aiProcessing.controlsExtractedAt,
             };
 
+            // Also send a framework list refresh message
+            sendToUser(userId, {
+              type: "framework-list-refresh",
+              message: "Framework processing completed, refreshing list",
+            });
+
             console.log("📤 Sending completion WebSocket message:", wsMessage);
           } else if (
             message.status === "error" ||

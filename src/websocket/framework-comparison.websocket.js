@@ -63,23 +63,6 @@ function initializeWebSocketServer(server) {
   const wss = new WebSocket.Server({
     server,
     path: "/ws/framework-comparisons",
-    verifyClient: (info) => {
-      // Allow connections from localhost and the network IP
-      const allowedOrigins = [
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://192.168.1.21:5173",
-        "http://192.168.1.21:5174",
-      ];
-
-      const origin = info.origin;
-
-      if (!origin || allowedOrigins.includes(origin)) {
-        return true;
-      }
-
-      return false;
-    },
   });
 
   wss.on("connection", handleWebSocketConnection);

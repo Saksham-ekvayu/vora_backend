@@ -7,6 +7,7 @@ const { sendTempPasswordEmail } = require("../../services/email.service");
 const UserDocument = require("../../models/user-document.model");
 const UserFramework = require("../../models/user-framework.model");
 const { deleteFile } = require("../../config/multer.config");
+const ExpertFramework = require("../../models/expert-framework.model");
 
 // Create user by admin
 const createUserByAdmin = async (req, res) => {
@@ -113,12 +114,33 @@ const updateUserByAdmin = async (req, res) => {
     const { id } = req.params;
     const { name, role, phone } = req.body;
 
+    // Prevent admin from changing their own role
+    if (req.user._id.toString() === id && role && role !== req.user.role) {
+      return res.status(400).json({
+        success: false,
+        message: "Admin cannot change their own role",
+      });
+    }
+
     // find user
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,
         message: "User not found",
+      });
+    }
+
+    // Additional protection: Prevent changing other admin's role (optional security measure)
+    if (
+      user.role === "admin" &&
+      role &&
+      role !== "admin" &&
+      req.user._id.toString() !== id
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot change role of other admin users",
       });
     }
 
@@ -284,6 +306,15 @@ const deleteUser = async (req, res) => {
     }
 
     const { id } = req.params;
+
+    // Prevent admin from deleting themselves
+    if (req.user._id.toString() === id) {
+      return res.status(400).json({
+        success: false,
+        message: "Admin cannot delete their own account",
+      });
+    }
+
     const user = await User.findById(id);
     if (!user) {
       return res
@@ -291,9 +322,23 @@ const deleteUser = async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
+    // Additional check: Prevent deletion of other admin users (optional security measure)
+    if (user.role === "admin") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete admin users",
+      });
+    }
+
     // Delete all user's documents and their files
     const userDocuments = await UserDocument.find({ uploadedBy: id });
     const userFrameworks = await UserFramework.find({ uploadedBy: id });
+
+    // If user is an expert, also get their expert frameworks
+    const expertFrameworks =
+      user.role === "expert"
+        ? await ExpertFramework.find({ uploadedBy: id })
+        : [];
 
     // Delete document files
     for (const doc of userDocuments) {
@@ -302,16 +347,58 @@ const deleteUser = async (req, res) => {
       }
     }
 
-    // Delete framework files
+    // Delete user framework files
     for (const framework of userFrameworks) {
       if (framework.fileUrl) {
         deleteFile(framework.fileUrl);
       }
     }
 
+    // Delete expert framework files
+    for (const framework of expertFrameworks) {
+      if (framework.fileUrl) {
+        deleteFile(framework.fileUrl);
+      }
+    }
+
+    // Delete all related comparison data
+    const FrameworkComparison = require("../../models/framework-comparison.model");
+
+    // Delete framework comparisons where this user was involved
+    await FrameworkComparison.deleteMany({
+      $or: [
+        { userId: id }, // User who initiated comparisons
+        { userFrameworkId: { $in: userFrameworks.map((f) => f._id) } }, // Comparisons involving user's frameworks
+        { expertFrameworkId: { $in: expertFrameworks.map((f) => f._id) } }, // Comparisons involving expert's frameworks
+      ],
+    });
+
+    // Remove comparison results from other user frameworks that referenced this expert's frameworks
+    if (expertFrameworks.length > 0) {
+      await UserFramework.updateMany(
+        {
+          "comparisonResults.expertFrameworkId": {
+            $in: expertFrameworks.map((f) => f._id),
+          },
+        },
+        {
+          $pull: {
+            comparisonResults: {
+              expertFrameworkId: { $in: expertFrameworks.map((f) => f._id) },
+            },
+          },
+        }
+      );
+    }
+
     // Delete documents and frameworks from database
     await UserDocument.deleteMany({ uploadedBy: id });
     await UserFramework.deleteMany({ uploadedBy: id });
+
+    // Delete expert frameworks if user is an expert
+    if (user.role === "expert") {
+      await ExpertFramework.deleteMany({ uploadedBy: id });
+    }
 
     // Delete user
     await User.findByIdAndDelete(id);
@@ -321,7 +408,9 @@ const deleteUser = async (req, res) => {
 
     res.json({
       success: true,
-      message: "User and all associated data deleted successfully",
+      message: `${
+        user.role === "expert" ? "Expert" : "User"
+      } and all associated data deleted successfully`,
     });
   } catch (error) {
     console.error("Delete user error:", error);
@@ -354,9 +443,6 @@ const editProfile = async (req, res) => {
       new: true,
       runValidators: true,
     }).select("-password -otp");
-
-    // Update cache (commented out)
-    // await cacheService.cacheUser(updatedUser);
 
     res.json({
       success: true,

@@ -101,11 +101,6 @@ const frameworkTypeValidator = () =>
     "any.required": "Framework type is required",
   });
 
-const isActiveValidator = () =>
-  Joi.boolean().default(true).messages({
-    "boolean.base": "isActive must be a boolean value",
-  });
-
 const frameworkIdValidator = () =>
   Joi.string()
     .pattern(/^[0-9a-fA-F]{24}$/)
@@ -192,7 +187,6 @@ const updateFrameworkSchema = Joi.object({
         "Framework name cannot contain more than 4 consecutive identical characters",
     }),
   frameworkType: frameworkTypeValidator().optional(),
-  isActive: isActiveValidator(),
 })
   .min(1)
   .messages({
@@ -300,7 +294,6 @@ module.exports = {
 
   // Joi-based validators (for other operations)
   frameworkTypeValidator,
-  isActiveValidator,
   frameworkIdValidator,
   pageValidator,
   limitValidator,

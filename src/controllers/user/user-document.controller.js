@@ -43,7 +43,6 @@ const createDocument = async (req, res) => {
     const existingDocument = await UserDocument.findOne({
       originalFileName: file.originalname,
       uploadedBy: req.user._id,
-      isActive: true,
     });
 
     let document;
@@ -127,7 +126,7 @@ const getAllDocuments = async (req, res) => {
     const { search, documentType, uploadedBy } = req.query;
 
     // Build additional filters
-    const additionalFilters = { isActive: true };
+    const additionalFilters = {};
 
     if (documentType) {
       additionalFilters.documentType = documentType;
@@ -165,12 +164,19 @@ const getAllDocuments = async (req, res) => {
         documentType: doc.documentType,
         fileSize: doc.getFormattedFileSize(),
         originalFileName: doc.originalFileName,
-        uploadedBy: {
-          id: doc.uploadedBy._id,
-          name: doc.uploadedBy.name,
-          email: doc.uploadedBy.email,
-          role: doc.uploadedBy.role,
-        },
+        uploadedBy: doc.uploadedBy
+          ? {
+              id: doc.uploadedBy._id,
+              name: doc.uploadedBy.name,
+              email: doc.uploadedBy.email,
+              role: doc.uploadedBy.role,
+            }
+          : {
+              id: null,
+              name: "Deleted User",
+              email: "N/A",
+              role: "N/A",
+            },
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       }),
@@ -215,10 +221,10 @@ const getDocumentById = async (req, res) => {
     // let document = await cacheService.getDocumentById(id);
 
     // Fetch directly from database
-    const document = await UserDocument.findOne({
-      _id: id,
-      isActive: true,
-    }).populate("uploadedBy", "name email role");
+    const document = await UserDocument.findById(id).populate(
+      "uploadedBy",
+      "name email role"
+    );
 
     if (!document) {
       return res.status(404).json({
@@ -265,12 +271,9 @@ const getDocumentById = async (req, res) => {
 const updateDocument = async (req, res) => {
   try {
     const { id } = req.params;
-    const { documentName, isActive } = req.body;
+    const { documentName } = req.body;
 
-    const document = await UserDocument.findOne({
-      _id: id,
-      isActive: true,
-    });
+    const document = await UserDocument.findById(id);
 
     if (!document) {
       return res.status(404).json({
@@ -315,9 +318,6 @@ const updateDocument = async (req, res) => {
     if (documentName !== undefined) {
       document.documentName = documentName;
     }
-    if (isActive !== undefined) {
-      document.isActive = isActive;
-    }
 
     await document.save();
     await document.populate("uploadedBy", "name email role");
@@ -346,7 +346,6 @@ const updateDocument = async (req, res) => {
             email: document.uploadedBy.email,
             role: document.uploadedBy.role,
           },
-          isActive: document.isActive,
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
         },
@@ -367,12 +366,12 @@ const updateDocument = async (req, res) => {
   }
 };
 
-// Delete document (soft delete)
+// Delete document (permanent delete)
 const deleteDocument = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const document = await UserDocument.findOne({ _id: id, isActive: true });
+    const document = await UserDocument.findById(id);
 
     if (!document) {
       return res.status(404).json({
@@ -386,9 +385,8 @@ const deleteDocument = async (req, res) => {
       deleteFile(document.fileUrl);
     }
 
-    // Soft delete - set isActive to false
-    document.isActive = false;
-    await document.save();
+    // Permanent delete from database
+    await UserDocument.findByIdAndDelete(id);
 
     // Invalidate caches (commented out)
     // await invalidateCache.document(id);
@@ -396,7 +394,7 @@ const deleteDocument = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Document deleted successfully",
+      message: "Document permanently deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting document:", error);
@@ -413,7 +411,7 @@ const downloadDocument = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const document = await UserDocument.findOne({ _id: id, isActive: true });
+    const document = await UserDocument.findById(id);
 
     if (!document) {
       return res.status(404).json({
@@ -467,7 +465,6 @@ const getUserDocuments = async (req, res) => {
     // Build filter for user's documents
     const filter = {
       uploadedBy: userId,
-      isActive: true,
     };
 
     // Build sort object

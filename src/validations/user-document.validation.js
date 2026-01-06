@@ -101,11 +101,6 @@ const documentTypeValidator = () =>
     "any.required": "Document type is required",
   });
 
-const isActiveValidator = () =>
-  Joi.boolean().default(true).messages({
-    "boolean.base": "isActive must be a boolean value",
-  });
-
 const documentIdValidator = () =>
   Joi.string()
     .pattern(/^[0-9a-fA-F]{24}$/)
@@ -192,7 +187,6 @@ const updateDocumentSchema = Joi.object({
         "Document name cannot contain more than 4 consecutive identical characters",
     }),
   documentType: documentTypeValidator().optional(),
-  isActive: isActiveValidator(),
 })
   .min(1)
   .messages({
@@ -269,7 +263,6 @@ module.exports = {
 
   // Joi-based validators (for other operations)
   documentTypeValidator,
-  isActiveValidator,
   documentIdValidator,
   pageValidator,
   limitValidator,

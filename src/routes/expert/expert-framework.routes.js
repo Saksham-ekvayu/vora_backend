@@ -107,7 +107,7 @@ router.get(
  * @route   PUT /api/expert/frameworks/:id
  * @desc    Update framework details and optionally replace file
  * @access  Private (Expert only)
- * @body    { frameworkName?, isActive? } (multipart/form-data with optional field name "file")
+ * @body    { frameworkName? } (multipart/form-data with optional field name "file")
  */
 router.put(
   "/:id",

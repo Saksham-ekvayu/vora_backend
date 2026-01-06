@@ -67,7 +67,6 @@ class CacheService {
     // Fetch from database
     const framework = await UserFramework.findOne({
       _id: frameworkId,
-      isActive: true,
     })
       .populate("uploadedBy", "name email role")
       .lean();
@@ -115,10 +114,7 @@ class CacheService {
     }
 
     // Fetch from database
-    const document = await UserDocument.findOne({
-      _id: documentId,
-      isActive: true,
-    })
+    const document = await UserDocument.findOne({ _id: documentId })
       .populate("uploadedBy", "name email role")
       .lean();
 
@@ -159,9 +155,8 @@ class CacheService {
     const [totalFrameworks, activeFrameworks, frameworksByType] =
       await Promise.all([
         UserFramework.countDocuments(),
-        UserFramework.countDocuments({ isActive: true }),
+        UserFramework.countDocuments(),
         UserFramework.aggregate([
-          { $match: { isActive: true } },
           { $group: { _id: "$frameworkType", count: { $sum: 1 } } },
         ]),
       ]);
@@ -201,9 +196,8 @@ class CacheService {
     const [totalDocuments, activeDocuments, documentsByType] =
       await Promise.all([
         UserDocument.countDocuments(),
-        UserDocument.countDocuments({ isActive: true }),
+        UserDocument.countDocuments(),
         UserDocument.aggregate([
-          { $match: { isActive: true } },
           { $group: { _id: "$documentType", count: { $sum: 1 } } },
         ]),
       ]);
@@ -233,7 +227,7 @@ class CacheService {
       console.log("🔥 Starting Redis cache warmup...");
 
       // Cache recent frameworks
-      const recentFrameworks = await UserFramework.find({ isActive: true })
+      const recentFrameworks = await UserFramework.find({})
         .populate("uploadedBy", "name email role")
         .sort({ createdAt: -1 })
         .limit(50)
@@ -244,7 +238,7 @@ class CacheService {
       }
 
       // Cache recent documents
-      const recentDocuments = await UserDocument.find({ isActive: true })
+      const recentDocuments = await UserDocument.find({})
         .populate("uploadedBy", "name email role")
         .sort({ createdAt: -1 })
         .limit(50)
@@ -343,7 +337,6 @@ class CacheService {
       // Cache user's recent frameworks
       const userFrameworks = await UserFramework.find({
         uploadedBy: userId,
-        isActive: true,
       })
         .populate("uploadedBy", "name email role")
         .sort({ createdAt: -1 })
@@ -357,7 +350,6 @@ class CacheService {
       // Cache user's recent documents
       const userDocuments = await UserDocument.find({
         uploadedBy: userId,
-        isActive: true,
       })
         .populate("uploadedBy", "name email role")
         .sort({ createdAt: -1 })

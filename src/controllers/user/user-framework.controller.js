@@ -1,4 +1,5 @@
 const UserFramework = require("../../models/user-framework.model");
+const FrameworkComparison = require("../../models/framework-comparison.model");
 const { paginateWithSearch } = require("../../helpers/helper");
 const fs = require("fs");
 const {
@@ -77,7 +78,6 @@ const createFramework = async (req, res) => {
     const existingFramework = await UserFramework.findOne({
       originalFileName: file.originalname,
       uploadedBy: req.user._id,
-      isActive: true,
     });
 
     let framework;
@@ -123,12 +123,19 @@ const createFramework = async (req, res) => {
           frameworkType: framework.frameworkType,
           fileSize: getFormattedFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
-          uploadedBy: {
-            id: framework.uploadedBy._id,
-            name: framework.uploadedBy.name,
-            email: framework.uploadedBy.email,
-            role: framework.uploadedBy.role,
-          },
+          uploadedBy: framework.uploadedBy
+            ? {
+                id: framework.uploadedBy._id,
+                name: framework.uploadedBy.name,
+                email: framework.uploadedBy.email,
+                role: framework.uploadedBy.role,
+              }
+            : {
+                id: null,
+                name: "Deleted User",
+                email: "N/A",
+                role: "N/A",
+              },
           aiProcessing: formatAIProcessingData(framework.aiProcessing),
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
@@ -162,7 +169,7 @@ const getAllFrameworks = async (req, res) => {
     const { search, frameworkType, uploadedBy } = req.query;
 
     // Build additional filters
-    const additionalFilters = { isActive: true };
+    const additionalFilters = {};
 
     if (frameworkType) {
       additionalFilters.frameworkType = frameworkType;
@@ -200,12 +207,19 @@ const getAllFrameworks = async (req, res) => {
         frameworkType: doc.frameworkType,
         fileSize: getFormattedFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
-        uploadedBy: {
-          id: doc.uploadedBy._id,
-          name: doc.uploadedBy.name,
-          email: doc.uploadedBy.email,
-          role: doc.uploadedBy.role,
-        },
+        uploadedBy: doc.uploadedBy
+          ? {
+              id: doc.uploadedBy._id,
+              name: doc.uploadedBy.name,
+              email: doc.uploadedBy.email,
+              role: doc.uploadedBy.role,
+            }
+          : {
+              id: null,
+              name: "Deleted User",
+              email: "N/A",
+              role: "N/A",
+            },
         aiProcessing: formatAIProcessingData(doc.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
@@ -251,10 +265,10 @@ const getFrameworkById = async (req, res) => {
     // let framework = await cacheService.getFrameworkById(id);
 
     // Fetch directly from database
-    const framework = await UserFramework.findOne({
-      _id: id,
-      isActive: true,
-    }).populate("uploadedBy", "name email role");
+    const framework = await UserFramework.findById(id).populate(
+      "uploadedBy",
+      "name email role"
+    );
 
     if (!framework) {
       return res.status(404).json({
@@ -271,12 +285,19 @@ const getFrameworkById = async (req, res) => {
         fileSize: getFormattedFileSize(framework.fileSize),
         originalFileName: framework.originalFileName,
         fileUrl: framework.fileUrl,
-        uploadedBy: {
-          id: framework.uploadedBy._id,
-          name: framework.uploadedBy.name,
-          email: framework.uploadedBy.email,
-          role: framework.uploadedBy.role,
-        },
+        uploadedBy: framework.uploadedBy
+          ? {
+              id: framework.uploadedBy._id,
+              name: framework.uploadedBy.name,
+              email: framework.uploadedBy.email,
+              role: framework.uploadedBy.role,
+            }
+          : {
+              id: null,
+              name: "Deleted User",
+              email: "N/A",
+              role: "N/A",
+            },
         aiProcessing: formatAIProcessingData(framework.aiProcessing, true),
         comparisonResults: framework.comparisonResults || [],
         comparisonCount: framework.comparisonResults?.length || 0,
@@ -316,12 +337,9 @@ const getFrameworkById = async (req, res) => {
 const updateFramework = async (req, res) => {
   try {
     const { id } = req.params;
-    const { frameworkName, isActive } = req.body;
+    const { frameworkName } = req.body;
 
-    const framework = await UserFramework.findOne({
-      _id: id,
-      isActive: true,
-    });
+    const framework = await UserFramework.findById(id);
 
     if (!framework) {
       return res.status(404).json({
@@ -366,18 +384,9 @@ const updateFramework = async (req, res) => {
     if (frameworkName !== undefined) {
       framework.frameworkName = frameworkName;
     }
-    if (isActive !== undefined) {
-      framework.isActive = isActive;
-    }
 
     await framework.save();
     await framework.populate("uploadedBy", "name email role");
-
-    // Update cache (commented out)
-    // await cacheService.cacheFramework(framework);
-
-    // Invalidate related caches (commented out)
-    // await invalidateCache.frameworks(req.user._id);
 
     res.status(200).json({
       success: true,
@@ -391,13 +400,19 @@ const updateFramework = async (req, res) => {
           frameworkType: framework.frameworkType,
           fileSize: getFormattedFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
-          uploadedBy: {
-            id: framework.uploadedBy._id,
-            name: framework.uploadedBy.name,
-            email: framework.uploadedBy.email,
-            role: framework.uploadedBy.role,
-          },
-          isActive: framework.isActive,
+          uploadedBy: framework.uploadedBy
+            ? {
+                id: framework.uploadedBy._id,
+                name: framework.uploadedBy.name,
+                email: framework.uploadedBy.email,
+                role: framework.uploadedBy.role,
+              }
+            : {
+                id: null,
+                name: "Deleted User",
+                email: "N/A",
+                role: "N/A",
+              },
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
         },
@@ -429,7 +444,7 @@ const deleteFramework = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await UserFramework.findOne({ _id: id, isActive: true });
+    const framework = await UserFramework.findById(id);
 
     if (!framework) {
       return res.status(404).json({
@@ -448,6 +463,11 @@ const deleteFramework = async (req, res) => {
       { "comparisonResults.expertFrameworkId": id },
       { $pull: { comparisonResults: { expertFrameworkId: id } } }
     );
+
+    // Delete related framework comparisons
+    await FrameworkComparison.deleteMany({
+      $or: [{ userFrameworkId: id }, { expertFrameworkId: id }],
+    });
 
     // Permanent delete from database
     await UserFramework.findByIdAndDelete(id);
@@ -477,7 +497,7 @@ const downloadFramework = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await UserFramework.findOne({ _id: id, isActive: true });
+    const framework = await UserFramework.findById(id);
 
     if (!framework) {
       return res.status(404).json({
@@ -531,7 +551,6 @@ const getUserFrameworks = async (req, res) => {
     // Build filter for user's frameworks
     const filter = {
       uploadedBy: userId,
-      isActive: true,
     };
 
     // Build sort object
@@ -603,10 +622,7 @@ const uploadFrameworkToAIService = async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id.toString();
 
-    const framework = await UserFramework.findOne({
-      _id: id,
-      isActive: true,
-    });
+    const framework = await UserFramework.findById(id);
 
     if (!framework) {
       return res.status(404).json({
@@ -737,10 +753,7 @@ const checkAIProcessingStatus = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const framework = await UserFramework.findOne({
-      _id: id,
-      isActive: true,
-    });
+    const framework = await UserFramework.findById(id);
 
     if (!framework) {
       return res.status(404).json({

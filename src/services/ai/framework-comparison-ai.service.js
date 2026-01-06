@@ -2,119 +2,109 @@ const WebSocket = require("ws");
 const { AI_BASE_URL } = require("./aiClient");
 
 /**
- * Framework Comparison AI Service
- * Handles WebSocket connections for framework comparison with AI service
+ * Framework Comparison AI Service - Simplified
  */
 
 class FrameworkComparisonAIService {
   constructor() {
-    this.connections = new Map();
-    this.AI_WS_BASE_URL =
-      process.env.AI_WS_BASE_URL || AI_BASE_URL.replace("http", "ws");
+    this.activeConnections = new Map();
   }
 
   /**
-   * Start framework comparison process with AI service
+   * Start framework comparison with AI service
+   * @param {string} userFrameworkUuid - User framework UUID
+   * @param {string} expertFrameworkUuid - Expert framework UUID
+   * @param {string} userFrameworkId - User framework ID for connection tracking
+   * @param {Function} onMessage - Callback for AI messages
    */
-  async startFrameworkComparison(
+  startFrameworkComparison(
     userFrameworkUuid,
     expertFrameworkUuid,
-    onMessage,
-    onError,
-    onClose
+    userFrameworkId,
+    onMessage
   ) {
     try {
-      if (!userFrameworkUuid || !expertFrameworkUuid) {
-        throw new Error("Both user and expert framework UUIDs are required");
-      }
+      const aiWsUrl = `${AI_BASE_URL.replace(
+        "http",
+        "ws"
+      )}/user/websocket/comparison?user_framework_uuid=${userFrameworkUuid}&expert_framework_uuid=${expertFrameworkUuid}`;
+      const aiWs = new WebSocket(aiWsUrl);
 
-      const wsUrl = `${this.AI_WS_BASE_URL}/user/websocket/comparison?user_framework_uuid=${userFrameworkUuid}&expert_framework_uuid=${expertFrameworkUuid}`;
-      const ws = new WebSocket(wsUrl);
-      const connectionId = `${userFrameworkUuid}_${expertFrameworkUuid}_${Date.now()}`;
+      this.activeConnections.set(userFrameworkId, aiWs);
 
-      this.connections.set(connectionId, {
-        ws,
-        userFrameworkUuid,
-        expertFrameworkUuid,
-        createdAt: new Date(),
+      aiWs.on("open", () => {
+        // Connected to AI WebSocket
       });
 
-      ws.on("open", () => {
-        // Connected
-      });
-
-      ws.on("message", (data) => {
+      aiWs.on("message", async (data) => {
         try {
           const message = JSON.parse(data.toString());
+
           if (onMessage) {
-            onMessage(message, connectionId);
+            await onMessage(message);
           }
-        } catch (error) {
-          if (onError) {
-            onError(error, connectionId);
+
+          // Close connection on completion or error
+          if (
+            message.status === "completed" ||
+            message.status === "error" ||
+            message.status === "done"
+          ) {
+            setTimeout(() => {
+              this.closeConnection(userFrameworkId);
+            }, 1000);
           }
+        } catch (parseError) {
+          console.error("❌ Error parsing AI WebSocket message:", parseError);
         }
       });
 
-      ws.on("error", (error) => {
-        this.connections.delete(connectionId);
-        if (onError) {
-          onError(error, connectionId);
-        }
+      aiWs.on("error", (error) => {
+        console.error(
+          `❌ AI WebSocket error for comparison ${userFrameworkId}:`,
+          error
+        );
+        this.closeConnection(userFrameworkId);
       });
 
-      ws.on("close", (code, reason) => {
-        this.connections.delete(connectionId);
-        if (onClose) {
-          onClose(code, reason, connectionId);
-        }
+      aiWs.on("close", () => {
+        this.activeConnections.delete(userFrameworkId);
       });
-
-      return { ws, connectionId };
     } catch (error) {
+      console.error(
+        `❌ Error creating AI WebSocket connection for comparison ${userFrameworkId}:`,
+        error
+      );
       throw error;
     }
   }
 
   /**
-   * Close specific WebSocket connection
+   * Close WebSocket connection
+   * @param {string} userFrameworkId - User framework ID
    */
-  closeConnection(connectionId) {
-    const connection = this.connections.get(connectionId);
-    if (connection && connection.ws) {
-      try {
-        connection.ws.close();
-        this.connections.delete(connectionId);
-      } catch (error) {
-        // Silent fail
-      }
+  closeConnection(userFrameworkId) {
+    const aiWs = this.activeConnections.get(userFrameworkId);
+    if (aiWs && aiWs.readyState === WebSocket.OPEN) {
+      aiWs.close();
     }
+    this.activeConnections.delete(userFrameworkId);
   }
 
   /**
-   * Close all active WebSocket connections
+   * Close all connections
    */
   closeAllConnections() {
-    for (const [connectionId, connection] of this.connections) {
-      try {
-        if (connection.ws) {
-          connection.ws.close();
-        }
-      } catch (error) {
-        // Silent fail
+    for (const [userFrameworkId, aiWs] of this.activeConnections) {
+      if (aiWs && aiWs.readyState === WebSocket.OPEN) {
+        aiWs.close();
       }
     }
-    this.connections.clear();
-  }
-
-  /**
-   * Get active connections count
-   */
-  getActiveConnectionsCount() {
-    return this.connections.size;
+    this.activeConnections.clear();
   }
 }
 
+// Create singleton instance
 const frameworkComparisonAIService = new FrameworkComparisonAIService();
 
 module.exports = frameworkComparisonAIService;

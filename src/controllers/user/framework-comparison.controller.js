@@ -1,20 +1,21 @@
+const mongoose = require("mongoose");
 const UserFramework = require("../../models/user-framework.model");
 const ExpertFramework = require("../../models/expert-framework.model");
-const FrameworkComparison = require("../../models/framework-comparison.model");
 const frameworkComparisonAIService = require("../../services/ai/framework-comparison-ai.service");
 const {
   sendToUser,
 } = require("../../websocket/framework-comparison.websocket");
 
-async function startFrameworkComparison(req, res) {
+// Start framework comparison
+const startFrameworkComparison = async (req, res) => {
   try {
     const { userFrameworkId, expertFrameworkId } = req.body;
-    const userId = req.user._id;
+    const userId = req.user._id.toString();
 
     // Validate frameworks
     const userFramework = await UserFramework.findOne({
       _id: userFrameworkId,
-      uploadedBy: userId,
+      uploadedBy: req.user._id,
       isActive: true,
     });
 
@@ -37,179 +38,91 @@ async function startFrameworkComparison(req, res) {
       });
     }
 
-    // Create comparison
-    const comparison = new FrameworkComparison({
-      userId,
-      userFrameworkId,
-      userFrameworkUuid: userFramework.aiProcessing.uuid,
-      expertFrameworkId,
-      expertFrameworkUuid: expertFramework.aiProcessing.uuid,
-      aiProcessing: { status: "in-process" },
-    });
-
-    await comparison.save();
-
-    // Start AI process
-    await frameworkComparisonAIService.startFrameworkComparison(
+    // Start AI comparison - connects to AI service WebSocket
+    frameworkComparisonAIService.startFrameworkComparison(
       userFramework.aiProcessing.uuid,
       expertFramework.aiProcessing.uuid,
-      async (message) => handleAIMessage(comparison._id, message),
-      async (error) => handleAIError(comparison._id, error),
-      async (code) => handleAIClose(comparison._id, code)
+      userFrameworkId,
+      async (message) => {
+        const fw = await UserFramework.findById(userFrameworkId);
+        if (!fw) return;
+
+        if (message.status === "completed") {
+          const results = Array.isArray(message.data) ? message.data : [];
+          const avgScore =
+            results.length > 0
+              ? results.reduce(
+                  (sum, item) => sum + (item.Comparison_Score || 0),
+                  0
+                ) / results.length
+              : 0;
+
+          // Store comparison results in user framework
+          fw.comparisonResults = fw.comparisonResults || [];
+          fw.comparisonResults.push({
+            expertFrameworkId,
+            expertFrameworkName: expertFramework.frameworkName,
+            comparisonData: results,
+            comparisonScore: avgScore,
+            resultsCount: results.length,
+            comparedAt: new Date(),
+            comparisonId: new mongoose.Types.ObjectId(), // Generate a simple ID for tracking
+          });
+          await fw.save();
+
+          // Send WebSocket update
+          sendToUser(userId, {
+            type: "comparison-update",
+            userFrameworkId,
+            expertFrameworkId,
+            aiMessage: {
+              status: "completed",
+              data: results,
+              resultsCount: results.length,
+              averageScore: avgScore,
+            },
+          });
+        } else if (message.status === "error" || message.status === "failed") {
+          // Send WebSocket update for error
+          sendToUser(userId, {
+            type: "comparison-update",
+            userFrameworkId,
+            expertFrameworkId,
+            aiMessage: {
+              status: "error",
+              message: message.message || "Comparison failed",
+            },
+          });
+        } else {
+          // Send processing updates
+          sendToUser(userId, {
+            type: "comparison-update",
+            userFrameworkId,
+            expertFrameworkId,
+            aiMessage: message,
+          });
+        }
+      }
     );
 
-    // Immediate response
-    res.json({
+    res.status(200).json({
       success: true,
-      message: "Comparison started. Connect to WebSocket for updates.",
+      message:
+        "Comparison started successfully. You will receive real-time updates.",
       data: {
-        frameworkComparisonId: comparison._id,
-        websocketUrl: `/ws/framework-comparisons?token=<jwt_token>`,
+        userFrameworkId,
+        expertFrameworkId,
       },
     });
-
-    // Send WebSocket update
-    sendToUser(userId.toString(), {
-      type: "framework-comparison",
-      frameworkComparisonId: comparison._id,
-      status: "in-process",
-      message: "Comparison started",
-    });
   } catch (error) {
+    console.error("Error starting framework comparison:", error);
     res.status(500).json({
       success: false,
       message: "Failed to start comparison",
-      error: error.message,
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
-}
-
-async function handleAIMessage(comparisonId, message) {
-  try {
-    const comparison = await FrameworkComparison.findById(
-      comparisonId
-    ).populate("expertFrameworkId", "frameworkName");
-    if (!comparison) return;
-
-    const userId = comparison.userId.toString();
-    let updateData = {};
-    let wsMessage = {
-      type: "framework-comparison",
-      frameworkComparisonId: comparisonId,
-    };
-
-    switch (message.status) {
-      case "completed":
-      case "done":
-        if (message.data?.length) {
-          // Calculate average comparison score
-          const avgScore =
-            message.data.reduce(
-              (sum, item) => sum + (item.Comparison_Score || 0),
-              0
-            ) / message.data.length;
-
-          updateData = {
-            "aiProcessing.status": "completed",
-            "aiProcessing.comparisonResults": message.data,
-            "aiProcessing.resultsCount": message.data.length,
-            "aiProcessing.processedAt": new Date(),
-          };
-
-          // Store comparison results in user framework
-          await UserFramework.findByIdAndUpdate(comparison.userFrameworkId, {
-            $push: {
-              comparisonResults: {
-                expertFrameworkId: comparison.expertFrameworkId,
-                expertFrameworkName: comparison.expertFrameworkId.frameworkName,
-                comparisonData: message.data,
-                comparisonScore: avgScore,
-                resultsCount: message.data.length,
-                comparedAt: new Date(),
-                comparisonId: comparisonId,
-              },
-            },
-          });
-
-          wsMessage = {
-            ...wsMessage,
-            status: "completed",
-            message: "Comparison completed and stored in user framework",
-            data: message.data,
-            resultsCount: message.data.length,
-            averageScore: avgScore,
-          };
-        }
-        break;
-
-      case "error":
-        updateData = {
-          "aiProcessing.status": "error",
-          "aiProcessing.errorMessage": message.message || "AI error",
-        };
-        wsMessage = {
-          ...wsMessage,
-          status: "error",
-          message: message.message || "AI error",
-        };
-        break;
-    }
-
-    if (Object.keys(updateData).length) {
-      await FrameworkComparison.findByIdAndUpdate(comparisonId, updateData);
-      sendToUser(userId, wsMessage);
-    }
-  } catch (error) {
-    console.error("AI message error:", error);
-  }
-}
-
-async function handleAIError(comparisonId, error) {
-  try {
-    const comparison = await FrameworkComparison.findById(comparisonId);
-    if (!comparison) return;
-
-    await FrameworkComparison.findByIdAndUpdate(comparisonId, {
-      "aiProcessing.status": "error",
-      "aiProcessing.errorMessage": error.message,
-    });
-
-    sendToUser(comparison.userId.toString(), {
-      type: "framework-comparison",
-      frameworkComparisonId: comparisonId,
-      status: "error",
-      message: "Connection error",
-    });
-  } catch (err) {
-    console.error("AI error handler error:", err);
-  }
-}
-
-async function handleAIClose(comparisonId, code) {
-  try {
-    const comparison = await FrameworkComparison.findById(comparisonId);
-    if (!comparison) return;
-
-    // If closed normally with results, mark completed
-    if (code === 1000 && comparison.aiProcessing.comparisonResults?.length) {
-      await FrameworkComparison.findByIdAndUpdate(comparisonId, {
-        "aiProcessing.status": "completed",
-        "aiProcessing.processedAt": new Date(),
-      });
-
-      sendToUser(comparison.userId.toString(), {
-        type: "framework-comparison",
-        frameworkComparisonId: comparisonId,
-        status: "completed",
-        message: "Comparison completed",
-        data: comparison.aiProcessing.comparisonResults,
-        resultsCount: comparison.aiProcessing.resultsCount,
-      });
-    }
-  } catch (error) {
-    console.error("AI close handler error:", error);
-  }
-}
+};
 
 module.exports = {
   startFrameworkComparison,

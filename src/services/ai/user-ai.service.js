@@ -142,7 +142,11 @@ class UserAIService {
           }
 
           // Close connection on completion or error
-          if (message.status === "completed" || message.status === "error") {
+          if (
+            message.status === "completed" ||
+            message.status === "error" ||
+            message.status === "done"
+          ) {
             setTimeout(() => {
               this.closeConnection(frameworkId);
             }, 1000);

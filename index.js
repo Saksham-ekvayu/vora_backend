@@ -14,6 +14,7 @@ const { getLocalIPv4 } = require("./src/helpers/helper");
 const expertAIService = require("./src/services/ai/expert-ai.service");
 const userAIService = require("./src/services/ai/user-ai.service");
 const frameworkComparisonAIService = require("./src/services/ai/framework-comparison-ai.service");
+const statusCheckerService = require("./src/services/ai/status-checker.service");
 const {
   initializeWebSocketServer,
 } = require("./src/websocket/framework-comparison.websocket");
@@ -74,6 +75,49 @@ app.use("/api/users/frameworks", frameworkRoutes);
 app.use("/api/users/framework-comparisons", frameworkComparisonRoutes);
 app.use("/api/expert/frameworks", expertFrameworkRoutes);
 
+// Debug endpoint for testing WebSocket completion
+app.post("/api/debug/test-completion/:frameworkId", async (req, res) => {
+  try {
+    const { frameworkId } = req.params;
+    const { userId } = req.body;
+
+    const {
+      sendToUser,
+    } = require("./src/websocket/framework-comparison.websocket");
+
+    const testMessage = {
+      type: "framework-ai-processing",
+      frameworkId: frameworkId,
+      status: "completed",
+      control_extraction_status: "completed",
+      message: "AI processing completed! 15 controls extracted.",
+      controlsCount: 15,
+      extractedControls: [
+        {
+          Control_id: "2.1",
+          Control_name: "Test Control",
+          Control_description: "This is a test control for debugging",
+          Control_type: "Configuration",
+          Deployment_points: "Test deployment points",
+        },
+      ],
+      controlsExtractedAt: new Date(),
+    };
+
+    console.log("🧪 Sending test completion message:", testMessage);
+    sendToUser(userId, testMessage);
+
+    res.json({
+      success: true,
+      message: "Test completion message sent",
+      data: testMessage,
+    });
+  } catch (error) {
+    console.error("❌ Debug endpoint error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Register routes with dashboard for better documentation
 dashboard.registerRoutes("/api/auth", authRoutes);
 dashboard.registerRoutes("/api/user", userRoutes);
@@ -107,6 +151,9 @@ async function start() {
       // Initialize WebSocket server for framework comparisons
       initializeWebSocketServer(httpServer);
 
+      // Start AI status checker service
+      statusCheckerService.start();
+
       // ✅ Development ke liye actual IPv4
       if (process.env.NODE_ENV !== "production") {
         console.log(bgGreen(`🌐 Network access → http://${ipv4}:${PORT}`));
@@ -138,6 +185,9 @@ function gracefulShutdown() {
   expertAIService.closeAllConnections();
   userAIService.closeAllConnections();
   frameworkComparisonAIService.closeAllConnections();
+
+  // Stop status checker service
+  statusCheckerService.stop();
 
   Promise.resolve()
     .then(() => disconnectDB())

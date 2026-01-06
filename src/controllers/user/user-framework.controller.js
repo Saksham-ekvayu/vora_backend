@@ -8,6 +8,9 @@ const {
   removeFileExtension,
 } = require("../../config/multer.config");
 const aiService = require("../../services/ai/user-ai.service");
+const {
+  sendToUser,
+} = require("../../websocket/framework-comparison.websocket");
 // const cacheService = require("../../services/cache.service");
 // const { invalidateCache } = require("../../middlewares/cache.middleware");
 
@@ -579,6 +582,7 @@ const getUserFrameworks = async (req, res) => {
 const uploadFrameworkToAIService = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user._id.toString();
 
     const framework = await UserFramework.findOne({
       _id: id,
@@ -609,6 +613,15 @@ const uploadFrameworkToAIService = async (req, res) => {
       });
     }
 
+    // Send initial WebSocket update - upload started
+    sendToUser(userId, {
+      type: "framework-ai-processing",
+      frameworkId: id,
+      status: "uploading",
+      message: "Uploading framework to AI service...",
+      control_extraction_status: "pending",
+    });
+
     const aiResult = await aiService.uploadFramework(framework.fileUrl);
 
     if (!aiResult.success) {
@@ -624,32 +637,147 @@ const uploadFrameworkToAIService = async (req, res) => {
     framework.aiProcessing.errorMessage = null;
     await framework.save();
 
-    // Start background monitoring
+    // Send WebSocket update - upload completed, processing started
+    sendToUser(userId, {
+      type: "framework-ai-processing",
+      frameworkId: id,
+      status: aiResult.aiResponse.status,
+      control_extraction_status: aiResult.aiResponse.control_extraction_status,
+      message: "Framework uploaded successfully. AI processing started...",
+      uuid: aiResult.aiResponse.uuid,
+      processedAt: framework.aiProcessing.processedAt,
+    });
+
+    // Start background monitoring with WebSocket updates
     try {
       aiService.startBackgroundMonitoring(
         aiResult.aiResponse.uuid,
         id,
         async (message) => {
-          if (
-            message.status === "completed" &&
-            (message.controls || message.data)
-          ) {
-            const fw = await UserFramework.findById(id);
-            if (fw) {
-              const controls = Array.isArray(message.data)
-                ? message.data
-                : Array.isArray(message.controls)
-                ? message.controls
-                : [];
+          console.log(
+            "🔍 AI WebSocket message received:",
+            JSON.stringify(message, null, 2)
+          );
 
-              fw.aiProcessing.extractedControls = controls;
-              fw.aiProcessing.controlsCount = controls.length;
-              fw.aiProcessing.controlsExtractedAt = new Date();
-              fw.aiProcessing.status = "completed";
-              fw.aiProcessing.control_extraction_status = "completed";
-              await fw.save();
+          const fw = await UserFramework.findById(id);
+          if (!fw) return;
+
+          let wsMessage = {
+            type: "framework-ai-processing",
+            frameworkId: id,
+            uuid: fw.aiProcessing.uuid,
+          };
+
+          // Handle completion - check for various completion indicators
+          if (message.status === "completed" || message.status === "done") {
+            console.log("✅ AI processing completed for framework:", id);
+
+            // Extract controls from various possible message formats
+            let controls = [];
+            if (message.data && Array.isArray(message.data)) {
+              controls = message.data;
+            } else if (message.controls && Array.isArray(message.controls)) {
+              controls = message.controls;
+            } else if (
+              message.extracted_controls &&
+              Array.isArray(message.extracted_controls)
+            ) {
+              controls = message.extracted_controls;
+            } else if (message.results && Array.isArray(message.results)) {
+              controls = message.results;
             }
+
+            // If no controls in the message, try to fetch them from AI service
+            if (controls.length === 0) {
+              console.log(
+                "⚠️ No controls in completion message, checking AI service status..."
+              );
+              try {
+                const statusResult = await aiService.checkProcessingStatus(
+                  fw.aiProcessing.uuid
+                );
+                if (statusResult.status && statusResult.status.data) {
+                  controls = Array.isArray(statusResult.status.data)
+                    ? statusResult.status.data
+                    : [];
+                  console.log(
+                    "✅ Retrieved controls from AI service status:",
+                    controls.length
+                  );
+                }
+              } catch (statusError) {
+                console.error(
+                  "❌ Failed to fetch controls from AI service:",
+                  statusError
+                );
+              }
+            }
+
+            fw.aiProcessing.extractedControls = controls;
+            fw.aiProcessing.controlsCount = controls.length;
+            fw.aiProcessing.controlsExtractedAt = new Date();
+            fw.aiProcessing.status = "completed";
+            fw.aiProcessing.control_extraction_status = "completed";
+            await fw.save();
+
+            wsMessage = {
+              ...wsMessage,
+              status: "completed",
+              control_extraction_status: "completed",
+              message: `AI processing completed! ${controls.length} controls extracted.`,
+              controlsCount: controls.length,
+              extractedControls: controls,
+              controlsExtractedAt: fw.aiProcessing.controlsExtractedAt,
+            };
+
+            console.log("📤 Sending completion WebSocket message:", wsMessage);
+          } else if (
+            message.status === "error" ||
+            message.status === "failed"
+          ) {
+            console.log("❌ AI processing failed for framework:", id, message);
+
+            fw.aiProcessing.status = "failed";
+            fw.aiProcessing.control_extraction_status = "failed";
+            fw.aiProcessing.errorMessage =
+              message.message || message.error || "AI processing failed";
+            await fw.save();
+
+            wsMessage = {
+              ...wsMessage,
+              status: "failed",
+              control_extraction_status: "failed",
+              message:
+                message.message || message.error || "AI processing failed",
+              errorMessage: message.message || message.error,
+            };
+          } else if (
+            message.status === "processing" ||
+            message.status === "in-progress" ||
+            message.status === "started"
+          ) {
+            console.log("🔄 AI processing in progress for framework:", id);
+
+            fw.aiProcessing.control_extraction_status = "started";
+            await fw.save();
+
+            wsMessage = {
+              ...wsMessage,
+              status: "uploaded",
+              control_extraction_status: "started",
+              message: "AI is extracting controls from your framework...",
+            };
+          } else {
+            console.log(
+              "ℹ️ Unknown AI message status:",
+              message.status,
+              "for framework:",
+              id
+            );
           }
+
+          // Send real-time update to user
+          sendToUser(userId, wsMessage);
         }
       );
     } catch (wsError) {
@@ -657,12 +785,22 @@ const uploadFrameworkToAIService = async (req, res) => {
         `Failed to start background monitoring for framework ${id}:`,
         wsError
       );
+
+      // Send error update via WebSocket
+      sendToUser(userId, {
+        type: "framework-ai-processing",
+        frameworkId: id,
+        status: "failed",
+        control_extraction_status: "failed",
+        message: "Failed to start background monitoring",
+        errorMessage: wsError.message,
+      });
     }
 
     res.status(200).json({
       success: true,
       message:
-        "Framework uploaded to AI service successfully. Processing will continue in background.",
+        "Framework uploaded to AI service successfully. You will receive real-time updates via WebSocket.",
       data: {
         framework: {
           id: framework._id,
@@ -680,6 +818,7 @@ const uploadFrameworkToAIService = async (req, res) => {
     });
   } catch (error) {
     console.error("Error uploading framework to AI service:", error);
+    const userId = req.user._id.toString();
 
     // Update framework status on error
     if (req.params.id) {
@@ -687,9 +826,20 @@ const uploadFrameworkToAIService = async (req, res) => {
         const framework = await UserFramework.findById(req.params.id);
         if (framework) {
           framework.aiProcessing.status = "failed";
+          framework.aiProcessing.control_extraction_status = "failed";
           framework.aiProcessing.errorMessage = error.message;
           framework.aiProcessing.processedAt = new Date();
           await framework.save();
+
+          // Send error update via WebSocket
+          sendToUser(userId, {
+            type: "framework-ai-processing",
+            frameworkId: req.params.id,
+            status: "failed",
+            control_extraction_status: "failed",
+            message: "Failed to upload framework to AI service",
+            errorMessage: error.message,
+          });
         }
       } catch (updateError) {
         console.error("Failed to update framework error status:", updateError);

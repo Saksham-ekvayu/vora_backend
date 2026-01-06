@@ -1,7 +1,17 @@
 const express = require("express");
 const http = require("http");
 const cors = require("cors");
-const { bgRed, bgYellow, bgBlue, bgMagenta, bgGreen } = require("colorette");
+const {
+  bgRed,
+  bgYellow,
+  bgBlue,
+  bgMagenta,
+  bgGreen,
+  black,
+  bgWhite,
+  bgCyan,
+  bgMagentaBright,
+} = require("colorette");
 const dotenv = require("dotenv");
 const path = require("path");
 
@@ -99,40 +109,35 @@ let httpServer;
 async function start() {
   try {
     await connectDB(MONGODB_URI);
-    console.log(bgMagenta("📊 Connected to MongoDB"));
+    console.log(bgYellow("🗄️ MongoDB connected successfully"));
 
     httpServer = server.listen(PORT, "0.0.0.0", () => {
       const ipv4 = getLocalIPv4();
 
-      // Initialize WebSocket server for framework comparisons
+      // Initialize WebSocket server
       initializeWebSocketServer(httpServer);
 
-      // ✅ Development ke liye actual IPv4
+      // Development logs
       if (process.env.NODE_ENV !== "production") {
-        console.log(bgGreen(`🌐 Network access → http://${ipv4}:${PORT}`));
+        console.log(bgGreen(`🌐 Server (Network) → http://${ipv4}:${PORT}`));
         console.log(
-          bgGreen(
-            `🔗 WebSocket URL → ws://${ipv4}:${PORT}/ws/framework-comparisons`
-          )
+          bgWhite(black(`🔗 WebSocket (Network) → ws://${ipv4}:${PORT}`))
         );
       }
+
+      console.log(bgBlue(`🌐 Server (Local) → http://localhost:${PORT}`));
       console.log(
-        bgBlue(`🌐 Server listening on port → http://localhost:${PORT}`)
-      );
-      console.log(
-        bgBlue(
-          `🔗 WebSocket endpoint → ws://localhost:${PORT}/ws/framework-comparisons`
-        )
+        bgMagentaBright(`🔗 WebSocket (Local) → ws://localhost:${PORT}`)
       );
     });
   } catch (err) {
-    console.error(bgRed("Failed to start app:"), err);
+    console.error(bgRed("❌ Failed to start app"), err);
     process.exit(1);
   }
 }
 
 function gracefulShutdown() {
-  console.log(bgYellow("Shutting down..."));
+  console.log(bgYellow("🛑 Shutting down application..."));
 
   // Close all AI WebSocket connections
   expertAIService.closeAllConnections();
@@ -142,11 +147,13 @@ function gracefulShutdown() {
   Promise.resolve()
     .then(() => disconnectDB())
     .then(() => {
+      console.log(bgGreen("✅ Cleanup completed, exiting process"));
+
       if (httpServer) httpServer.close(() => process.exit(0));
       else process.exit(0);
     })
     .catch((err) => {
-      console.error(bgRed("Error during shutdown"), err);
+      console.error(bgRed("❌ Error during shutdown"), err);
       process.exit(1);
     });
 }

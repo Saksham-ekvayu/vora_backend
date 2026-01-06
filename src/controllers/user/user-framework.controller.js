@@ -525,7 +525,7 @@ const getUserFrameworks = async (req, res) => {
     }
 
     // Use pagination helper
-    const result = await paginateWithSearch(Framework, {
+    const result = await paginateWithSearch(UserFramework, {
       page: req.query.page,
       limit: req.query.limit || 10,
       filter: filter,

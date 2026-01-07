@@ -52,6 +52,7 @@ const createUserByAdmin = async (req, res) => {
       role: role || "expert",
       phone: phone || undefined,
       password: tempPassword,
+      createdBy: "admin",
       isEmailVerified: true, // admin-created users considered verified by admin
     });
 
@@ -641,7 +642,7 @@ const getUserStatistics = async (req, res) => {
   }
 };
 
-// Delete user by ID (admin only)
+// Delete user by ID (admin only) - Minimal & Production Ready
 const deleteUser = async (req, res) => {
   try {
     if (!req.user || req.user.role !== "admin") {
@@ -652,8 +653,8 @@ const deleteUser = async (req, res) => {
     }
 
     const { id } = req.params;
+    const { deleteData } = req.body;
 
-    // Prevent admin from deleting themselves
     if (req.user._id.toString() === id) {
       return res.status(400).json({
         success: false,
@@ -663,12 +664,12 @@ const deleteUser = async (req, res) => {
 
     const user = await User.findById(id);
     if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
     }
 
-    // Additional check: Prevent deletion of other admin users (optional security measure)
     if (user.role === "admin") {
       return res.status(400).json({
         success: false,
@@ -676,91 +677,55 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    // Delete all user's documents and their files
-    const userDocuments = await UserDocument.find({ uploadedBy: id });
-    const userFrameworks = await UserFramework.find({ uploadedBy: id });
+    // Always delete comparisons
+    await FrameworkComparison.deleteMany({ $or: [{ userId: id }] });
 
-    // If user is an expert, also get their expert frameworks
-    const expertFrameworks =
-      user.role === "expert"
-        ? await ExpertFramework.find({ uploadedBy: id })
-        : [];
+    if (deleteData) {
+      // Delete all user data and files
+      const [userDocs, userFrameworks, expertFrameworks] = await Promise.all([
+        UserDocument.find({ uploadedBy: id }),
+        UserFramework.find({ uploadedBy: id }),
+        user.role === "expert" ? ExpertFramework.find({ uploadedBy: id }) : [],
+      ]);
 
-    // Delete document files
-    for (const doc of userDocuments) {
-      if (doc.fileUrl) {
-        deleteFile(doc.fileUrl);
-      }
-    }
+      // Delete files
+      [...userDocs, ...userFrameworks, ...expertFrameworks].forEach((item) => {
+        if (item.fileUrl) deleteFile(item.fileUrl);
+      });
 
-    // Delete user framework files
-    for (const framework of userFrameworks) {
-      if (framework.fileUrl) {
-        deleteFile(framework.fileUrl);
-      }
-    }
-
-    // Delete expert framework files
-    for (const framework of expertFrameworks) {
-      if (framework.fileUrl) {
-        deleteFile(framework.fileUrl);
-      }
-    }
-
-    // Delete all related comparison data
-    const FrameworkComparison = require("../../models/framework-comparison.model");
-
-    // Delete framework comparisons where this user was involved
-    await FrameworkComparison.deleteMany({
-      $or: [
-        { userId: id }, // User who initiated comparisons
-        { userFrameworkId: { $in: userFrameworks.map((f) => f._id) } }, // Comparisons involving user's frameworks
-        { expertFrameworkId: { $in: expertFrameworks.map((f) => f._id) } }, // Comparisons involving expert's frameworks
-      ],
-    });
-
-    // Remove comparison results from other user frameworks that referenced this expert's frameworks
-    if (expertFrameworks.length > 0) {
-      await UserFramework.updateMany(
-        {
-          "comparisonResults.expertFrameworkId": {
-            $in: expertFrameworks.map((f) => f._id),
-          },
-        },
-        {
-          $pull: {
-            comparisonResults: {
-              expertFrameworkId: { $in: expertFrameworks.map((f) => f._id) },
-            },
-          },
-        }
-      );
-    }
-
-    // Delete documents and frameworks from database
-    await UserDocument.deleteMany({ uploadedBy: id });
-    await UserFramework.deleteMany({ uploadedBy: id });
-
-    // Delete expert frameworks if user is an expert
-    if (user.role === "expert") {
-      await ExpertFramework.deleteMany({ uploadedBy: id });
+      // Delete database records
+      await Promise.all([
+        UserDocument.deleteMany({ uploadedBy: id }),
+        UserFramework.deleteMany({ uploadedBy: id }),
+        user.role === "expert"
+          ? ExpertFramework.deleteMany({ uploadedBy: id })
+          : Promise.resolve(),
+      ]);
     }
 
     // Delete user
     await User.findByIdAndDelete(id);
 
-    // Invalidate user cache (commented out)
-    // await invalidateCache.user(id);
-
     res.json({
       success: true,
-      message: `${
-        user.role === "expert" ? "Expert" : "User"
-      } and all associated data deleted successfully`,
+      message: deleteData
+        ? `${
+            user.role === "expert" ? "Expert" : "User"
+          } and all data deleted successfully`
+        : `${
+            user.role === "expert" ? "Expert" : "User"
+          } deleted. Data preserved.`,
+      deletionSummary: {
+        userDeleted: true,
+        dataHandling: deleteData ? "deleted" : "preserved",
+      },
     });
   } catch (error) {
     console.error("Delete user error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
 

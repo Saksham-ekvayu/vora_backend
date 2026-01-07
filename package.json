@@ -15,7 +15,8 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "migrate:original-uploaded-by": "node src/database/migrations/add-original-uploaded-by.js"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"

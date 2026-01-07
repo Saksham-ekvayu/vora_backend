@@ -31,6 +31,7 @@ const {
 // Import routes
 const authRoutes = require("./src/routes/auth/auth.routes");
 const userRoutes = require("./src/routes/admin/user.routes");
+const adminDashboardRoutes = require("./src/routes/admin/dashboard.routes");
 const userDocumentRoutes = require("./src/routes/user/user-document.routes");
 const userFrameworkRoutes = require("./src/routes/user/user-framework.routes");
 const expertFrameworkRoutes = require("./src/routes/expert/expert-framework.routes");
@@ -79,6 +80,7 @@ const dashboard = new SwaggerExpressDashboard({
 // Use routes
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/admin/dashboard", adminDashboardRoutes);
 app.use("/api/users/documents", userDocumentRoutes);
 app.use("/api/users/frameworks", userFrameworkRoutes);
 app.use("/api/users/framework-comparisons", frameworkComparisonRoutes);
@@ -87,6 +89,7 @@ app.use("/api/expert/frameworks", expertFrameworkRoutes);
 // Register routes with dashboard for better documentation
 dashboard.registerRoutes("/api/auth", authRoutes);
 dashboard.registerRoutes("/api/user", userRoutes);
+dashboard.registerRoutes("/api/admin/dashboard", adminDashboardRoutes);
 dashboard.registerRoutes("/api/users/documents", userDocumentRoutes);
 dashboard.registerRoutes("/api/users/frameworks", userFrameworkRoutes);
 dashboard.registerRoutes(

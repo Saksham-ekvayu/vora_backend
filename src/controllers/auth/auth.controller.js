@@ -38,6 +38,7 @@ const register = async (req, res) => {
       email,
       password,
       phone,
+      createdBy: "self",
       otp: {
         code: otp,
         expiresAt: otpExpiry,

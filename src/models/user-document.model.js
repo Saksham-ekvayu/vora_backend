@@ -27,6 +27,28 @@ const documentSchema = new mongoose.Schema(
       ref: "User",
       required: [true, "Uploaded by user is required"],
     },
+    // Preserve original user details even after user deletion
+    originalUploadedBy: {
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true,
+      },
+      name: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+      email: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+      role: {
+        type: String,
+        required: true,
+        enum: ["user", "expert", "admin"],
+      },
+    },
     fileSize: {
       type: Number,
       required: [true, "File size is required"],

@@ -2,12 +2,14 @@ const User = require("../../models/user.model");
 const {
   generateTempPassword,
   paginateWithSearch,
+  formatFileSize,
 } = require("../../helpers/helper");
 const { sendTempPasswordEmail } = require("../../services/email.service");
 const UserDocument = require("../../models/user-document.model");
 const UserFramework = require("../../models/user-framework.model");
 const { deleteFile } = require("../../config/multer.config");
 const ExpertFramework = require("../../models/expert-framework.model");
+const FrameworkComparison = require("../../models/framework-comparison.model");
 
 // Create user by admin
 const createUserByAdmin = async (req, res) => {
@@ -259,7 +261,7 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// Get user by ID
+// Get user by ID with role-based statistics
 const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -276,9 +278,126 @@ const getUserById = async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
+    // Initialize statistics object
+    let statistics = {
+      documents: 0,
+      frameworks: 0,
+      comparisons: 0,
+      aiProcessingStatus: {
+        pending: 0,
+        processing: 0,
+        completed: 0,
+        failed: 0,
+      },
+    };
+
+    // Get role-based statistics
+    if (user.role === "user") {
+      // For users: count their documents, frameworks, and comparisons
+      const [documentCount, frameworkCount, comparisonCount] =
+        await Promise.all([
+          UserDocument.countDocuments({ uploadedBy: id }),
+          UserFramework.countDocuments({ uploadedBy: id }),
+          FrameworkComparison.countDocuments({ userId: id }),
+        ]);
+
+      // Get AI processing status for user frameworks
+      const userFrameworks = await UserFramework.find({
+        uploadedBy: id,
+      }).select("aiProcessing.status");
+      const aiStatusCounts = userFrameworks.reduce((acc, framework) => {
+        const status = framework.aiProcessing?.status || "pending";
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {});
+
+      statistics = {
+        documents: documentCount,
+        frameworks: frameworkCount,
+        comparisons: comparisonCount,
+        aiProcessingStatus: {
+          pending: aiStatusCounts.pending || 0,
+          processing:
+            (aiStatusCounts.processing || 0) + (aiStatusCounts.uploaded || 0),
+          completed: aiStatusCounts.completed || 0,
+          failed: aiStatusCounts.failed || 0,
+        },
+      };
+    } else if (user.role === "expert") {
+      // For experts: count their expert frameworks and related comparisons
+      const [expertFrameworkCount, relatedComparisons] = await Promise.all([
+        ExpertFramework.countDocuments({ uploadedBy: id }),
+        FrameworkComparison.countDocuments({
+          expertFrameworkId: {
+            $in: await ExpertFramework.find({ uploadedBy: id }).select("_id"),
+          },
+        }),
+      ]);
+
+      // Get AI processing status for expert frameworks
+      const expertFrameworks = await ExpertFramework.find({
+        uploadedBy: id,
+      }).select("aiProcessing.status");
+      const aiStatusCounts = expertFrameworks.reduce((acc, framework) => {
+        const status = framework.aiProcessing?.status || "pending";
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {});
+
+      statistics = {
+        documents: 0, // Experts don't have user documents
+        frameworks: expertFrameworkCount,
+        comparisons: relatedComparisons,
+        aiProcessingStatus: {
+          pending: aiStatusCounts.pending || 0,
+          processing:
+            (aiStatusCounts.processing || 0) + (aiStatusCounts.uploaded || 0),
+          completed: aiStatusCounts.completed || 0,
+          failed: aiStatusCounts.failed || 0,
+        },
+      };
+    } else if (user.role === "admin") {
+      // For admins: show system-wide statistics
+      const [
+        totalUsers,
+        totalExperts,
+        totalDocuments,
+        totalUserFrameworks,
+        totalExpertFrameworks,
+        totalComparisons,
+      ] = await Promise.all([
+        User.countDocuments({ role: "user" }),
+        User.countDocuments({ role: "expert" }),
+        UserDocument.countDocuments(),
+        UserFramework.countDocuments(),
+        ExpertFramework.countDocuments(),
+        FrameworkComparison.countDocuments(),
+      ]);
+
+      statistics = {
+        systemStats: {
+          totalUsers,
+          totalExperts,
+          totalDocuments,
+          totalUserFrameworks,
+          totalExpertFrameworks,
+          totalComparisons,
+        },
+        documents: 0,
+        frameworks: 0,
+        comparisons: 0,
+        aiProcessingStatus: {
+          pending: 0,
+          processing: 0,
+          completed: 0,
+          failed: 0,
+        },
+      };
+    }
+
     res.json({
       success: true,
-      message: "User detail retrieved successfully ",
+      message: "User detail retrieved successfully",
       user: {
         id: user._id,
         name: user.name,
@@ -287,11 +406,238 @@ const getUserById = async (req, res) => {
         phone: user.phone,
         isEmailVerified: user.isEmailVerified,
         createdAt: user.createdAt,
+        statistics,
       },
     });
   } catch (error) {
     console.error("Get user error:", error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Get detailed user statistics by ID
+const getUserStatistics = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if user exists
+    const user = await User.findById(id).select("name email role");
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    let detailedStats = {};
+
+    if (user.role === "user") {
+      // Get detailed user statistics
+      const [
+        documents,
+        frameworks,
+        comparisons,
+        recentDocuments,
+        recentFrameworks,
+      ] = await Promise.all([
+        UserDocument.find({ uploadedBy: id }).select(
+          "documentName documentType fileSize createdAt"
+        ),
+        UserFramework.find({ uploadedBy: id }).select(
+          "frameworkName frameworkType fileSize aiProcessing createdAt"
+        ),
+        FrameworkComparison.find({ userId: id })
+          .populate("expertFrameworkId", "frameworkName")
+          .select("aiProcessing createdAt"),
+        UserDocument.find({ uploadedBy: id })
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .select("documentName documentType createdAt"),
+        UserFramework.find({ uploadedBy: id })
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .select("frameworkName frameworkType aiProcessing.status createdAt"),
+      ]);
+
+      // Calculate framework statistics
+      const frameworkStats = frameworks.reduce(
+        (acc, framework) => {
+          const status = framework.aiProcessing?.status || "pending";
+          acc.byStatus[status] = (acc.byStatus[status] || 0) + 1;
+          acc.byType[framework.frameworkType] =
+            (acc.byType[framework.frameworkType] || 0) + 1;
+          acc.totalSize += framework.fileSize || 0;
+          return acc;
+        },
+        {
+          byStatus: {},
+          byType: {},
+          totalSize: 0,
+        }
+      );
+
+      // Calculate document statistics
+      const documentStats = documents.reduce(
+        (acc, doc) => {
+          acc.byType[doc.documentType] =
+            (acc.byType[doc.documentType] || 0) + 1;
+          acc.totalSize += doc.fileSize || 0;
+          return acc;
+        },
+        {
+          byType: {},
+          totalSize: 0,
+        }
+      );
+
+      detailedStats = {
+        role: user.role,
+        summary: {
+          totalDocuments: documents.length,
+          totalFrameworks: frameworks.length,
+          totalComparisons: comparisons.length,
+          totalStorageUsed: formatFileSize(
+            documentStats.totalSize + frameworkStats.totalSize
+          ),
+        },
+        documents: {
+          count: documents.length,
+          byType: documentStats.byType,
+          totalSize: formatFileSize(documentStats.totalSize),
+          recent: recentDocuments,
+        },
+        frameworks: {
+          count: frameworks.length,
+          byType: frameworkStats.byType,
+          byStatus: frameworkStats.byStatus,
+          totalSize: formatFileSize(frameworkStats.totalSize),
+          recent: recentFrameworks,
+        },
+        comparisons: {
+          count: comparisons.length,
+          recent: comparisons.slice(0, 5),
+        },
+      };
+    } else if (user.role === "expert") {
+      // Get detailed expert statistics
+      const [expertFrameworks, relatedComparisons] = await Promise.all([
+        ExpertFramework.find({ uploadedBy: id }).select(
+          "frameworkName frameworkType fileSize aiProcessing createdAt"
+        ),
+        FrameworkComparison.find({
+          expertFrameworkId: {
+            $in: await ExpertFramework.find({ uploadedBy: id }).select("_id"),
+          },
+        })
+          .populate("userFrameworkId", "frameworkName")
+          .populate("userId", "name email")
+          .select("aiProcessing createdAt"),
+      ]);
+
+      // Calculate expert framework statistics
+      const frameworkStats = expertFrameworks.reduce(
+        (acc, framework) => {
+          const status = framework.aiProcessing?.status || "pending";
+          acc.byStatus[status] = (acc.byStatus[status] || 0) + 1;
+          acc.byType[framework.frameworkType] =
+            (acc.byType[framework.frameworkType] || 0) + 1;
+          acc.totalSize += framework.fileSize || 0;
+          return acc;
+        },
+        {
+          byStatus: {},
+          byType: {},
+          totalSize: 0,
+        }
+      );
+
+      detailedStats = {
+        role: user.role,
+        summary: {
+          totalExpertFrameworks: expertFrameworks.length,
+          totalComparisonsInvolved: relatedComparisons.length,
+          totalStorageUsed: formatFileSize(frameworkStats.totalSize),
+        },
+        expertFrameworks: {
+          count: expertFrameworks.length,
+          byType: frameworkStats.byType,
+          byStatus: frameworkStats.byStatus,
+          totalSize: formatFileSize(frameworkStats.totalSize),
+          recent: expertFrameworks.slice(0, 5),
+        },
+        comparisonsInvolved: {
+          count: relatedComparisons.length,
+          recent: relatedComparisons.slice(0, 5),
+        },
+      };
+    } else if (user.role === "admin") {
+      // Get system-wide detailed statistics for admin
+      const [
+        allUsers,
+        allExperts,
+        allDocuments,
+        allUserFrameworks,
+        allExpertFrameworks,
+        allComparisons,
+      ] = await Promise.all([
+        User.find({ role: "user" }).select("name email createdAt"),
+        User.find({ role: "expert" }).select("name email createdAt"),
+        UserDocument.find()
+          .populate("uploadedBy", "name email")
+          .select("documentName documentType fileSize createdAt"),
+        UserFramework.find()
+          .populate("uploadedBy", "name email")
+          .select(
+            "frameworkName frameworkType fileSize aiProcessing createdAt"
+          ),
+        ExpertFramework.find()
+          .populate("uploadedBy", "name email")
+          .select(
+            "frameworkName frameworkType fileSize aiProcessing createdAt"
+          ),
+        FrameworkComparison.find()
+          .populate("userId", "name email")
+          .select("aiProcessing createdAt"),
+      ]);
+
+      detailedStats = {
+        role: user.role,
+        systemOverview: {
+          totalUsers: allUsers.length,
+          totalExperts: allExperts.length,
+          totalDocuments: allDocuments.length,
+          totalUserFrameworks: allUserFrameworks.length,
+          totalExpertFrameworks: allExpertFrameworks.length,
+          totalComparisons: allComparisons.length,
+        },
+        recentActivity: {
+          recentUsers: allUsers.slice(0, 10),
+          recentExperts: allExperts.slice(0, 10),
+          recentDocuments: allDocuments.slice(0, 10),
+          recentFrameworks: [...allUserFrameworks, ...allExpertFrameworks]
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 10),
+        },
+      };
+    }
+
+    res.json({
+      success: true,
+      message: "User statistics retrieved successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      statistics: detailedStats,
+    });
+  } catch (error) {
+    console.error("Get user statistics error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while retrieving user statistics",
+    });
   }
 };
 
@@ -465,6 +811,7 @@ module.exports = {
   updateUserByAdmin,
   getAllUsers,
   getUserById,
+  getUserStatistics,
   editProfile,
   deleteUser,
 };

@@ -194,10 +194,11 @@ const changePasswordValidation = [
   handleValidationErrors,
 ];
 
-// Delete user validation
+// Delete user validation - deleteData is required
 const deleteUserValidation = [
   body("deleteData")
-    .optional()
+    .notEmpty()
+    .withMessage("deleteData field is required")
     .isBoolean()
     .withMessage("deleteData must be a boolean value (true or false)")
     .customSanitizer((value) => {

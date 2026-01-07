@@ -652,7 +652,7 @@ const deleteUser = async (req, res) => {
     }
 
     const { id } = req.params;
-    const { deleteData = false } = req.body;
+    const { deleteData } = req.body;
 
     if (req.user._id.toString() === id) {
       return res.status(400).json({

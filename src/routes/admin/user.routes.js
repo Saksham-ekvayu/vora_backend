@@ -7,13 +7,13 @@ const {
 } = require("../../validations/user.validation");
 const {
   getUserById,
+  getUserStatistics,
   editProfile,
   getAllUsers,
   deleteUser,
   createUserByAdmin,
   updateUserByAdmin,
 } = require("../../controllers/admin/user-management.controller");
-// const { userByIdCache } = require("../../middlewares/cache.middleware");
 
 const router = express.Router();
 
@@ -31,7 +31,8 @@ router.put(
   updateUserByAdmin
 );
 router.delete("/:id", authenticateToken, deleteUser);
-router.get("/:id", authenticateToken, /* userByIdCache, */ getUserById);
+router.get("/:id/statistics", authenticateToken, getUserStatistics);
+router.get("/:id", authenticateToken, getUserById);
 router.put(
   "/profile/update",
   authenticateToken,

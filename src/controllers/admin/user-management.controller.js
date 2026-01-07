@@ -52,6 +52,7 @@ const createUserByAdmin = async (req, res) => {
       role: role || "expert",
       phone: phone || undefined,
       password: tempPassword,
+      createdBy: "admin",
       isEmailVerified: true, // admin-created users considered verified by admin
     });
 

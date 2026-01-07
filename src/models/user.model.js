@@ -43,6 +43,11 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  createdBy: {
+    type: String,
+    enum: ["self", "admin"],
+    default: "self",
+  },
   createdAt: {
     type: Date,
     default: Date.now,

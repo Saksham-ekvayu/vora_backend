@@ -21,7 +21,7 @@ const getDashboardAnalytics = async (req, res) => {
       totalDocuments,
       usersByRole,
       recentCreatedUsers,
-      userRegistrationChart,
+      userCreationChart,
     ] = await Promise.all([
       User.countDocuments(),
       UserFramework.countDocuments(),
@@ -45,7 +45,7 @@ const getDashboardAnalytics = async (req, res) => {
         .limit(5)
         .lean(),
 
-      // User registration chart (last 30 days)
+      // User creation chart by source (last 30 days)
       User.aggregate([
         {
           $match: {
@@ -57,16 +57,19 @@ const getDashboardAnalytics = async (req, res) => {
         {
           $group: {
             _id: {
-              $dateToString: {
-                format: "%Y-%m-%d",
-                date: "$createdAt",
+              date: {
+                $dateToString: {
+                  format: "%Y-%m-%d",
+                  date: "$createdAt",
+                },
               },
+              createdBy: "$createdBy",
             },
             count: { $sum: 1 },
           },
         },
         {
-          $sort: { _id: 1 },
+          $sort: { "_id.date": 1 },
         },
       ]),
     ]);
@@ -82,14 +85,29 @@ const getDashboardAnalytics = async (req, res) => {
       roleStats[item._id] = item.count;
     });
 
-    // Format chart data
+    // Format chart data - combine self registration and admin creation
     const chartLabels = [];
-    const chartValues = [];
+    const selfRegistrationValues = [];
+    const adminCreationValues = [];
+    const dateMap = {};
 
-    userRegistrationChart.forEach((item) => {
-      chartLabels.push(item._id);
-      chartValues.push(item.count);
+    // Initialize date map with all dates
+    userCreationChart.forEach((item) => {
+      const date = item._id.date;
+      if (!dateMap[date]) {
+        dateMap[date] = { self: 0, admin: 0 };
+      }
+      dateMap[date][item._id.createdBy] = item.count;
     });
+
+    // Sort dates and build arrays
+    Object.keys(dateMap)
+      .sort()
+      .forEach((date) => {
+        chartLabels.push(date);
+        selfRegistrationValues.push(dateMap[date].self || 0);
+        adminCreationValues.push(dateMap[date].admin || 0);
+      });
 
     // Check AI integration status
     const aiEnabled = process.env.AI_SERVICE_ENABLED === "true" || false;
@@ -106,9 +124,10 @@ const getDashboardAnalytics = async (req, res) => {
           usersByRole: roleStats,
         },
         charts: {
-          userRegistration: {
+          userCreation: {
             labels: chartLabels,
-            values: chartValues,
+            selfRegistration: selfRegistrationValues,
+            adminCreation: adminCreationValues,
           },
         },
         aiEnabled,

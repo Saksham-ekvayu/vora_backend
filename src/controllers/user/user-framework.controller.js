@@ -56,6 +56,7 @@ const formatUploadedByData = (framework) => {
       name: framework.uploadedBy.name,
       email: framework.uploadedBy.email,
       role: framework.uploadedBy.role,
+      isUserDeleted: false,
     };
   } else if (framework.originalUploadedBy) {
     return {
@@ -63,6 +64,7 @@ const formatUploadedByData = (framework) => {
       name: framework.originalUploadedBy.name,
       email: framework.originalUploadedBy.email,
       role: framework.originalUploadedBy.role,
+      isUserDeleted: true,
     };
   } else {
     return {
@@ -70,6 +72,7 @@ const formatUploadedByData = (framework) => {
       name: "Deleted User",
       email: "N/A",
       role: "N/A",
+      isUserDeleted: true,
     };
   }
 };

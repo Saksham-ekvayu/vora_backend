@@ -7,8 +7,6 @@ const {
   deleteFile,
   removeFileExtension,
 } = require("../../config/multer.config");
-// const cacheService = require("../../services/cache.service");
-// const { invalidateCache } = require("../../middlewares/cache.middleware");
 
 // Create upload instance with specific directory for user documents
 const upload = createDocumentUpload("src/uploads/user-documents");
@@ -21,6 +19,7 @@ const formatUploadedByData = (document) => {
       name: document.uploadedBy.name,
       email: document.uploadedBy.email,
       role: document.uploadedBy.role,
+      isUserDeleted: false,
     };
   } else if (document.originalUploadedBy) {
     return {
@@ -28,6 +27,7 @@ const formatUploadedByData = (document) => {
       name: document.originalUploadedBy.name,
       email: document.originalUploadedBy.email,
       role: document.originalUploadedBy.role,
+      isUserDeleted: true,
     };
   } else {
     return {
@@ -35,6 +35,7 @@ const formatUploadedByData = (document) => {
       name: "Deleted User",
       email: "N/A",
       role: "N/A",
+      isUserDeleted: true,
     };
   }
 };

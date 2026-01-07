@@ -20,7 +20,7 @@ const getDashboardAnalytics = async (req, res) => {
       totalExpertFrameworks,
       totalDocuments,
       usersByRole,
-      recentUsers,
+      recentCreatedUsers,
       userRegistrationChart,
     ] = await Promise.all([
       User.countDocuments(),
@@ -38,7 +38,7 @@ const getDashboardAnalytics = async (req, res) => {
         },
       ]),
 
-      // Recent 5 users
+      // Recent 5 created users
       User.find()
         .select("name email role createdAt")
         .sort({ createdAt: -1 })
@@ -112,7 +112,7 @@ const getDashboardAnalytics = async (req, res) => {
           },
         },
         aiEnabled,
-        recentUsers: recentUsers.map((user) => ({
+        recentCreatedUsers: recentCreatedUsers.map((user) => ({
           id: user._id,
           name: user.name,
           email: user.email,

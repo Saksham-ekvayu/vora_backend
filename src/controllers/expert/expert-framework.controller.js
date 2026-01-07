@@ -44,6 +44,32 @@ const formatAIProcessingData = (aiProcessing, includeControls = false) => {
   return baseData;
 };
 
+// Helper function to format uploadedBy data
+const formatUploadedByData = (framework) => {
+  if (framework.uploadedBy) {
+    return {
+      id: framework.uploadedBy._id,
+      name: framework.uploadedBy.name,
+      email: framework.uploadedBy.email,
+      role: framework.uploadedBy.role,
+    };
+  } else if (framework.originalUploadedBy) {
+    return {
+      id: framework.originalUploadedBy.userId,
+      name: framework.originalUploadedBy.name,
+      email: framework.originalUploadedBy.email,
+      role: framework.originalUploadedBy.role,
+    };
+  } else {
+    return {
+      id: null,
+      name: "Deleted User",
+      email: "N/A",
+      role: "N/A",
+    };
+  }
+};
+
 // Create upload instance
 const upload = createDocumentUpload("src/uploads/expert-frameworks");
 
@@ -95,6 +121,12 @@ const createFramework = async (req, res) => {
         fileUrl: file.path,
         frameworkType: frameworkType,
         uploadedBy: req.user._id,
+        originalUploadedBy: {
+          userId: req.user._id,
+          name: req.user.name,
+          email: req.user.email,
+          role: req.user.role,
+        },
         fileSize: file.size,
         originalFileName: file.originalname,
       });
@@ -115,12 +147,7 @@ const createFramework = async (req, res) => {
           frameworkType: framework.frameworkType,
           fileSize: getFormattedFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
-          uploadedBy: {
-            id: framework.uploadedBy._id,
-            name: framework.uploadedBy.name,
-            email: framework.uploadedBy.email,
-            role: framework.uploadedBy.role,
-          },
+          uploadedBy: formatUploadedByData(framework),
           aiProcessing: formatAIProcessingData(framework.aiProcessing),
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
@@ -188,19 +215,7 @@ const getAllFrameworks = async (req, res) => {
         frameworkType: doc.frameworkType,
         fileSize: getFormattedFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
-        uploadedBy: doc.uploadedBy
-          ? {
-              id: doc.uploadedBy._id,
-              name: doc.uploadedBy.name,
-              email: doc.uploadedBy.email,
-              role: doc.uploadedBy.role,
-            }
-          : {
-              id: null,
-              name: "Deleted User",
-              email: "N/A",
-              role: "N/A",
-            },
+        uploadedBy: formatUploadedByData(doc),
         aiProcessing: formatAIProcessingData(doc.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
@@ -261,12 +276,7 @@ const getFrameworkById = async (req, res) => {
         fileSize: getFormattedFileSize(framework.fileSize),
         originalFileName: framework.originalFileName,
         fileUrl: framework.fileUrl,
-        uploadedBy: {
-          id: framework.uploadedBy._id,
-          name: framework.uploadedBy.name,
-          email: framework.uploadedBy.email,
-          role: framework.uploadedBy.role,
-        },
+        uploadedBy: formatUploadedByData(framework),
         aiProcessing: formatAIProcessingData(framework.aiProcessing, true),
         createdAt: framework.createdAt,
         updatedAt: framework.updatedAt,
@@ -354,12 +364,7 @@ const updateFramework = async (req, res) => {
           frameworkType: framework.frameworkType,
           fileSize: getFormattedFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
-          uploadedBy: {
-            id: framework.uploadedBy._id,
-            name: framework.uploadedBy.name,
-            email: framework.uploadedBy.email,
-            role: framework.uploadedBy.role,
-          },
+          uploadedBy: formatUploadedByData(framework),
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
         },

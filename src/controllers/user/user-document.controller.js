@@ -13,6 +13,32 @@ const {
 // Create upload instance with specific directory for user documents
 const upload = createDocumentUpload("src/uploads/user-documents");
 
+// Helper function to format uploadedBy data
+const formatUploadedByData = (document) => {
+  if (document.uploadedBy) {
+    return {
+      id: document.uploadedBy._id,
+      name: document.uploadedBy.name,
+      email: document.uploadedBy.email,
+      role: document.uploadedBy.role,
+    };
+  } else if (document.originalUploadedBy) {
+    return {
+      id: document.originalUploadedBy.userId,
+      name: document.originalUploadedBy.name,
+      email: document.originalUploadedBy.email,
+      role: document.originalUploadedBy.role,
+    };
+  } else {
+    return {
+      id: null,
+      name: "Deleted User",
+      email: "N/A",
+      role: "N/A",
+    };
+  }
+};
+
 // Create a new document
 const createDocument = async (req, res) => {
   try {
@@ -67,6 +93,12 @@ const createDocument = async (req, res) => {
         fileUrl: file.path,
         documentType: documentType,
         uploadedBy: req.user._id,
+        originalUploadedBy: {
+          userId: req.user._id,
+          name: req.user.name,
+          email: req.user.email,
+          role: req.user.role,
+        },
         fileSize: file.size,
         originalFileName: file.originalname,
       });
@@ -78,12 +110,6 @@ const createDocument = async (req, res) => {
     // Populate uploadedBy field for response
     await document.populate("uploadedBy", "name email role");
 
-    // Cache the document (commented out)
-    // await cacheService.cacheDocument(document);
-
-    // Invalidate document list caches (commented out)
-    // await invalidateCache.documents(req.user._id);
-
     res.status(201).json({
       success: true,
       message: message,
@@ -94,12 +120,7 @@ const createDocument = async (req, res) => {
           documentType: document.documentType,
           fileSize: document.getFormattedFileSize(),
           originalFileName: document.originalFileName,
-          uploadedBy: {
-            id: document.uploadedBy._id,
-            name: document.uploadedBy.name,
-            email: document.uploadedBy.email,
-            role: document.uploadedBy.role,
-          },
+          uploadedBy: formatUploadedByData(document),
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
         },
@@ -164,19 +185,7 @@ const getAllDocuments = async (req, res) => {
         documentType: doc.documentType,
         fileSize: doc.getFormattedFileSize(),
         originalFileName: doc.originalFileName,
-        uploadedBy: doc.uploadedBy
-          ? {
-              id: doc.uploadedBy._id,
-              name: doc.uploadedBy.name,
-              email: doc.uploadedBy.email,
-              role: doc.uploadedBy.role,
-            }
-          : {
-              id: null,
-              name: "Deleted User",
-              email: "N/A",
-              role: "N/A",
-            },
+        uploadedBy: formatUploadedByData(doc),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       }),
@@ -217,9 +226,6 @@ const getDocumentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Try to get from cache first (commented out)
-    // let document = await cacheService.getDocumentById(id);
-
     // Fetch directly from database
     const document = await UserDocument.findById(id).populate(
       "uploadedBy",
@@ -246,12 +252,7 @@ const getDocumentById = async (req, res) => {
             : "N/A",
           originalFileName: document.originalFileName,
           fileUrl: document.fileUrl,
-          uploadedBy: {
-            id: document.uploadedBy._id,
-            name: document.uploadedBy.name,
-            email: document.uploadedBy.email,
-            role: document.uploadedBy.role,
-          },
+          uploadedBy: formatUploadedByData(document),
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
         },
@@ -322,12 +323,6 @@ const updateDocument = async (req, res) => {
     await document.save();
     await document.populate("uploadedBy", "name email role");
 
-    // Update cache (commented out)
-    // await cacheService.cacheDocument(document);
-
-    // Invalidate related caches (commented out)
-    // await invalidateCache.documents(req.user._id);
-
     res.status(200).json({
       success: true,
       message: req.file
@@ -340,12 +335,7 @@ const updateDocument = async (req, res) => {
           documentType: document.documentType,
           fileSize: document.getFormattedFileSize(),
           originalFileName: document.originalFileName,
-          uploadedBy: {
-            id: document.uploadedBy._id,
-            name: document.uploadedBy.name,
-            email: document.uploadedBy.email,
-            role: document.uploadedBy.role,
-          },
+          uploadedBy: formatUploadedByData(document),
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
         },
@@ -387,10 +377,6 @@ const deleteDocument = async (req, res) => {
 
     // Permanent delete from database
     await UserDocument.findByIdAndDelete(id);
-
-    // Invalidate caches (commented out)
-    // await invalidateCache.document(id);
-    // await invalidateCache.documents(document.uploadedBy);
 
     res.status(200).json({
       success: true,
@@ -480,7 +466,7 @@ const getUserDocuments = async (req, res) => {
     }
 
     // Use pagination helper
-    const result = await paginateWithSearch(Document, {
+    const result = await paginateWithSearch(UserDocument, {
       page: req.query.page,
       limit: req.query.limit || 10,
       filter: filter,
@@ -493,12 +479,7 @@ const getUserDocuments = async (req, res) => {
         documentType: doc.documentType,
         fileSize: doc.getFormattedFileSize(),
         originalFileName: doc.originalFileName,
-        uploadedBy: {
-          id: doc.uploadedBy._id,
-          name: doc.uploadedBy.name,
-          email: doc.uploadedBy.email,
-          role: doc.uploadedBy.role,
-        },
+        uploadedBy: formatUploadedByData(doc),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       }),

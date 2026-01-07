@@ -4,6 +4,7 @@ const {
   profileUpdateValidation,
   createUserValidation,
   updateUserValidation,
+  deleteUserValidation,
 } = require("../../validations/user.validation");
 const {
   getUserById,
@@ -30,7 +31,7 @@ router.put(
   updateUserValidation,
   updateUserByAdmin
 );
-router.delete("/:id", authenticateToken, deleteUser);
+router.delete("/:id", authenticateToken, deleteUserValidation, deleteUser);
 router.get("/:id/statistics", authenticateToken, getUserStatistics);
 router.get("/:id", authenticateToken, getUserById);
 router.put(

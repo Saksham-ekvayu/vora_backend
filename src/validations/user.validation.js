@@ -194,6 +194,22 @@ const changePasswordValidation = [
   handleValidationErrors,
 ];
 
+// Delete user validation
+const deleteUserValidation = [
+  body("deleteData")
+    .optional()
+    .isBoolean()
+    .withMessage("deleteData must be a boolean value (true or false)")
+    .customSanitizer((value) => {
+      // Convert string "true"/"false" to boolean if needed
+      if (typeof value === "string") {
+        return value.toLowerCase() === "true";
+      }
+      return Boolean(value);
+    }),
+  handleValidationErrors,
+];
+
 module.exports = {
   // atomic validators (exported in case needed elsewhere)
   nameValidator,
@@ -215,4 +231,5 @@ module.exports = {
   resetPasswordValidation,
   resendOtpValidation,
   changePasswordValidation,
+  deleteUserValidation,
 };

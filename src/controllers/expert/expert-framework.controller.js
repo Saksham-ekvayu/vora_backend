@@ -192,7 +192,7 @@ const getAllFrameworks = async (req, res) => {
       additionalFilters.uploadedBy = uploadedBy;
     }
 
-    // Build sort object with validation
+    // Define allowed sort fields
     const allowedSortFields = [
       "createdAt",
       "updatedAt",
@@ -201,21 +201,24 @@ const getAllFrameworks = async (req, res) => {
       "fileSize",
       "originalFileName",
     ];
-    const sortObj = buildSortObject(req.query.sort, allowedSortFields);
+
+    // Define allowed search fields
+    const allowedSearchFields = [
+      "frameworkName",
+      "originalFileName",
+      "originalUploadedBy.name",
+      "originalUploadedBy.email",
+    ];
 
     const result = await paginateWithSearch(ExpertFramework, {
       page: req.query.page,
       limit: req.query.limit || 10,
       search: search,
-      searchFields: [
-        "frameworkName",
-        "originalFileName",
-        "originalUploadedBy.name",
-        "originalUploadedBy.email",
-      ],
+      searchFields: allowedSearchFields,
       filter: additionalFilters,
       select: "",
-      sort: sortObj,
+      sort: req.query.sort,
+      allowedSortFields: allowedSortFields,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,
@@ -509,7 +512,7 @@ const getExpertFrameworks = async (req, res) => {
       uploadedBy: expertId,
     };
 
-    // Build sort object with validation
+    // Define allowed sort fields
     const allowedSortFields = [
       "createdAt",
       "updatedAt",
@@ -518,21 +521,24 @@ const getExpertFrameworks = async (req, res) => {
       "fileSize",
       "originalFileName",
     ];
-    const sortObj = buildSortObject(req.query.sort, allowedSortFields);
+
+    // Define allowed search fields
+    const allowedSearchFields = [
+      "frameworkName",
+      "originalFileName",
+      "originalUploadedBy.name",
+      "originalUploadedBy.email",
+    ];
 
     const result = await paginateWithSearch(ExpertFramework, {
       page: req.query.page,
       limit: req.query.limit || 10,
       search: search,
-      searchFields: [
-        "frameworkName",
-        "originalFileName",
-        "originalUploadedBy.name",
-        "originalUploadedBy.email",
-      ],
+      searchFields: allowedSearchFields,
       filter: filter,
       select: "",
-      sort: sortObj,
+      sort: req.query.sort,
+      allowedSortFields: allowedSortFields,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,

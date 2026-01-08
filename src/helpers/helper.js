@@ -63,7 +63,7 @@ const buildSearchFilter = (
 };
 
 /**
- * Enhanced pagination helper with built-in search support
+ * Enhanced pagination helper with built-in search and sort support
  * @param {Object} Model - Mongoose model to paginate
  * @param {Object} options - Pagination and search options
  * @param {number} options.page - Current page number
@@ -72,7 +72,8 @@ const buildSearchFilter = (
  * @param {Array} options.searchFields - Fields to search in
  * @param {Object} options.filter - Additional MongoDB filter object
  * @param {string} options.select - Fields to select
- * @param {Object} options.sort - Sort object
+ * @param {string} options.sort - Sort query string (e.g., "createdAt", "-frameworkName")
+ * @param {Array} options.allowedSortFields - Allowed fields for sorting
  * @param {string|Object} options.populate - Fields to populate (optional)
  * @param {Function} options.transform - Transform function for each document
  * @returns {Object} Paginated result with data and pagination info
@@ -85,7 +86,8 @@ const paginateWithSearch = async (Model, options = {}) => {
     searchFields = [],
     filter = {},
     select = "-password -otp",
-    sort = { createdAt: -1 },
+    sort = "",
+    allowedSortFields = ["createdAt", "updatedAt"],
     populate = null,
     transform = null,
   } = options;
@@ -93,13 +95,16 @@ const paginateWithSearch = async (Model, options = {}) => {
   // Build search filter
   const searchFilter = buildSearchFilter(search, searchFields, filter);
 
-  // Use existing paginate function with search filter
+  // Build sort object
+  const sortObj = buildSortObject(sort, allowedSortFields);
+
+  // Use existing paginate function with search filter and sort
   const result = await paginate(Model, {
     page,
     limit,
     filter: searchFilter,
     select,
-    sort,
+    sort: sortObj,
     populate,
     transform,
   });
@@ -108,6 +113,8 @@ const paginateWithSearch = async (Model, options = {}) => {
     ...result,
     searchTerm: search || null,
     searchFields: searchFields.length > 0 ? searchFields : null,
+    sortField: sort || null,
+    allowedSortFields: allowedSortFields,
   };
 };
 

@@ -191,6 +191,8 @@ const updateUserByAdmin = async (req, res) => {
 // Get all users (admin only)
 const getAllUsers = async (req, res) => {
   try {
+    const { search } = req.query;
+
     // only admins can fetch all users
     if (!req.user || req.user.role !== "admin") {
       return res.status(403).json({
@@ -199,34 +201,28 @@ const getAllUsers = async (req, res) => {
       });
     }
 
-    // Build sort object from query params
-    let sortObj = { createdAt: -1 }; // Default sort by createdAt descending
+    // Define allowed sort fields
+    const allowedSortFields = [
+      "name",
+      "email",
+      "role",
+      "createdAt",
+      "updatedAt",
+      "isEmailVerified",
+    ];
 
-    if (req.query.sortBy && req.query.sortOrder) {
-      const sortBy = req.query.sortBy;
-      const sortOrder = req.query.sortOrder === "desc" ? -1 : 1;
-
-      // Validate sortBy field to prevent injection
-      const allowedSortFields = [
-        "name",
-        "email",
-        "role",
-        "createdAt",
-        "updatedAt",
-        "isEmailVerified",
-      ];
-      if (allowedSortFields.includes(sortBy)) {
-        sortObj = { [sortBy]: sortOrder };
-      }
-    }
+    // Define allowed search fields
+    const allowedSearchFields = ["name", "email", "role", "phone"];
 
     // Use enhanced pagination helper with search and sort support
     const result = await paginateWithSearch(User, {
       page: req.query.page,
-      limit: 10, // Fixed limit of 10 users per page
-      search: req.query.search,
-      searchFields: ["name", "email", "phone"], // Fields to search in
-      sort: sortObj,
+      limit: req.query.limit || 10,
+      search: search,
+      searchFields: allowedSearchFields,
+      sortBy: req.query.sortBy,
+      sortOrder: req.query.sortOrder,
+      allowedSortFields: allowedSortFields,
       transform: (user) => ({
         id: user._id,
         name: user.name,
@@ -242,10 +238,12 @@ const getAllUsers = async (req, res) => {
     // Determine appropriate message based on data availability
     let message = "User list retrieved successfully";
     if (result.data.length === 0) {
-      if (result.searchTerm) {
-        message = `No users match your search for "${result.searchTerm}". Try a different search term.`;
+      if (search) {
+        message =
+          "No users match your search criteria. Try adjusting your filters.";
       } else {
-        message = "No users available in the system yet.";
+        message =
+          "No users available yet. Create your first user to get started.";
       }
     }
 

@@ -201,11 +201,44 @@ const formatFileSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
+/**
+ * Build sort object from query parameter with validation
+ * @param {string} sortQuery - Sort query parameter (e.g., "createdAt", "-frameworkName")
+ * @param {Array} allowedFields - Array of allowed field names for sorting
+ * @param {Object} defaultSort - Default sort object if no valid sort provided
+ * @returns {Object} MongoDB sort object
+ */
+const buildSortObject = (
+  sortQuery,
+  allowedFields = ["createdAt", "updatedAt"],
+  defaultSort = { createdAt: -1 }
+) => {
+  if (!sortQuery || typeof sortQuery !== "string") {
+    return defaultSort;
+  }
+
+  const sort = sortQuery.trim();
+
+  if (sort.startsWith("-")) {
+    const field = sort.substring(1);
+    if (allowedFields.includes(field)) {
+      return { [field]: -1 };
+    }
+  } else {
+    if (allowedFields.includes(sort)) {
+      return { [sort]: 1 };
+    }
+  }
+
+  return defaultSort;
+};
+
 module.exports = {
   generateTempPassword,
   paginate,
   buildSearchFilter,
   paginateWithSearch,
+  buildSortObject,
   getLocalIPv4,
   formatFileSize,
 };

@@ -1,6 +1,6 @@
 const ExpertFramework = require("../../models/expert-framework.model");
 const UserFramework = require("../../models/user-framework.model"); // Added for cleanup
-const { paginateWithSearch } = require("../../helpers/helper");
+const { paginateWithSearch, buildSortObject } = require("../../helpers/helper");
 const fs = require("fs");
 const {
   createDocumentUpload,
@@ -192,16 +192,16 @@ const getAllFrameworks = async (req, res) => {
       additionalFilters.uploadedBy = uploadedBy;
     }
 
-    let sortObj = { createdAt: -1 };
-
-    if (req.query.sort) {
-      const sort = req.query.sort;
-      if (sort.startsWith("-")) {
-        sortObj = { [sort.substring(1)]: -1 };
-      } else {
-        sortObj = { [sort]: 1 };
-      }
-    }
+    // Build sort object with validation
+    const allowedSortFields = [
+      "createdAt",
+      "updatedAt",
+      "frameworkName",
+      "frameworkType",
+      "fileSize",
+      "originalFileName",
+    ];
+    const sortObj = buildSortObject(req.query.sort, allowedSortFields);
 
     const result = await paginateWithSearch(ExpertFramework, {
       page: req.query.page,
@@ -509,16 +509,16 @@ const getExpertFrameworks = async (req, res) => {
       uploadedBy: expertId,
     };
 
-    let sortObj = { createdAt: -1 };
-
-    if (req.query.sort) {
-      const sort = req.query.sort;
-      if (sort.startsWith("-")) {
-        sortObj = { [sort.substring(1)]: -1 };
-      } else {
-        sortObj = { [sort]: 1 };
-      }
-    }
+    // Build sort object with validation
+    const allowedSortFields = [
+      "createdAt",
+      "updatedAt",
+      "frameworkName",
+      "frameworkType",
+      "fileSize",
+      "originalFileName",
+    ];
+    const sortObj = buildSortObject(req.query.sort, allowedSortFields);
 
     const result = await paginateWithSearch(ExpertFramework, {
       page: req.query.page,

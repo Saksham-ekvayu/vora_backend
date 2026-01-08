@@ -19,16 +19,31 @@ const handleValidationErrors = (req, res, next) => {
 const nameValidator = (required = true) => {
   const baseChain = body("name")
     .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage("Name must be between 2 and 50 characters")
-    .matches(/^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/)
-    .withMessage(
-      "Name can only contain letters, spaces, hyphens, and apostrophes"
-    );
+    .custom((value) => {
+      // Handle null and empty string
+      if (value === null || value === undefined || value === "") {
+        if (required) {
+          throw new Error("Name is required");
+        }
+        return true;
+      }
 
-  return required
-    ? baseChain.notEmpty().withMessage("Name is required")
-    : baseChain.optional({ checkFalsy: true });
+      // Check length
+      if (value.length < 2 || value.length > 50) {
+        throw new Error("Name must be between 2 and 50 characters");
+      }
+
+      // Check format
+      if (!/^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/.test(value)) {
+        throw new Error(
+          "Name can only contain letters, spaces, hyphens, and apostrophes"
+        );
+      }
+
+      return true;
+    });
+
+  return required ? baseChain : baseChain.optional({ checkFalsy: true });
 };
 
 const emailValidator = () =>

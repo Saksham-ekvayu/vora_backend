@@ -748,6 +748,13 @@ const editProfile = async (req, res) => {
     let hasChanges = false;
 
     if (name !== undefined && name !== null) {
+      // Reject empty string for name
+      if (name.trim() === "") {
+        return res.status(400).json({
+          success: false,
+          message: "Name cannot be empty",
+        });
+      }
       if (name !== req.user.name) {
         updateData.name = name;
         hasChanges = true;
@@ -765,8 +772,7 @@ const editProfile = async (req, res) => {
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({
         success: false,
-        message:
-          "No changes detected. Provide different values.",
+        message: "No changes detected. Provide different values.",
       });
     }
 
@@ -783,7 +789,7 @@ const editProfile = async (req, res) => {
 
     const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
       new: true,
-      runValidators: true,
+      runValidators: false,
     }).select("-password -otp");
 
     res.json({

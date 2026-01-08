@@ -5,17 +5,11 @@ const router = express.Router();
 const { authenticateToken } = require("../../middlewares/auth.middleware");
 const {
   canUserCreate,
-  canUpdate,
-  canDelete,
-  canView,
+  canUserUpdate,
+  canUserDelete,
+  canUserView,
+  allRoles,
 } = require("../../middlewares/roleAccess.middleware");
-
-// Import cache middlewares (commented out)
-// const {
-//   documentListCache,
-//   userDocumentsCache,
-//   documentByIdCache,
-// } = require("../../middlewares/cache.middleware");
 
 // Import validations
 const {
@@ -64,7 +58,7 @@ router.post(
 router.get(
   "/",
   authenticateToken,
-  canView, // Only users can view documents
+  allRoles, // All user can view documents
   // documentListCache, // Cache middleware (commented out)
   getDocumentsQueryValidation,
   getAllDocuments
@@ -79,7 +73,7 @@ router.get(
 router.get(
   "/my-documents",
   authenticateToken,
-  canView, // Only users can view their own documents
+  canUserView, // Only users can view their own documents
   // userDocumentsCache, // Cache middleware (commented out)
   getUserDocuments
 );
@@ -92,7 +86,7 @@ router.get(
 router.get(
   "/:id",
   authenticateToken,
-  canView, // Only users can view documents
+  allRoles, // All users can view documents
   // documentByIdCache, // Cache middleware (commented out)
   getDocumentByIdValidation,
   getDocumentById
@@ -106,7 +100,7 @@ router.get(
 router.get(
   "/:id/download",
   authenticateToken,
-  canView, // Only users can download documents
+  canUserView, // Only users can download documents
   getDocumentByIdValidation,
   downloadDocument
 );
@@ -120,7 +114,7 @@ router.get(
 router.put(
   "/:id",
   authenticateToken,
-  canUpdate, // Only users can update documents
+  canUserUpdate, // Only users can update documents
   upload.single("document"), // Handle optional file upload
   getDocumentByIdValidation,
   updateDocumentValidation,
@@ -135,7 +129,7 @@ router.put(
 router.delete(
   "/:id",
   authenticateToken,
-  canDelete, // Only users can delete documents
+  canUserDelete, // Only users can delete documents
   deleteDocumentValidation,
   deleteDocument
 );

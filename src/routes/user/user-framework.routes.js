@@ -5,9 +5,10 @@ const router = express.Router();
 const { authenticateToken } = require("../../middlewares/auth.middleware");
 const {
   canUserCreate,
-  canUpdate,
-  canDelete,
-  canView,
+  canUserUpdate,
+  canUserDelete,
+  canUserView,
+  allRoles,
 } = require("../../middlewares/roleAccess.middleware");
 
 // Import validations
@@ -60,7 +61,7 @@ router.post(
 router.get(
   "/",
   authenticateToken,
-  canView, // Only users can view frameworks
+  allRoles, // All users can view frameworks
   // frameworkListCache, // Cache middleware (commented out)
   getFrameworksQueryValidation,
   getAllFrameworks
@@ -75,7 +76,7 @@ router.get(
 router.get(
   "/my-frameworks",
   authenticateToken,
-  canView, // Only users can view their own frameworks
+  canUserView, // Only users can view their own frameworks
   // userFrameworksCache, // Cache middleware (commented out)
   getUserFrameworks
 );
@@ -88,7 +89,7 @@ router.get(
 router.get(
   "/:id",
   authenticateToken,
-  canView, // Only users can view frameworks
+  allRoles, // All users can view frameworks
   // frameworkByIdCache, // Cache middleware (commented out)
   getFrameworkByIdValidation,
   getFrameworkById
@@ -102,7 +103,7 @@ router.get(
 router.get(
   "/:id/download",
   authenticateToken,
-  canView, // Only users can download frameworks
+  canUserView, // Only users can download frameworks
   getFrameworkByIdValidation,
   downloadFramework
 );
@@ -116,7 +117,7 @@ router.get(
 router.put(
   "/:id",
   authenticateToken,
-  canUpdate, // Only users can update frameworks
+  canUserUpdate, // Only users can update frameworks
   upload.single("file"), // Handle optional file upload
   getFrameworkByIdValidation,
   updateFrameworkValidation,
@@ -131,7 +132,7 @@ router.put(
 router.post(
   "/:id/upload-to-ai",
   authenticateToken,
-  canUpdate, // Only users can upload their frameworks to AI
+  canUserUpdate, // Only users can upload their frameworks to AI
   uploadFrameworkToAIValidation,
   uploadFrameworkToAIService
 );
@@ -144,7 +145,7 @@ router.post(
 router.get(
   "/:id/ai-status",
   authenticateToken,
-  canView, // Only users can check AI status
+  canUserView, // Only users can check AI status
   getFrameworkByIdValidation, // Validate id in params
   checkAIProcessingStatus
 );
@@ -157,7 +158,7 @@ router.get(
 router.delete(
   "/:id",
   authenticateToken,
-  canDelete, // Only users can delete frameworks
+  canUserDelete, // Only users can delete frameworks
   deleteFrameworkValidation,
   deleteFramework
 );

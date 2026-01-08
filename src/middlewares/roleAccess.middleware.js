@@ -39,9 +39,9 @@ const allRoles = roleAccess("admin", "expert", "user");
 
 // Generic role middleware for user operations
 const canUserCreate = roleAccess("user"); // Only users can create (documents, frameworks, etc.)
-const canUpdate = roleAccess("user"); // Only users can update (documents, frameworks, etc.)
-const canDelete = roleAccess("user"); // Only users can delete (documents, frameworks, etc.)
-const canView = roleAccess("user"); // Only users can view (documents, frameworks, etc.)
+const canUserUpdate = roleAccess("user"); // Only users can update (documents, frameworks, etc.)
+const canUserDelete = roleAccess("user"); // Only users can delete (documents, frameworks, etc.)
+const canUserView = roleAccess("user"); // Only users can view (documents, frameworks, etc.)
 
 // Generic role middleware for expert operations
 const canExpertCreate = roleAccess("expert"); // Only experts can create (frameworks, etc.)
@@ -56,9 +56,9 @@ module.exports = {
   adminOrExpert,
   allRoles,
   canUserCreate,
-  canUpdate,
-  canDelete,
-  canView,
+  canUserUpdate,
+  canUserDelete,
+  canUserView,
   canExpertCreate,
   canExpertUpdate,
   canExpertDelete,

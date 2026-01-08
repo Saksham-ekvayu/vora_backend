@@ -240,6 +240,57 @@ const buildSortObject = (
   return defaultSort;
 };
 
+// Helper function to format Ai Processing data
+const formatAIProcessingData = (aiProcessing, includeControls = false) => {
+  if (!aiProcessing?.uuid) return null;
+
+  const baseData = {
+    uuid: aiProcessing.uuid,
+    status: aiProcessing.status,
+    control_extraction_status: aiProcessing.control_extraction_status,
+    processedAt: aiProcessing.processedAt,
+    controlsExtractedAt: aiProcessing.controlsExtractedAt || null,
+    errorMessage: aiProcessing.errorMessage || null,
+    controlsCount: aiProcessing.controlsCount || 0,
+  };
+
+  // Include controls data if requested
+  if (includeControls && aiProcessing.extractedControls?.length > 0) {
+    baseData.extractedControls = aiProcessing.extractedControls;
+  }
+
+  return baseData;
+};
+
+// Helper function to format uploadedBy data
+const formatUploadedByData = (framework) => {
+  if (framework.uploadedBy) {
+    return {
+      id: framework.uploadedBy._id,
+      name: framework.uploadedBy.name,
+      email: framework.uploadedBy.email,
+      role: framework.uploadedBy.role,
+      isUserDeleted: false,
+    };
+  } else if (framework.originalUploadedBy) {
+    return {
+      id: framework.originalUploadedBy.userId,
+      name: framework.originalUploadedBy.name,
+      email: framework.originalUploadedBy.email,
+      role: framework.originalUploadedBy.role,
+      isUserDeleted: true,
+    };
+  } else {
+    return {
+      id: null,
+      name: "Deleted User",
+      email: "N/A",
+      role: "N/A",
+      isUserDeleted: true,
+    };
+  }
+};
+
 module.exports = {
   generateTempPassword,
   paginate,
@@ -248,4 +299,6 @@ module.exports = {
   buildSortObject,
   getLocalIPv4,
   formatFileSize,
+  formatAIProcessingData,
+  formatUploadedByData,
 };

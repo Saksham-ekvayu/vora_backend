@@ -207,7 +207,12 @@ const getAllFrameworks = async (req, res) => {
       page: req.query.page,
       limit: req.query.limit || 10,
       search: search,
-      searchFields: ["frameworkName", "originalFileName"],
+      searchFields: [
+        "frameworkName",
+        "originalFileName",
+        "originalUploadedBy.name",
+        "originalUploadedBy.email",
+      ],
       filter: additionalFilters,
       select: "",
       sort: sortObj,
@@ -498,6 +503,7 @@ const downloadFramework = async (req, res) => {
 const getExpertFrameworks = async (req, res) => {
   try {
     const expertId = req.user._id;
+    const { search } = req.query;
 
     const filter = {
       uploadedBy: expertId,
@@ -517,6 +523,13 @@ const getExpertFrameworks = async (req, res) => {
     const result = await paginateWithSearch(ExpertFramework, {
       page: req.query.page,
       limit: req.query.limit || 10,
+      search: search,
+      searchFields: [
+        "frameworkName",
+        "originalFileName",
+        "originalUploadedBy.name",
+        "originalUploadedBy.email",
+      ],
       filter: filter,
       select: "",
       sort: sortObj,
@@ -527,12 +540,7 @@ const getExpertFrameworks = async (req, res) => {
         frameworkType: doc.frameworkType,
         fileSize: getFormattedFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
-        uploadedBy: {
-          id: doc.uploadedBy._id,
-          name: doc.uploadedBy.name,
-          email: doc.uploadedBy.email,
-          role: doc.uploadedBy.role,
-        },
+        uploadedBy: formatUploadedByData(doc),
         aiProcessing: formatAIProcessingData(doc.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,

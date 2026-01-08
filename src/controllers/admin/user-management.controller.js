@@ -732,23 +732,54 @@ const deleteUser = async (req, res) => {
 // Edit user profile (for logged-in user)
 const editProfile = async (req, res) => {
   try {
-    const { name, email, phone } = req.body;
+    const { name, phone } = req.body;
     const userId = req.user._id;
 
-    // Check if email is being changed and if it's already taken
-    if (email && email !== req.user.email) {
-      const existingUser = await User.findOne({ email });
-      if (existingUser) {
-        return res
-          .status(400)
-          .json({ success: false, message: "Email already exists" });
+    // Email cannot be changed
+    if (req.body.email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email cannot be changed",
+      });
+    }
+
+    // Build update data only with provided fields
+    const updateData = {};
+    let hasChanges = false;
+
+    if (name !== undefined && name !== null) {
+      if (name !== req.user.name) {
+        updateData.name = name;
+        hasChanges = true;
       }
     }
 
-    const updateData = {};
-    if (name) updateData.name = name;
-    if (email) updateData.email = email;
-    if (phone) updateData.phone = phone;
+    if (phone !== undefined && phone !== null) {
+      if (phone !== req.user.phone) {
+        updateData.phone = phone;
+        hasChanges = true;
+      }
+    }
+
+    // If no fields to update, return error
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "No changes detected. Provide different values.",
+      });
+    }
+
+    // Check if phone is being changed and if it's already taken
+    if (phone && phone !== req.user.phone) {
+      const existingUser = await User.findOne({ phone });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: "Phone number already exists",
+        });
+      }
+    }
 
     const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
       new: true,
@@ -767,7 +798,11 @@ const editProfile = async (req, res) => {
     });
   } catch (error) {
     console.error("Profile update error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
 };
 

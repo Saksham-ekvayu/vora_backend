@@ -16,17 +16,20 @@ const handleValidationErrors = (req, res, next) => {
   next();
 };
 
-const nameValidator = () =>
-  body("name")
+const nameValidator = (required = true) => {
+  const baseChain = body("name")
     .trim()
-    .notEmpty()
-    .withMessage("Name is required")
     .isLength({ min: 2, max: 50 })
     .withMessage("Name must be between 2 and 50 characters")
     .matches(/^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/)
     .withMessage(
       "Name can only contain letters, spaces, hyphens, and apostrophes"
     );
+
+  return required
+    ? baseChain.notEmpty().withMessage("Name is required")
+    : baseChain.optional({ checkFalsy: true });
+};
 
 const emailValidator = () =>
   body("email")
@@ -58,7 +61,7 @@ const passwordValidator = (field = "password") =>
       "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character"
     );
 
-const phoneCustomValidator = (required = true) => {
+const phoneValidator = (required = true) => {
   const baseChain = body("phone")
     .trim()
     .custom((value) => {
@@ -112,28 +115,28 @@ const otpValidator = () =>
 // *******************************************************************
 
 const createUserValidation = [
-  nameValidator(),
+  nameValidator(true),
   emailValidator(),
   roleValidator(),
   // phone not required on create user
-  phoneCustomValidator(false),
+  phoneValidator(false),
   handleValidationErrors,
 ];
 
 const updateUserValidation = [
-  nameValidator(),
+  nameValidator(true),
   roleValidator(),
   // phone not required on create user
-  phoneCustomValidator(false),
+  phoneValidator(false),
   handleValidationErrors,
 ];
 
 const registerValidation = [
-  nameValidator(),
+  nameValidator(true),
   emailValidator(),
   passwordValidator(),
   // phone required on register
-  phoneCustomValidator(true),
+  phoneValidator(true),
   handleValidationErrors,
 ];
 
@@ -154,10 +157,8 @@ const sendVerificationOTPValidation = [
 ];
 
 const profileUpdateValidation = [
-  nameValidator(),
-  emailValidator(),
-  // phone required in profile update
-  phoneCustomValidator(true),
+  nameValidator(false),
+  phoneValidator(false),
   handleValidationErrors,
 ];
 
@@ -218,7 +219,7 @@ module.exports = {
   roleValidator,
   passwordValidator,
   otpValidator,
-  phoneCustomValidator,
+  phoneValidator,
   handleValidationErrors,
   // composite validators
   createUserValidation,

@@ -1,6 +1,6 @@
 const ExpertFramework = require("../../models/expert-framework.model");
 const UserFramework = require("../../models/user-framework.model"); // Added for cleanup
-const { paginateWithSearch, buildSortObject } = require("../../helpers/helper");
+const { paginateWithSearch, formatFileSize } = require("../../helpers/helper");
 const fs = require("fs");
 const {
   createDocumentUpload,
@@ -13,15 +13,6 @@ const {
   sendToUser,
 } = require("../../websocket/framework-comparison.websocket");
 const FrameworkComparison = require("../../models/framework-comparison.model");
-
-// Helper functions
-const getFormattedFileSize = (bytes) => {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-};
 
 const formatAIProcessingData = (aiProcessing, includeControls = false) => {
   if (!aiProcessing?.uuid) return null;
@@ -148,7 +139,7 @@ const createFramework = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: getFormattedFileSize(framework.fileSize),
+          fileSize: formatFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
           uploadedBy: formatUploadedByData(framework),
           aiProcessing: formatAIProcessingData(framework.aiProcessing),
@@ -224,7 +215,7 @@ const getAllFrameworks = async (req, res) => {
         id: doc._id,
         frameworkName: doc.frameworkName,
         frameworkType: doc.frameworkType,
-        fileSize: getFormattedFileSize(doc.fileSize),
+        fileSize: formatFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
         uploadedBy: formatUploadedByData(doc),
         aiProcessing: formatAIProcessingData(doc.aiProcessing),
@@ -284,7 +275,7 @@ const getFrameworkById = async (req, res) => {
         id: framework._id,
         frameworkName: framework.frameworkName,
         frameworkType: framework.frameworkType,
-        fileSize: getFormattedFileSize(framework.fileSize),
+        fileSize: formatFileSize(framework.fileSize),
         originalFileName: framework.originalFileName,
         fileUrl: framework.fileUrl,
         uploadedBy: formatUploadedByData(framework),
@@ -373,7 +364,7 @@ const updateFramework = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: getFormattedFileSize(framework.fileSize),
+          fileSize: formatFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
           uploadedBy: formatUploadedByData(framework),
           createdAt: framework.createdAt,
@@ -544,7 +535,7 @@ const getExpertFrameworks = async (req, res) => {
         id: doc._id,
         frameworkName: doc.frameworkName,
         frameworkType: doc.frameworkType,
-        fileSize: getFormattedFileSize(doc.fileSize),
+        fileSize: formatFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
         uploadedBy: formatUploadedByData(doc),
         aiProcessing: formatAIProcessingData(doc.aiProcessing),

@@ -1,6 +1,11 @@
 const UserFramework = require("../../models/user-framework.model");
 const FrameworkComparison = require("../../models/framework-comparison.model");
-const { paginateWithSearch } = require("../../helpers/helper");
+const {
+  paginateWithSearch,
+  formatFrameworkUploadedBy,
+  formatFileSize,
+  formatAIProcessingData,
+} = require("../../helpers/helper");
 const fs = require("fs");
 const {
   createDocumentUpload,
@@ -12,70 +17,9 @@ const aiService = require("../../services/ai/user-ai.service");
 const {
   sendToUser,
 } = require("../../websocket/framework-comparison.websocket");
-// const cacheService = require("../../services/cache.service");
-// const { invalidateCache } = require("../../middlewares/cache.middleware");
 
 // Create upload instance with specific directory for user frameworks
 const upload = createDocumentUpload("src/uploads/user-frameworks");
-
-// Helper functions
-const getFormattedFileSize = (bytes) => {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-};
-
-const formatAIProcessingData = (aiProcessing, includeControls = false) => {
-  if (!aiProcessing?.uuid) return null;
-
-  const baseData = {
-    uuid: aiProcessing.uuid,
-    status: aiProcessing.status,
-    control_extraction_status: aiProcessing.control_extraction_status,
-    processedAt: aiProcessing.processedAt,
-    controlsExtractedAt: aiProcessing.controlsExtractedAt || null,
-    errorMessage: aiProcessing.errorMessage || null,
-    controlsCount: aiProcessing.controlsCount || 0,
-  };
-
-  // Include controls data if requested
-  if (includeControls && aiProcessing.extractedControls?.length > 0) {
-    baseData.extractedControls = aiProcessing.extractedControls;
-  }
-
-  return baseData;
-};
-
-// Helper function to format uploadedBy data
-const formatUploadedByData = (framework) => {
-  if (framework.uploadedBy) {
-    return {
-      id: framework.uploadedBy._id,
-      name: framework.uploadedBy.name,
-      email: framework.uploadedBy.email,
-      role: framework.uploadedBy.role,
-      isUserDeleted: false,
-    };
-  } else if (framework.originalUploadedBy) {
-    return {
-      id: framework.originalUploadedBy.userId,
-      name: framework.originalUploadedBy.name,
-      email: framework.originalUploadedBy.email,
-      role: framework.originalUploadedBy.role,
-      isUserDeleted: true,
-    };
-  } else {
-    return {
-      id: null,
-      name: "Deleted User",
-      email: "N/A",
-      role: "N/A",
-      isUserDeleted: true,
-    };
-  }
-};
 
 // Create a new framework
 const createFramework = async (req, res) => {
@@ -156,9 +100,9 @@ const createFramework = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: getFormattedFileSize(framework.fileSize),
+          fileSize: formatFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
-          uploadedBy: formatUploadedByData(framework),
+          uploadedBy: formatFrameworkUploadedBy(framework),
           aiProcessing: formatAIProcessingData(framework.aiProcessing),
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
@@ -202,35 +146,35 @@ const getAllFrameworks = async (req, res) => {
       additionalFilters.uploadedBy = uploadedBy;
     }
 
-    // Build sort object
-    let sortObj = { createdAt: -1 }; // Default sort
+    // Define allowed sort fields
+    const allowedSortFields = ["createdAt", "updatedAt", "frameworkName"];
 
-    if (req.query.sort) {
-      const sort = req.query.sort;
-      if (sort.startsWith("-")) {
-        sortObj = { [sort.substring(1)]: -1 };
-      } else {
-        sortObj = { [sort]: 1 };
-      }
-    }
+    // Define allowed search fields
+    const allowedSearchFields = [
+      "frameworkName",
+      "originalFileName",
+      "originalUploadedBy.name",
+      "originalUploadedBy.email",
+    ];
 
     // Use pagination helper with search
     const result = await paginateWithSearch(UserFramework, {
       page: req.query.page,
       limit: req.query.limit || 10,
       search: search,
-      searchFields: ["frameworkName", "originalFileName"],
+      searchFields: allowedSearchFields,
       filter: additionalFilters,
       select: "", // Don't exclude any fields for frameworks
-      sort: sortObj,
+      sort: req.query.sort,
+      sortFields: allowedSortFields,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,
         frameworkName: doc.frameworkName,
         frameworkType: doc.frameworkType,
-        fileSize: getFormattedFileSize(doc.fileSize),
+        fileSize: formatFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
-        uploadedBy: formatUploadedByData(doc),
+        uploadedBy: formatFrameworkUploadedBy(doc),
         aiProcessing: formatAIProcessingData(doc.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
@@ -293,10 +237,10 @@ const getFrameworkById = async (req, res) => {
         id: framework._id,
         frameworkName: framework.frameworkName,
         frameworkType: framework.frameworkType,
-        fileSize: getFormattedFileSize(framework.fileSize),
+        fileSize: formatFileSize(framework.fileSize),
         originalFileName: framework.originalFileName,
         fileUrl: framework.fileUrl,
-        uploadedBy: formatUploadedByData(framework),
+        uploadedBy: formatFrameworkUploadedBy(framework),
         aiProcessing: formatAIProcessingData(framework.aiProcessing, true),
         comparisonResults: framework.comparisonResults || [],
         comparisonCount: framework.comparisonResults?.length || 0,
@@ -397,9 +341,9 @@ const updateFramework = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: getFormattedFileSize(framework.fileSize),
+          fileSize: formatFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
-          uploadedBy: formatUploadedByData(framework),
+          uploadedBy: formatFrameworkUploadedBy(framework),
           createdAt: framework.createdAt,
           updatedAt: framework.updatedAt,
         },
@@ -540,33 +484,35 @@ const getUserFrameworks = async (req, res) => {
       uploadedBy: userId,
     };
 
-    // Build sort object
-    let sortObj = { createdAt: -1 }; // Default sort
+    // Define allowed sort fields
+    const allowedSortFields = ["createdAt", "updatedAt", "frameworkName"];
 
-    if (req.query.sort) {
-      const sort = req.query.sort;
-      if (sort.startsWith("-")) {
-        sortObj = { [sort.substring(1)]: -1 };
-      } else {
-        sortObj = { [sort]: 1 };
-      }
-    }
+    // Define allowed search fields
+    const allowedSearchFields = [
+      "frameworkName",
+      "originalFileName",
+      "originalUploadedBy.name",
+      "originalUploadedBy.email",
+    ];
 
     // Use pagination helper
     const result = await paginateWithSearch(UserFramework, {
       page: req.query.page,
       limit: req.query.limit || 10,
+      search: search,
+      searchFields: allowedSearchFields,
       filter: filter,
-      select: "", // Don't exclude any fields for frameworks
-      sort: sortObj,
+      select: "",
+      sort: req.query.sort,
+      sortFields: allowedSortFields,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,
         frameworkName: doc.frameworkName,
         frameworkType: doc.frameworkType,
-        fileSize: getFormattedFileSize(doc.fileSize),
+        fileSize: formatFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
-        uploadedBy: formatUploadedByData(doc),
+        uploadedBy: formatFrameworkUploadedBy(doc),
         aiProcessing: formatAIProcessingData(doc.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
@@ -576,8 +522,13 @@ const getUserFrameworks = async (req, res) => {
     // Determine appropriate message based on data availability
     let message = "User frameworks retrieved successfully";
     if (result.data.length === 0) {
-      message =
-        "You haven't uploaded any frameworks yet. Upload your first framework to get started.";
+      if (search) {
+        message =
+          "No framework match your search criteria. Try adjusting your filters.";
+      } else {
+        message =
+          "You haven't uploaded any frameworks yet. Upload your first framework to get started.";
+      }
     }
 
     res.status(200).json({

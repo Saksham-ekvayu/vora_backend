@@ -63,7 +63,7 @@ const buildSearchFilter = (
 };
 
 /**
- * Enhanced pagination helper with built-in search support
+ * Enhanced pagination helper with built-in search and sort support
  * @param {Object} Model - Mongoose model to paginate
  * @param {Object} options - Pagination and search options
  * @param {number} options.page - Current page number
@@ -72,7 +72,8 @@ const buildSearchFilter = (
  * @param {Array} options.searchFields - Fields to search in
  * @param {Object} options.filter - Additional MongoDB filter object
  * @param {string} options.select - Fields to select
- * @param {Object} options.sort - Sort object
+ * @param {string} options.sort - Sort query string (e.g., "createdAt", "-frameworkName")
+ * @param {Array} options.sortFields - Allowed fields for sorting
  * @param {string|Object} options.populate - Fields to populate (optional)
  * @param {Function} options.transform - Transform function for each document
  * @returns {Object} Paginated result with data and pagination info
@@ -85,7 +86,8 @@ const paginateWithSearch = async (Model, options = {}) => {
     searchFields = [],
     filter = {},
     select = "-password -otp",
-    sort = { createdAt: -1 },
+    sort = "",
+    sortFields = ["createdAt", "updatedAt"],
     populate = null,
     transform = null,
   } = options;
@@ -93,13 +95,16 @@ const paginateWithSearch = async (Model, options = {}) => {
   // Build search filter
   const searchFilter = buildSearchFilter(search, searchFields, filter);
 
-  // Use existing paginate function with search filter
+  // Build sort object
+  const sortObj = buildSortObject(sort, sortFields);
+
+  // Use existing paginate function with search filter and sort
   const result = await paginate(Model, {
     page,
     limit,
     filter: searchFilter,
     select,
-    sort,
+    sort: sortObj,
     populate,
     transform,
   });
@@ -108,6 +113,8 @@ const paginateWithSearch = async (Model, options = {}) => {
     ...result,
     searchTerm: search || null,
     searchFields: searchFields.length > 0 ? searchFields : null,
+    sortField: sort || null,
+    sortFields: sortFields,
   };
 };
 
@@ -201,11 +208,127 @@ const formatFileSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
+/**
+ * Build sort object from query parameter with validation
+ * @param {string} sortQuery - Sort query parameter (e.g., "createdAt", "-frameworkName")
+ * @param {Array} allowedFields - Array of allowed field names for sorting
+ * @param {Object} defaultSort - Default sort object if no valid sort provided
+ * @returns {Object} MongoDB sort object
+ */
+const buildSortObject = (
+  sortQuery,
+  allowedFields = ["createdAt", "updatedAt"],
+  defaultSort = { createdAt: -1 }
+) => {
+  if (!sortQuery || typeof sortQuery !== "string") {
+    return defaultSort;
+  }
+
+  const sort = sortQuery.trim();
+
+  if (sort.startsWith("-")) {
+    const field = sort.substring(1);
+    if (allowedFields.includes(field)) {
+      return { [field]: -1 };
+    }
+  } else {
+    if (allowedFields.includes(sort)) {
+      return { [sort]: 1 };
+    }
+  }
+
+  return defaultSort;
+};
+
+// Helper function to format Ai Processing data
+const formatAIProcessingData = (aiProcessing, includeControls = false) => {
+  if (!aiProcessing?.uuid) return null;
+
+  const baseData = {
+    uuid: aiProcessing.uuid,
+    status: aiProcessing.status,
+    control_extraction_status: aiProcessing.control_extraction_status,
+    processedAt: aiProcessing.processedAt,
+    controlsExtractedAt: aiProcessing.controlsExtractedAt || null,
+    errorMessage: aiProcessing.errorMessage || null,
+    controlsCount: aiProcessing.controlsCount || 0,
+  };
+
+  // Include controls data if requested
+  if (includeControls && aiProcessing.extractedControls?.length > 0) {
+    baseData.extractedControls = aiProcessing.extractedControls;
+  }
+
+  return baseData;
+};
+
+// Helper function to format frameworkUploadedBy data
+const formatFrameworkUploadedBy = (framework) => {
+  if (framework.uploadedBy) {
+    return {
+      id: framework.uploadedBy._id,
+      name: framework.uploadedBy.name,
+      email: framework.uploadedBy.email,
+      role: framework.uploadedBy.role,
+      isUserDeleted: false,
+    };
+  } else if (framework.originalUploadedBy) {
+    return {
+      id: framework.originalUploadedBy.userId,
+      name: framework.originalUploadedBy.name,
+      email: framework.originalUploadedBy.email,
+      role: framework.originalUploadedBy.role,
+      isUserDeleted: true,
+    };
+  } else {
+    return {
+      id: null,
+      name: "Deleted User",
+      email: "N/A",
+      role: "N/A",
+      isUserDeleted: true,
+    };
+  }
+};
+
+// Helper function to format documentUploadedBy data
+const formatDocumentUploadedBy = (document) => {
+  if (document.uploadedBy) {
+    return {
+      id: document.uploadedBy._id,
+      name: document.uploadedBy.name,
+      email: document.uploadedBy.email,
+      role: document.uploadedBy.role,
+      isUserDeleted: false,
+    };
+  } else if (document.originalUploadedBy) {
+    return {
+      id: document.originalUploadedBy.userId,
+      name: document.originalUploadedBy.name,
+      email: document.originalUploadedBy.email,
+      role: document.originalUploadedBy.role,
+      isUserDeleted: true,
+    };
+  } else {
+    return {
+      id: null,
+      name: "Deleted User",
+      email: "N/A",
+      role: "N/A",
+      isUserDeleted: true,
+    };
+  }
+};
+
 module.exports = {
   generateTempPassword,
   paginate,
   buildSearchFilter,
   paginateWithSearch,
+  buildSortObject,
   getLocalIPv4,
   formatFileSize,
+  formatAIProcessingData,
+  formatFrameworkUploadedBy,
+  formatDocumentUploadedBy,
 };

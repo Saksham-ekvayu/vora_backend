@@ -1,5 +1,8 @@
 const UserDocument = require("../../models/user-document.model");
-const { paginateWithSearch } = require("../../helpers/helper");
+const {
+  paginateWithSearch,
+  formatDocumentUploadedBy,
+} = require("../../helpers/helper");
 const fs = require("fs");
 const {
   createDocumentUpload,
@@ -10,35 +13,6 @@ const {
 
 // Create upload instance with specific directory for user documents
 const upload = createDocumentUpload("src/uploads/user-documents");
-
-// Helper function to format uploadedBy data
-const formatUploadedByData = (document) => {
-  if (document.uploadedBy) {
-    return {
-      id: document.uploadedBy._id,
-      name: document.uploadedBy.name,
-      email: document.uploadedBy.email,
-      role: document.uploadedBy.role,
-      isUserDeleted: false,
-    };
-  } else if (document.originalUploadedBy) {
-    return {
-      id: document.originalUploadedBy.userId,
-      name: document.originalUploadedBy.name,
-      email: document.originalUploadedBy.email,
-      role: document.originalUploadedBy.role,
-      isUserDeleted: true,
-    };
-  } else {
-    return {
-      id: null,
-      name: "Deleted User",
-      email: "N/A",
-      role: "N/A",
-      isUserDeleted: true,
-    };
-  }
-};
 
 // Create a new document
 const createDocument = async (req, res) => {
@@ -121,7 +95,7 @@ const createDocument = async (req, res) => {
           documentType: document.documentType,
           fileSize: document.getFormattedFileSize(),
           originalFileName: document.originalFileName,
-          uploadedBy: formatUploadedByData(document),
+          uploadedBy: formatDocumentUploadedBy(document),
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
         },
@@ -158,27 +132,27 @@ const getAllDocuments = async (req, res) => {
       additionalFilters.uploadedBy = uploadedBy;
     }
 
-    // Build sort object
-    let sortObj = { createdAt: -1 }; // Default sort
+    // Define allowed sort fields
+    const allowedSortFields = ["createdAt", "updatedAt", "documentName"];
 
-    if (req.query.sort) {
-      const sort = req.query.sort;
-      if (sort.startsWith("-")) {
-        sortObj = { [sort.substring(1)]: -1 };
-      } else {
-        sortObj = { [sort]: 1 };
-      }
-    }
+    // Define allowed search fields
+    const allowedSearchFields = [
+      "documentName",
+      "originalFileName",
+      "originalUploadedBy.name",
+      "originalUploadedBy.email",
+    ];
 
     // Use pagination helper with search
     const result = await paginateWithSearch(UserDocument, {
       page: req.query.page,
       limit: req.query.limit || 10,
       search: search,
-      searchFields: ["documentName", "originalFileName"],
+      searchFields: allowedSearchFields,
       filter: additionalFilters,
       select: "", // Don't exclude any fields for documents
-      sort: sortObj,
+      sort: req.query.sort,
+      sortFields: allowedSortFields,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,
@@ -186,14 +160,14 @@ const getAllDocuments = async (req, res) => {
         documentType: doc.documentType,
         fileSize: doc.getFormattedFileSize(),
         originalFileName: doc.originalFileName,
-        uploadedBy: formatUploadedByData(doc),
+        uploadedBy: formatDocumentUploadedBy(doc),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       }),
     });
 
     // Determine appropriate message based on data availability
-    let message = "Documents retrieved successfully";
+    let message = "User documents retrieved successfully";
     if (result.data.length === 0) {
       if (search || documentType || uploadedBy) {
         message =
@@ -253,7 +227,7 @@ const getDocumentById = async (req, res) => {
             : "N/A",
           originalFileName: document.originalFileName,
           fileUrl: document.fileUrl,
-          uploadedBy: formatUploadedByData(document),
+          uploadedBy: formatDocumentUploadedBy(document),
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
         },
@@ -336,7 +310,7 @@ const updateDocument = async (req, res) => {
           documentType: document.documentType,
           fileSize: document.getFormattedFileSize(),
           originalFileName: document.originalFileName,
-          uploadedBy: formatUploadedByData(document),
+          uploadedBy: formatDocumentUploadedBy(document),
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
         },
@@ -454,25 +428,27 @@ const getUserDocuments = async (req, res) => {
       uploadedBy: userId,
     };
 
-    // Build sort object
-    let sortObj = { createdAt: -1 }; // Default sort
+    // Define allowed sort fields
+    const allowedSortFields = ["createdAt", "updatedAt", "documentName"];
 
-    if (req.query.sort) {
-      const sort = req.query.sort;
-      if (sort.startsWith("-")) {
-        sortObj = { [sort.substring(1)]: -1 };
-      } else {
-        sortObj = { [sort]: 1 };
-      }
-    }
+    // Define allowed search fields
+    const allowedSearchFields = [
+      "documentName",
+      "originalFileName",
+      "originalUploadedBy.name",
+      "originalUploadedBy.email",
+    ];
 
     // Use pagination helper
     const result = await paginateWithSearch(UserDocument, {
       page: req.query.page,
       limit: req.query.limit || 10,
+      search: search,
+      searchFields: allowedSearchFields,
       filter: filter,
       select: "", // Don't exclude any fields for documents
-      sort: sortObj,
+      sort: req.query.sort,
+      sortFields: allowedSortFields,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,
@@ -480,7 +456,7 @@ const getUserDocuments = async (req, res) => {
         documentType: doc.documentType,
         fileSize: doc.getFormattedFileSize(),
         originalFileName: doc.originalFileName,
-        uploadedBy: formatUploadedByData(doc),
+        uploadedBy: formatDocumentUploadedBy(doc),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       }),
@@ -489,8 +465,13 @@ const getUserDocuments = async (req, res) => {
     // Determine appropriate message based on data availability
     let message = "User documents retrieved successfully";
     if (result.data.length === 0) {
-      message =
-        "You haven't uploaded any documents yet. Upload your first document to get started.";
+      if (search) {
+        message =
+          "No documents match your search criteria. Try adjusting your filters.";
+      } else {
+        message =
+          "No documents available yet. Upload your first document to get started.";
+      }
     }
 
     res.status(200).json({

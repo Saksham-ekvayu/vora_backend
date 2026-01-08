@@ -1,6 +1,12 @@
 const ExpertFramework = require("../../models/expert-framework.model");
-const UserFramework = require("../../models/user-framework.model"); // Added for cleanup
-const { paginateWithSearch } = require("../../helpers/helper");
+const UserFramework = require("../../models/user-framework.model");
+const FrameworkComparison = require("../../models/framework-comparison.model");
+const {
+  paginateWithSearch,
+  formatFileSize,
+  formatAIProcessingData,
+  formatUploadedByData,
+} = require("../../helpers/helper");
 const fs = require("fs");
 const {
   createDocumentUpload,
@@ -12,66 +18,6 @@ const aiService = require("../../services/ai/expert-ai.service");
 const {
   sendToUser,
 } = require("../../websocket/framework-comparison.websocket");
-const FrameworkComparison = require("../../models/framework-comparison.model");
-
-// Helper functions
-const getFormattedFileSize = (bytes) => {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-};
-
-const formatAIProcessingData = (aiProcessing, includeControls = false) => {
-  if (!aiProcessing?.uuid) return null;
-
-  const baseData = {
-    uuid: aiProcessing.uuid,
-    status: aiProcessing.status,
-    control_extraction_status: aiProcessing.control_extraction_status,
-    processedAt: aiProcessing.processedAt,
-    controlsExtractedAt: aiProcessing.controlsExtractedAt || null,
-    errorMessage: aiProcessing.errorMessage || null,
-    controlsCount: aiProcessing.controlsCount || 0,
-  };
-
-  // Include controls data if requested
-  if (includeControls && aiProcessing.extractedControls?.length > 0) {
-    baseData.extractedControls = aiProcessing.extractedControls;
-  }
-
-  return baseData;
-};
-
-// Helper function to format uploadedBy data
-const formatUploadedByData = (framework) => {
-  if (framework.uploadedBy) {
-    return {
-      id: framework.uploadedBy._id,
-      name: framework.uploadedBy.name,
-      email: framework.uploadedBy.email,
-      role: framework.uploadedBy.role,
-      isUserDeleted: false,
-    };
-  } else if (framework.originalUploadedBy) {
-    return {
-      id: framework.originalUploadedBy.userId,
-      name: framework.originalUploadedBy.name,
-      email: framework.originalUploadedBy.email,
-      role: framework.originalUploadedBy.role,
-      isUserDeleted: true,
-    };
-  } else {
-    return {
-      id: null,
-      name: "Deleted User",
-      email: "N/A",
-      role: "N/A",
-      isUserDeleted: true,
-    };
-  }
-};
 
 // Create upload instance
 const upload = createDocumentUpload("src/uploads/expert-frameworks");
@@ -148,7 +94,7 @@ const createFramework = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: getFormattedFileSize(framework.fileSize),
+          fileSize: formatFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
           uploadedBy: formatUploadedByData(framework),
           aiProcessing: formatAIProcessingData(framework.aiProcessing),
@@ -192,31 +138,32 @@ const getAllFrameworks = async (req, res) => {
       additionalFilters.uploadedBy = uploadedBy;
     }
 
-    let sortObj = { createdAt: -1 };
+    // Define allowed sort fields
+    const allowedSortFields = ["createdAt", "updatedAt", "frameworkName"];
 
-    if (req.query.sort) {
-      const sort = req.query.sort;
-      if (sort.startsWith("-")) {
-        sortObj = { [sort.substring(1)]: -1 };
-      } else {
-        sortObj = { [sort]: 1 };
-      }
-    }
+    // Define allowed search fields
+    const allowedSearchFields = [
+      "frameworkName",
+      "originalFileName",
+      "originalUploadedBy.name",
+      "originalUploadedBy.email",
+    ];
 
     const result = await paginateWithSearch(ExpertFramework, {
       page: req.query.page,
       limit: req.query.limit || 10,
       search: search,
-      searchFields: ["frameworkName", "originalFileName"],
+      searchFields: allowedSearchFields,
       filter: additionalFilters,
       select: "",
-      sort: sortObj,
+      sort: req.query.sort,
+      sortFields: allowedSortFields,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,
         frameworkName: doc.frameworkName,
         frameworkType: doc.frameworkType,
-        fileSize: getFormattedFileSize(doc.fileSize),
+        fileSize: formatFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
         uploadedBy: formatUploadedByData(doc),
         aiProcessing: formatAIProcessingData(doc.aiProcessing),
@@ -276,7 +223,7 @@ const getFrameworkById = async (req, res) => {
         id: framework._id,
         frameworkName: framework.frameworkName,
         frameworkType: framework.frameworkType,
-        fileSize: getFormattedFileSize(framework.fileSize),
+        fileSize: formatFileSize(framework.fileSize),
         originalFileName: framework.originalFileName,
         fileUrl: framework.fileUrl,
         uploadedBy: formatUploadedByData(framework),
@@ -365,7 +312,7 @@ const updateFramework = async (req, res) => {
           id: framework._id,
           frameworkName: framework.frameworkName,
           frameworkType: framework.frameworkType,
-          fileSize: getFormattedFileSize(framework.fileSize),
+          fileSize: formatFileSize(framework.fileSize),
           originalFileName: framework.originalFileName,
           uploadedBy: formatUploadedByData(framework),
           createdAt: framework.createdAt,
@@ -498,41 +445,40 @@ const downloadFramework = async (req, res) => {
 const getExpertFrameworks = async (req, res) => {
   try {
     const expertId = req.user._id;
+    const { search } = req.query;
 
     const filter = {
       uploadedBy: expertId,
     };
 
-    let sortObj = { createdAt: -1 };
+    // Define allowed sort fields
+    const allowedSortFields = ["createdAt", "updatedAt", "frameworkName"];
 
-    if (req.query.sort) {
-      const sort = req.query.sort;
-      if (sort.startsWith("-")) {
-        sortObj = { [sort.substring(1)]: -1 };
-      } else {
-        sortObj = { [sort]: 1 };
-      }
-    }
+    // Define allowed search fields
+    const allowedSearchFields = [
+      "frameworkName",
+      "originalFileName",
+      "originalUploadedBy.name",
+      "originalUploadedBy.email",
+    ];
 
     const result = await paginateWithSearch(ExpertFramework, {
       page: req.query.page,
       limit: req.query.limit || 10,
+      search: search,
+      searchFields: allowedSearchFields,
       filter: filter,
       select: "",
-      sort: sortObj,
+      sort: req.query.sort,
+      sortFields: allowedSortFields,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,
         frameworkName: doc.frameworkName,
         frameworkType: doc.frameworkType,
-        fileSize: getFormattedFileSize(doc.fileSize),
+        fileSize: formatFileSize(doc.fileSize),
         originalFileName: doc.originalFileName,
-        uploadedBy: {
-          id: doc.uploadedBy._id,
-          name: doc.uploadedBy.name,
-          email: doc.uploadedBy.email,
-          role: doc.uploadedBy.role,
-        },
+        uploadedBy: formatUploadedByData(doc),
         aiProcessing: formatAIProcessingData(doc.aiProcessing),
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
@@ -541,8 +487,13 @@ const getExpertFrameworks = async (req, res) => {
 
     let message = "Expert frameworks retrieved successfully";
     if (result.data.length === 0) {
-      message =
-        "You haven't uploaded any frameworks yet. Upload your first framework to get started.";
+      if (search) {
+        message =
+          "No framework match your search criteria. Try adjusting your filters.";
+      } else {
+        message =
+          "You haven't uploaded any frameworks yet. Upload your first framework to get started.";
+      }
     }
 
     res.status(200).json({

@@ -133,14 +133,13 @@ const getAllDocuments = async (req, res) => {
     }
 
     // Define allowed sort fields
-    const allowedSortFields = ["createdAt", "updatedAt", "documentName"];
-
-    // Define allowed search fields
-    const allowedSearchFields = [
+    const allowedSortFields = [
+      "createdAt",
+      "updatedAt",
       "documentName",
+      "documentType",
+      "fileSize",
       "originalFileName",
-      "originalUploadedBy.name",
-      "originalUploadedBy.email",
     ];
 
     // Use pagination helper with search
@@ -148,11 +147,18 @@ const getAllDocuments = async (req, res) => {
       page: req.query.page,
       limit: req.query.limit || 10,
       search: search,
-      searchFields: allowedSearchFields,
+      searchFields: [
+        "documentName",
+        "originalFileName",
+        "originalUploadedBy.name",
+        "originalUploadedBy.email",
+      ],
       filter: additionalFilters,
       select: "", // Don't exclude any fields for documents
       sort: req.query.sort,
-      sortFields: allowedSortFields,
+      sortBy: req.query.sortBy,
+      sortOrder: req.query.sortOrder,
+      allowedSortFields: allowedSortFields,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,
@@ -429,26 +435,32 @@ const getUserDocuments = async (req, res) => {
     };
 
     // Define allowed sort fields
-    const allowedSortFields = ["createdAt", "updatedAt", "documentName"];
-
-    // Define allowed search fields
-    const allowedSearchFields = [
+    const allowedSortFields = [
+      "createdAt",
+      "updatedAt",
       "documentName",
+      "documentType",
+      "fileSize",
       "originalFileName",
-      "originalUploadedBy.name",
-      "originalUploadedBy.email",
     ];
 
     // Use pagination helper
     const result = await paginateWithSearch(UserDocument, {
       page: req.query.page,
       limit: req.query.limit || 10,
-      search: search,
-      searchFields: allowedSearchFields,
+      search: req.query.search,
+      searchFields: [
+        "documentName",
+        "originalFileName",
+        "originalUploadedBy.name",
+        "originalUploadedBy.email",
+      ],
       filter: filter,
       select: "", // Don't exclude any fields for documents
       sort: req.query.sort,
-      sortFields: allowedSortFields,
+      sortBy: req.query.sortBy,
+      sortOrder: req.query.sortOrder,
+      allowedSortFields: allowedSortFields,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,

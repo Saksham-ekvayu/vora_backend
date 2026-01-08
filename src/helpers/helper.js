@@ -73,7 +73,9 @@ const buildSearchFilter = (
  * @param {Object} options.filter - Additional MongoDB filter object
  * @param {string} options.select - Fields to select
  * @param {string} options.sort - Sort query string (e.g., "createdAt", "-frameworkName")
- * @param {Array} options.sortFields - Allowed fields for sorting
+ * @param {string} options.sortBy - Field to sort by (alternative to sort)
+ * @param {string} options.sortOrder - Sort order ('asc' or 'desc', used with sortBy)
+ * @param {Array} options.allowedSortFields - Allowed fields for sorting
  * @param {string|Object} options.populate - Fields to populate (optional)
  * @param {Function} options.transform - Transform function for each document
  * @returns {Object} Paginated result with data and pagination info
@@ -89,7 +91,6 @@ const paginateWithSearch = async (Model, options = {}) => {
     sort = "",
     sortBy = "",
     sortOrder = "desc",
-    sortFields = ["createdAt", "updatedAt"],
     allowedSortFields = ["createdAt", "updatedAt"],
     populate = null,
     transform = null,
@@ -98,18 +99,14 @@ const paginateWithSearch = async (Model, options = {}) => {
   // Build search filter
   const searchFilter = buildSearchFilter(search, searchFields, filter);
 
-  // Build sort object - prioritize sort parameter over sortBy/sortOrder
-  let sortObj;
-  const fieldsToUse =
-    allowedSortFields.length > 0 ? allowedSortFields : sortFields;
-
-  if (sort) {
-    sortObj = buildSortObject(sort, fieldsToUse);
-  } else if (sortBy) {
-    sortObj = buildSortFromParams(sortBy, sortOrder, fieldsToUse);
-  } else {
-    sortObj = { createdAt: -1 }; // default
-  }
+  // Build sort object using unified function
+  const sortObj = buildSortObject({
+    sort,
+    sortBy,
+    sortOrder,
+    allowedFields: allowedSortFields,
+    defaultSort: { createdAt: -1 },
+  });
 
   // Use existing paginate function with search filter and sort
   const result = await paginate(Model, {
@@ -128,7 +125,7 @@ const paginateWithSearch = async (Model, options = {}) => {
     searchFields: searchFields.length > 0 ? searchFields : null,
     sortField: sort || sortBy || null,
     sortOrder: sort ? null : sortOrder,
-    allowedSortFields: fieldsToUse,
+    allowedSortFields,
   };
 };
 
@@ -223,57 +220,45 @@ const formatFileSize = (bytes) => {
 };
 
 /**
- * Build sort object from query parameter with validation
- * @param {string} sortQuery - Sort query parameter (e.g., "createdAt", "-frameworkName")
- * @param {Array} allowedFields - Array of allowed field names for sorting
- * @param {Object} defaultSort - Default sort object if no valid sort provided
+ * Build sort object with unified handling for different sort parameter formats
+ * @param {Object} options - Sort options
+ * @param {string} options.sort - Sort query string (e.g., "createdAt", "-frameworkName")
+ * @param {string} options.sortBy - Field to sort by (alternative to sort)
+ * @param {string} options.sortOrder - Sort order ('asc' or 'desc', used with sortBy)
+ * @param {Array} options.allowedFields - Array of allowed field names for sorting
+ * @param {Object} options.defaultSort - Default sort object if no valid sort provided
  * @returns {Object} MongoDB sort object
  */
-const buildSortObject = (
-  sortQuery,
+const buildSortObject = ({
+  sort = "",
+  sortBy = "",
+  sortOrder = "desc",
   allowedFields = ["createdAt", "updatedAt"],
-  defaultSort = { createdAt: -1 }
-) => {
-  if (!sortQuery || typeof sortQuery !== "string") {
-    return defaultSort;
+  defaultSort = { createdAt: -1 },
+} = {}) => {
+  // Handle sort parameter (e.g., "createdAt", "-frameworkName")
+  if (sort && typeof sort === "string") {
+    const sortTrimmed = sort.trim();
+
+    if (sortTrimmed.startsWith("-")) {
+      const field = sortTrimmed.substring(1);
+      if (allowedFields.includes(field)) {
+        return { [field]: -1 };
+      }
+    } else {
+      if (allowedFields.includes(sortTrimmed)) {
+        return { [sortTrimmed]: 1 };
+      }
+    }
   }
 
-  const sort = sortQuery.trim();
-
-  if (sort.startsWith("-")) {
-    const field = sort.substring(1);
-    if (allowedFields.includes(field)) {
-      return { [field]: -1 };
-    }
-  } else {
-    if (allowedFields.includes(sort)) {
-      return { [sort]: 1 };
-    }
+  // Handle sortBy + sortOrder parameters
+  if (sortBy && allowedFields.includes(sortBy)) {
+    const order = sortOrder === "asc" ? 1 : -1;
+    return { [sortBy]: order };
   }
 
   return defaultSort;
-};
-
-/**
- * Build sort object from separate sortBy and sortOrder parameters
- * @param {string} sortBy - Field to sort by
- * @param {string} sortOrder - Sort order ('asc' or 'desc')
- * @param {Array} allowedFields - Array of allowed field names for sorting
- * @param {Object} defaultSort - Default sort object if no valid sort provided
- * @returns {Object} MongoDB sort object
- */
-const buildSortFromParams = (
-  sortBy,
-  sortOrder = "desc",
-  allowedFields = ["createdAt", "updatedAt"],
-  defaultSort = { createdAt: -1 }
-) => {
-  if (!sortBy || !allowedFields.includes(sortBy)) {
-    return defaultSort;
-  }
-
-  const order = sortOrder === "asc" ? 1 : -1;
-  return { [sortBy]: order };
 };
 
 // Helper function to format Ai Processing data
@@ -362,7 +347,6 @@ module.exports = {
   buildSearchFilter,
   paginateWithSearch,
   buildSortObject,
-  buildSortFromParams,
   getLocalIPv4,
   formatFileSize,
   formatAIProcessingData,

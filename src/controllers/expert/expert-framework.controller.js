@@ -139,14 +139,7 @@ const getAllFrameworks = async (req, res) => {
     }
 
     // Define allowed sort fields
-    const allowedSortFields = [
-      "createdAt",
-      "updatedAt",
-      "frameworkName",
-      "frameworkType",
-      "fileSize",
-      "originalFileName",
-    ];
+    const allowedSortFields = ["createdAt", "updatedAt", "frameworkName"];
 
     // Define allowed search fields
     const allowedSearchFields = [
@@ -164,7 +157,7 @@ const getAllFrameworks = async (req, res) => {
       filter: additionalFilters,
       select: "",
       sort: req.query.sort,
-      allowedSortFields: allowedSortFields,
+      sortFields: allowedSortFields,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,
@@ -459,14 +452,7 @@ const getExpertFrameworks = async (req, res) => {
     };
 
     // Define allowed sort fields
-    const allowedSortFields = [
-      "createdAt",
-      "updatedAt",
-      "frameworkName",
-      "frameworkType",
-      "fileSize",
-      "originalFileName",
-    ];
+    const allowedSortFields = ["createdAt", "updatedAt", "frameworkName"];
 
     // Define allowed search fields
     const allowedSearchFields = [
@@ -484,7 +470,7 @@ const getExpertFrameworks = async (req, res) => {
       filter: filter,
       select: "",
       sort: req.query.sort,
-      allowedSortFields: allowedSortFields,
+      sortFields: allowedSortFields,
       populate: "uploadedBy",
       transform: (doc) => ({
         id: doc._id,
@@ -501,8 +487,13 @@ const getExpertFrameworks = async (req, res) => {
 
     let message = "Expert frameworks retrieved successfully";
     if (result.data.length === 0) {
-      message =
-        "You haven't uploaded any frameworks yet. Upload your first framework to get started.";
+      if (search) {
+        message =
+          "No framework match your search criteria. Try adjusting your filters.";
+      } else {
+        message =
+          "You haven't uploaded any frameworks yet. Upload your first framework to get started.";
+      }
     }
 
     res.status(200).json({

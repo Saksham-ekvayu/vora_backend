@@ -73,7 +73,7 @@ const buildSearchFilter = (
  * @param {Object} options.filter - Additional MongoDB filter object
  * @param {string} options.select - Fields to select
  * @param {string} options.sort - Sort query string (e.g., "createdAt", "-frameworkName")
- * @param {Array} options.allowedSortFields - Allowed fields for sorting
+ * @param {Array} options.sortFields - Allowed fields for sorting
  * @param {string|Object} options.populate - Fields to populate (optional)
  * @param {Function} options.transform - Transform function for each document
  * @returns {Object} Paginated result with data and pagination info
@@ -87,7 +87,7 @@ const paginateWithSearch = async (Model, options = {}) => {
     filter = {},
     select = "-password -otp",
     sort = "",
-    allowedSortFields = ["createdAt", "updatedAt"],
+    sortFields = ["createdAt", "updatedAt"],
     populate = null,
     transform = null,
   } = options;
@@ -96,7 +96,7 @@ const paginateWithSearch = async (Model, options = {}) => {
   const searchFilter = buildSearchFilter(search, searchFields, filter);
 
   // Build sort object
-  const sortObj = buildSortObject(sort, allowedSortFields);
+  const sortObj = buildSortObject(sort, sortFields);
 
   // Use existing paginate function with search filter and sort
   const result = await paginate(Model, {
@@ -114,7 +114,7 @@ const paginateWithSearch = async (Model, options = {}) => {
     searchTerm: search || null,
     searchFields: searchFields.length > 0 ? searchFields : null,
     sortField: sort || null,
-    allowedSortFields: allowedSortFields,
+    sortFields: sortFields,
   };
 };
 
@@ -262,8 +262,8 @@ const formatAIProcessingData = (aiProcessing, includeControls = false) => {
   return baseData;
 };
 
-// Helper function to format uploadedBy data
-const formatUploadedByData = (framework) => {
+// Helper function to format frameworkUploadedBy data
+const formatFrameworkUploadedBy = (framework) => {
   if (framework.uploadedBy) {
     return {
       id: framework.uploadedBy._id,
@@ -291,6 +291,35 @@ const formatUploadedByData = (framework) => {
   }
 };
 
+// Helper function to format documentUploadedBy data
+const formatDocumentUploadedBy = (document) => {
+  if (document.uploadedBy) {
+    return {
+      id: document.uploadedBy._id,
+      name: document.uploadedBy.name,
+      email: document.uploadedBy.email,
+      role: document.uploadedBy.role,
+      isUserDeleted: false,
+    };
+  } else if (document.originalUploadedBy) {
+    return {
+      id: document.originalUploadedBy.userId,
+      name: document.originalUploadedBy.name,
+      email: document.originalUploadedBy.email,
+      role: document.originalUploadedBy.role,
+      isUserDeleted: true,
+    };
+  } else {
+    return {
+      id: null,
+      name: "Deleted User",
+      email: "N/A",
+      role: "N/A",
+      isUserDeleted: true,
+    };
+  }
+};
+
 module.exports = {
   generateTempPassword,
   paginate,
@@ -300,5 +329,6 @@ module.exports = {
   getLocalIPv4,
   formatFileSize,
   formatAIProcessingData,
-  formatUploadedByData,
+  formatFrameworkUploadedBy,
+  formatDocumentUploadedBy,
 };

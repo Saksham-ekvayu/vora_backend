@@ -155,7 +155,6 @@ const getAllDocuments = async (req, res) => {
       ],
       filter: additionalFilters,
       select: "", // Don't exclude any fields for documents
-      sort: req.query.sort,
       sortBy: req.query.sortBy,
       sortOrder: req.query.sortOrder,
       allowedSortFields: allowedSortFields,
@@ -457,7 +456,6 @@ const getUserDocuments = async (req, res) => {
       ],
       filter: filter,
       select: "", // Don't exclude any fields for documents
-      sort: req.query.sort,
       sortBy: req.query.sortBy,
       sortOrder: req.query.sortOrder,
       allowedSortFields: allowedSortFields,

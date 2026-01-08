@@ -169,7 +169,6 @@ const getAllFrameworks = async (req, res) => {
       ],
       filter: additionalFilters,
       select: "", // Don't exclude any fields for frameworks
-      sort: req.query.sort,
       sortBy: req.query.sortBy,
       sortOrder: req.query.sortOrder,
       allowedSortFields: allowedSortFields,
@@ -513,7 +512,6 @@ const getUserFrameworks = async (req, res) => {
       ],
       filter: filter,
       select: "",
-      sort: req.query.sort,
       sortBy: req.query.sortBy,
       sortOrder: req.query.sortOrder,
       allowedSortFields: allowedSortFields,

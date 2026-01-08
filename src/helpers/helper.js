@@ -87,7 +87,10 @@ const paginateWithSearch = async (Model, options = {}) => {
     filter = {},
     select = "-password -otp",
     sort = "",
+    sortBy = "",
+    sortOrder = "desc",
     sortFields = ["createdAt", "updatedAt"],
+    allowedSortFields = ["createdAt", "updatedAt"],
     populate = null,
     transform = null,
   } = options;
@@ -95,8 +98,18 @@ const paginateWithSearch = async (Model, options = {}) => {
   // Build search filter
   const searchFilter = buildSearchFilter(search, searchFields, filter);
 
-  // Build sort object
-  const sortObj = buildSortObject(sort, sortFields);
+  // Build sort object - prioritize sort parameter over sortBy/sortOrder
+  let sortObj;
+  const fieldsToUse =
+    allowedSortFields.length > 0 ? allowedSortFields : sortFields;
+
+  if (sort) {
+    sortObj = buildSortObject(sort, fieldsToUse);
+  } else if (sortBy) {
+    sortObj = buildSortFromParams(sortBy, sortOrder, fieldsToUse);
+  } else {
+    sortObj = { createdAt: -1 }; // default
+  }
 
   // Use existing paginate function with search filter and sort
   const result = await paginate(Model, {
@@ -113,8 +126,9 @@ const paginateWithSearch = async (Model, options = {}) => {
     ...result,
     searchTerm: search || null,
     searchFields: searchFields.length > 0 ? searchFields : null,
-    sortField: sort || null,
-    sortFields: sortFields,
+    sortField: sort || sortBy || null,
+    sortOrder: sort ? null : sortOrder,
+    allowedSortFields: fieldsToUse,
   };
 };
 
@@ -240,6 +254,28 @@ const buildSortObject = (
   return defaultSort;
 };
 
+/**
+ * Build sort object from separate sortBy and sortOrder parameters
+ * @param {string} sortBy - Field to sort by
+ * @param {string} sortOrder - Sort order ('asc' or 'desc')
+ * @param {Array} allowedFields - Array of allowed field names for sorting
+ * @param {Object} defaultSort - Default sort object if no valid sort provided
+ * @returns {Object} MongoDB sort object
+ */
+const buildSortFromParams = (
+  sortBy,
+  sortOrder = "desc",
+  allowedFields = ["createdAt", "updatedAt"],
+  defaultSort = { createdAt: -1 }
+) => {
+  if (!sortBy || !allowedFields.includes(sortBy)) {
+    return defaultSort;
+  }
+
+  const order = sortOrder === "asc" ? 1 : -1;
+  return { [sortBy]: order };
+};
+
 // Helper function to format Ai Processing data
 const formatAIProcessingData = (aiProcessing, includeControls = false) => {
   if (!aiProcessing?.uuid) return null;
@@ -326,6 +362,7 @@ module.exports = {
   buildSearchFilter,
   paginateWithSearch,
   buildSortObject,
+  buildSortFromParams,
   getLocalIPv4,
   formatFileSize,
   formatAIProcessingData,

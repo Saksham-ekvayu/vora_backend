@@ -220,8 +220,9 @@ const getAllUsers = async (req, res) => {
       limit: req.query.limit || 10,
       search: search,
       searchFields: allowedSearchFields,
-      sort: req.query.sort,
-      sortFields: allowedSortFields,
+      sortBy: req.query.sortBy,
+      sortOrder: req.query.sortOrder,
+      allowedSortFields: allowedSortFields,
       transform: (user) => ({
         id: user._id,
         name: user.name,

@@ -1,5 +1,6 @@
 const express = require("express");
 const { authenticateToken } = require("../../middlewares/auth.middleware");
+const { adminOnly } = require("../../middlewares/roleAccess.middleware");
 const {
   profileUpdateValidation,
   createUserValidation,
@@ -9,6 +10,7 @@ const {
 const {
   getUserById,
   getUserStatistics,
+  getProfile,
   editProfile,
   getAllUsers,
   deleteUser,
@@ -18,22 +20,31 @@ const {
 
 const router = express.Router();
 
-router.get("/all-users", authenticateToken, getAllUsers);
+router.get("/all-users", authenticateToken, adminOnly, getAllUsers);
 router.post(
   "/create",
   authenticateToken,
+  adminOnly,
   createUserValidation,
   createUserByAdmin
 );
 router.put(
   "/update/:id",
   authenticateToken,
+  adminOnly,
   updateUserValidation,
   updateUserByAdmin
 );
-router.delete("/:id", authenticateToken, deleteUserValidation, deleteUser);
-router.get("/:id/statistics", authenticateToken, getUserStatistics);
-router.get("/:id", authenticateToken, getUserById);
+router.delete(
+  "/:id",
+  authenticateToken,
+  adminOnly,
+  deleteUserValidation,
+  deleteUser
+);
+router.get("/profile", authenticateToken, getProfile);
+router.get("/:id/statistics", authenticateToken, adminOnly, getUserStatistics);
+router.get("/:id", authenticateToken, adminOnly, getUserById);
 router.put(
   "/profile/update",
   authenticateToken,

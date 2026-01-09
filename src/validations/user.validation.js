@@ -202,18 +202,7 @@ const changePasswordValidation = [
     .trim()
     .notEmpty()
     .withMessage("Current password is required"),
-  body("newPassword")
-    .trim()
-    .notEmpty()
-    .withMessage("New password is required")
-    .isLength({ min: 8 })
-    .withMessage("New password must be at least 8 characters long")
-    .matches(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/
-    )
-    .withMessage(
-      "New password must be at least 8 characters long and include uppercase, lowercase, number, and special character"
-    ),
+  passwordValidator("newPassword"),
   handleValidationErrors,
 ];
 

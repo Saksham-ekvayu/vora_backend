@@ -10,6 +10,7 @@ const {
 const {
   getUserById,
   getUserStatistics,
+  getProfile,
   editProfile,
   getAllUsers,
   deleteUser,
@@ -41,6 +42,7 @@ router.delete(
   deleteUserValidation,
   deleteUser
 );
+router.get("/profile", authenticateToken, getProfile);
 router.get("/:id/statistics", authenticateToken, adminOnly, getUserStatistics);
 router.get("/:id", authenticateToken, adminOnly, getUserById);
 router.put(

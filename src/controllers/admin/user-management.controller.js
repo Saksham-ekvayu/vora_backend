@@ -744,6 +744,146 @@ const deleteUser = async (req, res) => {
   }
 };
 
+// Get current user's profile with role-based statistics
+const getProfile = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Fetch user with admin details populated
+    const user = await User.findById(userId).select("-password -otp").populate({
+      path: "createdByAdminId",
+      select: "name email role",
+    });
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    // Initialize statistics based on user role
+    let statistics = {};
+
+    if (user.role === "user") {
+      // For users: count their documents, frameworks, and comparisons
+      const [documentCount, frameworkCount, comparisonCount] =
+        await Promise.all([
+          UserDocument.countDocuments({ uploadedBy: userId }),
+          UserFramework.countDocuments({ uploadedBy: userId }),
+          FrameworkComparison.countDocuments({ userId: userId }),
+        ]);
+
+      // Get AI processing status for user frameworks
+      const userFrameworks = await UserFramework.find({
+        uploadedBy: userId,
+      }).select("aiProcessing.status");
+      const aiStatusCounts = userFrameworks.reduce((acc, framework) => {
+        const status = framework.aiProcessing?.status || "pending";
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {});
+
+      statistics = {
+        documents: documentCount,
+        frameworks: frameworkCount,
+        comparisons: comparisonCount,
+        aiProcessingStatus: {
+          pending: aiStatusCounts.pending || 0,
+          processing:
+            (aiStatusCounts.processing || 0) + (aiStatusCounts.uploaded || 0),
+          completed: aiStatusCounts.completed || 0,
+          failed: aiStatusCounts.failed || 0,
+        },
+      };
+    } else if (user.role === "expert") {
+      // For experts: count their expert frameworks
+      const expertFrameworkCount = await ExpertFramework.countDocuments({
+        uploadedBy: userId,
+      });
+
+      // Get AI processing status for expert frameworks
+      const expertFrameworks = await ExpertFramework.find({
+        uploadedBy: userId,
+      }).select("aiProcessing.status");
+      const aiStatusCounts = expertFrameworks.reduce((acc, framework) => {
+        const status = framework.aiProcessing?.status || "pending";
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {});
+
+      statistics = {
+        frameworks: expertFrameworkCount,
+        aiProcessingStatus: {
+          pending: aiStatusCounts.pending || 0,
+          processing:
+            (aiStatusCounts.processing || 0) + (aiStatusCounts.uploaded || 0),
+          completed: aiStatusCounts.completed || 0,
+          failed: aiStatusCounts.failed || 0,
+        },
+      };
+    } else if (user.role === "admin") {
+      // For admin: show users/experts created by this admin
+      const createdUsers = await User.find({
+        createdBy: "admin",
+        createdByAdminId: userId,
+      }).select("_id name email role");
+
+      const usersCreatedByAdmin = createdUsers.filter((u) => u.role === "user");
+      const expertsCreatedByAdmin = createdUsers.filter(
+        (u) => u.role === "expert"
+      );
+
+      statistics = {
+        createdUsers: {
+          users: {
+            count: usersCreatedByAdmin.length,
+            list: usersCreatedByAdmin.map((u) => ({
+              id: u._id,
+              name: u.name,
+              email: u.email,
+            })),
+          },
+          experts: {
+            count: expertsCreatedByAdmin.length,
+            list: expertsCreatedByAdmin.map((u) => ({
+              id: u._id,
+              name: u.name,
+              email: u.email,
+            })),
+          },
+        },
+      };
+    }
+
+    res.json({
+      success: true,
+      message: "Profile retrieved successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        isEmailVerified: user.isEmailVerified,
+        createdAt: user.createdAt,
+        createdBy:
+          user.createdBy === "admin" && user.createdByAdminId
+            ? {
+                id: user.createdByAdminId._id,
+                name: user.createdByAdminId.name,
+                email: user.createdByAdminId.email,
+                role: user.createdByAdminId.role,
+              }
+            : user.createdBy,
+        statistics,
+      },
+    });
+  } catch (error) {
+    console.error("Get profile error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 // Edit user profile (for logged-in user)
 const editProfile = async (req, res) => {
   try {
@@ -833,6 +973,7 @@ module.exports = {
   getAllUsers,
   getUserById,
   getUserStatistics,
+  getProfile,
   editProfile,
   deleteUser,
 };

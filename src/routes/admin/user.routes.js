@@ -9,7 +9,6 @@ const {
 } = require("../../validations/user.validation");
 const {
   getUserById,
-  getUserStatistics,
   getProfile,
   editProfile,
   getAllUsers,
@@ -43,7 +42,6 @@ router.delete(
   deleteUser
 );
 router.get("/profile", authenticateToken, getProfile);
-router.get("/:id/statistics", authenticateToken, adminOnly, getUserStatistics);
 router.get("/:id", authenticateToken, adminOnly, getUserById);
 router.put(
   "/profile/update",

@@ -63,18 +63,25 @@ const roleValidator = () =>
     .withMessage("Role must be one of: admin, expert, user");
 
 const passwordValidator = (field = "password") =>
-  body("password")
+  body(field)
     .trim()
     .notEmpty()
     .withMessage("Password is required")
+
     .isLength({ min: 8 })
     .withMessage("Password must be at least 8 characters long")
-    .matches(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/
-    )
-    .withMessage(
-      "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character"
-    );
+
+    .matches(/[A-Z]/)
+    .withMessage("Password must contain at least one uppercase letter")
+
+    .matches(/[a-z]/)
+    .withMessage("Password must contain at least one lowercase letter")
+
+    .matches(/\d/)
+    .withMessage("Password must contain at least one number")
+
+    .matches(/[@$!%*#?&]/)
+    .withMessage("Password must contain at least one special character");
 
 const phoneValidator = (required = true) => {
   const baseChain = body("phone")

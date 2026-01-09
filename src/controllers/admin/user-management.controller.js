@@ -367,13 +367,7 @@ const getUserById = async (req, res) => {
         },
       };
     } else if (user.role === "admin") {
-      // For admins: show ONLY system-wide statistics and users/experts created by this admin
-      const [totalUsers, totalExperts] = await Promise.all([
-        User.countDocuments({ role: "user" }),
-        User.countDocuments({ role: "expert" }),
-      ]);
-
-      // Get users and experts created by this specific admin
+      // For admin viewing another admin: show ONLY users/experts created by that admin
       const createdUsers = await User.find({
         createdBy: "admin",
         createdByAdminId: id, // Only users created by this specific admin
@@ -386,23 +380,23 @@ const getUserById = async (req, res) => {
       );
 
       statistics = {
-        systemStats: {
-          totalUsers,
-          totalExperts,
-        },
-        createdByAdmin: {
-          usersCount: usersCreatedByAdmin.length,
-          expertsCount: expertsCreatedByAdmin.length,
-          users: usersCreatedByAdmin.map((u) => ({
-            id: u._id,
-            name: u.name,
-            email: u.email,
-          })),
-          experts: expertsCreatedByAdmin.map((u) => ({
-            id: u._id,
-            name: u.name,
-            email: u.email,
-          })),
+        createdUsers: {
+          user: {
+            count: usersCreatedByAdmin.length,
+            list: usersCreatedByAdmin.map((u) => ({
+              id: u._id,
+              name: u.name,
+              email: u.email,
+            })),
+          },
+          expert: {
+            count: expertsCreatedByAdmin.length,
+            list: expertsCreatedByAdmin.map((u) => ({
+              id: u._id,
+              name: u.name,
+              email: u.email,
+            })),
+          },
         },
       };
     }

@@ -170,7 +170,7 @@ const login = async (req, res) => {
     if (!user.isEmailVerified) {
       return res
         .status(400)
-        .json({ success: false, message: "Please verify your email first" });
+        .json({ success: false, message: "Your account is not varify. Please verify your email first" });
     }
 
     // Check password

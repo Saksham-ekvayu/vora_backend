@@ -279,8 +279,11 @@ const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Fetch directly from database
-    const user = await User.findById(id).select("-password -otp");
+    // Fetch directly from database with admin details populated
+    const user = await User.findById(id).select("-password -otp").populate({
+      path: "createdByAdminId",
+      select: "name email role",
+    });
 
     if (!user) {
       return res
@@ -355,9 +358,7 @@ const getUserById = async (req, res) => {
       }, {});
 
       statistics = {
-        documents: 0, // Experts don't have user documents
         frameworks: expertFrameworkCount,
-        comparisons: relatedComparisons,
         aiProcessingStatus: {
           pending: aiStatusCounts.pending || 0,
           processing:
@@ -412,7 +413,15 @@ const getUserById = async (req, res) => {
         phone: user.phone,
         isEmailVerified: user.isEmailVerified,
         createdAt: user.createdAt,
-        createdBy: user.createdBy,
+        createdBy:
+          user.createdBy === "admin" && user.createdByAdminId
+            ? {
+                id: user.createdByAdminId._id,
+                name: user.createdByAdminId.name,
+                email: user.createdByAdminId.email,
+                role: user.createdByAdminId.role,
+              }
+            : user.createdBy,
         statistics,
       },
     });

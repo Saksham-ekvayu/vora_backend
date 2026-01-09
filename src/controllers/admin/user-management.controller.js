@@ -265,9 +265,6 @@ const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Try to get from cache first (commented out)
-    // let user = await cacheService.getUserById(id);
-
     // Fetch directly from database
     const user = await User.findById(id).select("-password -otp");
 

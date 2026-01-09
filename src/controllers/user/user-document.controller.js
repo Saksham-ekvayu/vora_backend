@@ -475,7 +475,7 @@ const getUserDocuments = async (req, res) => {
     // Determine appropriate message based on data availability
     let message = "User documents retrieved successfully";
     if (result.data.length === 0) {
-      if (search) {
+      if (req.query.search) {
         message =
           "No documents match your search criteria. Try adjusting your filters.";
       } else {

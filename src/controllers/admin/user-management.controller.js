@@ -53,6 +53,7 @@ const createUserByAdmin = async (req, res) => {
       phone: phone || undefined,
       password: tempPassword,
       createdBy: "admin",
+      createdByAdminId: req.user._id, // Track which admin created this user
       isEmailVerified: true, // admin-created users considered verified by admin
     });
 
@@ -223,12 +224,25 @@ const getAllUsers = async (req, res) => {
       sortBy: req.query.sortBy,
       sortOrder: req.query.sortOrder,
       allowedSortFields: allowedSortFields,
+      populate: {
+        path: "createdByAdminId",
+        select: "name email role",
+      },
       transform: (user) => ({
         id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
         phone: user.phone,
+        createdBy: user.createdBy,
+        createdByAdmin: user.createdByAdminId
+          ? {
+              id: user.createdByAdminId._id,
+              name: user.createdByAdminId.name,
+              email: user.createdByAdminId.email,
+              role: user.createdByAdminId.role,
+            }
+          : null,
         isEmailVerified: user.isEmailVerified,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
@@ -353,40 +367,42 @@ const getUserById = async (req, res) => {
         },
       };
     } else if (user.role === "admin") {
-      // For admins: show system-wide statistics
-      const [
-        totalUsers,
-        totalExperts,
-        totalDocuments,
-        totalUserFrameworks,
-        totalExpertFrameworks,
-        totalComparisons,
-      ] = await Promise.all([
+      // For admins: show ONLY system-wide statistics and users/experts created by this admin
+      const [totalUsers, totalExperts] = await Promise.all([
         User.countDocuments({ role: "user" }),
         User.countDocuments({ role: "expert" }),
-        UserDocument.countDocuments(),
-        UserFramework.countDocuments(),
-        ExpertFramework.countDocuments(),
-        FrameworkComparison.countDocuments(),
       ]);
+
+      // Get users and experts created by this specific admin
+      const createdUsers = await User.find({
+        createdBy: "admin",
+        createdByAdminId: id, // Only users created by this specific admin
+      }).select("_id name email role");
+
+      // Separate users and experts created by admin
+      const usersCreatedByAdmin = createdUsers.filter((u) => u.role === "user");
+      const expertsCreatedByAdmin = createdUsers.filter(
+        (u) => u.role === "expert"
+      );
 
       statistics = {
         systemStats: {
           totalUsers,
           totalExperts,
-          totalDocuments,
-          totalUserFrameworks,
-          totalExpertFrameworks,
-          totalComparisons,
         },
-        documents: 0,
-        frameworks: 0,
-        comparisons: 0,
-        aiProcessingStatus: {
-          pending: 0,
-          processing: 0,
-          completed: 0,
-          failed: 0,
+        createdByAdmin: {
+          usersCount: usersCreatedByAdmin.length,
+          expertsCount: expertsCreatedByAdmin.length,
+          users: usersCreatedByAdmin.map((u) => ({
+            id: u._id,
+            name: u.name,
+            email: u.email,
+          })),
+          experts: expertsCreatedByAdmin.map((u) => ({
+            id: u._id,
+            name: u.name,
+            email: u.email,
+          })),
         },
       };
     }
@@ -402,6 +418,7 @@ const getUserById = async (req, res) => {
         phone: user.phone,
         isEmailVerified: user.isEmailVerified,
         createdAt: user.createdAt,
+        createdBy: user.createdBy,
         statistics,
       },
     });

@@ -48,6 +48,13 @@ const userSchema = new mongoose.Schema({
     enum: ["self", "admin"],
     default: "self",
   },
+  createdByAdminId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: function () {
+      return this.createdBy === "admin";
+    },
+  },
   createdAt: {
     type: Date,
     default: Date.now,

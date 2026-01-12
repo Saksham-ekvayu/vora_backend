@@ -52,7 +52,9 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: function () {
-      return this.createdBy === "admin";
+      // Only require for new documents where createdBy is "admin"
+      // For existing documents, don't enforce this requirement
+      return this.isNew && this.createdBy === "admin";
     },
   },
   createdAt: {
